@@ -78,6 +78,7 @@
         pnpm
         typescript
         typescript-language-server
+        nodejs_24
       ];
 
       # Native build dependencies (C libraries, system packages). The schema leaf
