@@ -124,15 +124,15 @@ How the user runs a pasture epoch — the orchestrator MUST follow this:
 ## Current state (fairtrade transcript-component lift — landed 2026-06-25)
 fairtrade **0.0.3** published (tagged `fairtrade-v0.0.3`); transcript-browser `main` consumes `^0.0.3`.
 peasant + village adopt next (their `fairtrade-1--breaking--adopt-fairtrade-design-system` worktrees are
-staged; playbooks in `llm/`). Open follow-ups: Beads epic `plabs-zgqo`, transcript-browser#5 (scorecard
-richness), peasant#143 (git cluster on the wire).
+staged; playbooks in `llm/`). Open follow-ups: the fairtrade rollout followup epic, transcript-browser#5 (scorecard
+richness), peasant#143 (git cluster on the wire). (Beads IDs in `.agents.local/`.)
 
 ## Visual / screenshot UI harness (design-system fidelity capture)
 Each app repo carries a headless-Chrome/Puppeteer capture harness for design-system fidelity work: shoot a surface in **both themes**, shoot the fairtrade **demo** for the same surface, stitch them **side-by-side (SxS)**, and diff/eyeball against the demo (the demo is the fidelity oracle — see "Review & UAT discipline"). **Verify computed styles (`getComputedStyle`), not just pixels** — close-value token pairs (`--surface` vs `--canvas`, `--ink-2` vs `--ink-3`) are indistinguishable in a scaled PNG.
 
 **Locations:** village `frontend/scripts/visual/` · peasant `web/scripts/visual/` · fairtrade `scripts/`. Capture outputs go to `review-capture/` (untracked, local-only) or `/tmp` — **never commit per-round proof PNGs**; only the `baseline/` regression references are tracked.
 
-**Core primitives** (~7 — currently duplicated per-surface AND per-repo; consolidation tracked in `plabs-2kghc`):
+**Core primitives** (~7 — currently duplicated per-surface AND per-repo; consolidation is a tracked followup):
 | primitive | what it does | examples |
 |---|---|---|
 | **boot** | start the app server (dev, or the real binary) on a fixed port | `boot-village`/`boot-peasant`/`boot-explore`, `manage-boot-village` |
@@ -147,4 +147,6 @@ Each app repo carries a headless-Chrome/Puppeteer capture harness for design-sys
 
 **Discipline (non-negotiable):** always **verify build provenance before trusting a capture** — grep the served `dist`/`out` for a string only the fix introduces, and confirm which fairtrade dist the app resolves (a stale server or wrong worktree silently invalidates a shot; see the build-provenance rule above). Both apps resolve fairtrade via a pnpm `workspace:*` dev-link to `fairtrade-design-system/main` (swaps to a published `^0.0.x` range at landing). When pointing a human at captures, give the **full absolute path with `{...}` brace alternatives** for the theme/surface/demo-app-sxs axes.
 
-**Pending:** `plabs-2kghc` — collapse the ~58 duplicated scripts into ONE shared parameterized toolkit (`boot/shoot/stitch/diff/probe/mock/gate × --repo/--surface/--theme`) so a new surface is a config entry, not a new script.
+**Pending (tracked followup):** collapse the ~58 duplicated scripts into ONE shared parameterized toolkit (`boot/shoot/stitch/diff/probe/mock/gate × --repo/--surface/--theme`) so a new surface is a config entry, not a new script.
+
+*(Ephemeral beads task IDs for these followups are NOT checked in — they live in the gitignored polyrepo-root `.agents.local/` sidecar.)*

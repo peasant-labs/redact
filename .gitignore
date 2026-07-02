@@ -4,3 +4,6 @@
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# local agent sidecar (ephemeral beads IDs, notes) — not shared
+.agents.local/
