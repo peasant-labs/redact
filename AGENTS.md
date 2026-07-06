@@ -35,15 +35,19 @@ adoption guidance: `llm/fairtrade--{peasant,village}-adoption-plan.md`.
 ### schema → `github.com/peasant-labs/schema` (Go module)
 **Role:** the canonical **data / wire contract** (Go) — `SessionDetailPayload`, `TurnDetail`,
 `ToolCallDetail`, `CommitInfo`, enums, annotations, push envelopes. The source of truth every backend
-produces and every client consumes. Extracted from peasant's `pkg/schema` (peasant#114) — **but the
-extraction STALLED before any consumer re-pinned**: both consumers still import the NESTED
-`peasant/pkg/schema` (village pins its tag `v1.5.0`), and the standalone repo lags the nested contract
-by one generation (no `License` type; specs top at 0.3.0 vs the nested 0.4.0). **Three colliding "rc"
-numberings — disambiguate on every read:** peasant product releases (`v0.1.0-rc2` published), the schema
-MODULE's own tags (`v0.1.0-rc1` only), and "rc3" = the harmonization EPOCH's name (not a tag).
-⚠️ peasant's `114--breaking--extract-pkg-schema` branch is a COMPLETE consumer swap derived from
-PRE-licensing develop — merged as-is it deletes the License type; treat it as a reference diff only.
-The staged harmonization epoch's entry point: `.agents.local/HANDOFF-rc3-schema-harmonization.md`.
+produces and every client consumes. Extracted from peasant's `pkg/schema` (peasant#114) — the epoch was
+**deliberately PARKED before any consumer re-pinned**, gated on licensing + fairtrade landing (both have
+now landed, so the resume is due): both consumers still import the NESTED `peasant/pkg/schema` (village
+pins `v1.5.0`), and the standalone repo lags the nested contract by one generation (no `License` type;
+specs top at 0.3.0 vs the nested 0.4.0). **Three colliding "rc" numberings — disambiguate on every
+read:** peasant product releases (`v0.1.0-rc2` published), the schema MODULE's own tags (`v0.1.0-rc1`
+only), and "rc3" = the harmonization EPOCH's name (not a tag).
+⚠️ **BOTH consumers carry stale swap branches** (`114--breaking--extract-pkg-schema` in peasant,
+`peasant-114--…` in village) derived from PRE-licensing develops — merged as-is they delete/regress the
+License contract; treat both as reference diffs only. The harmonization entry point:
+`.agents.local/HANDOFF-rc3-schema-harmonization.md`. The extraction epoch's full beads record is
+archived in the OLD workspace (`~/dev/agent-data-leverage/.beads`, prefix `unified-schema`) — read-only
+provenance; the handoff explains how to cite/supersede it.
 **Where to contribute:** `schema/develop` (Go source: `local_api.go`, `metadata.go`, `types.go`,
 `annotation*.go`, `CHANGELOG.md`). The TS port (`@peasant-labs/types`) has **drifted** from the Go — trust
 the Go; the durable fix is OpenAPI→TS codegen (#125/#126).
