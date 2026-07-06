@@ -118,6 +118,12 @@ changes to any of those update that doc IN THE SAME COMMIT).
 - **Beads/pasture:** `bd` from this root (prefix `plabs`); the 12-phase epoch protocol.
 - **Landing:** squash the epoch branch → `merge --no-ff` into the repo's **default** branch (`develop` for
   peasant/village, `main` for fairtrade/transcript-browser). On peasant/village, `main` advances only on a release.
+- **After a PR merges, immediately sync the local default-branch worktree** — `git -C <repo>/develop pull`
+  (or `<repo>/main` for fairtrade/transcript-browser). The local `develop`/`main` worktree does NOT
+  auto-update on a remote merge, so any later feature worktree branched from it would start behind origin
+  and re-introduce already-merged drift/conflicts. Then clean up the landed work: remove the merged feature
+  worktree (`git worktree remove`) and delete its remote branch. Verify a merge state against GitHub
+  (`gh pr view <n> --json state,mergeCommit`), not a possibly-stale local ref.
 - **No git hooks** (hard rule). Nix devShell via `flake.nix`/direnv.
 - **Generated files are never hand-merged.** On conflict (sqlc output, schema-gen goldens, lockfiles):
   merge the SOURCE (the `.sql` query / the Go types / the manifest), keep the target branch's generator
