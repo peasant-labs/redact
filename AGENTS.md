@@ -118,14 +118,18 @@ changes to any of those update that doc IN THE SAME COMMIT).
 - **Generated files are never hand-merged.** On conflict (sqlc output, schema-gen goldens, lockfiles):
   merge the SOURCE (the `.sql` query / the Go types / the manifest), keep the target branch's generator
   config, and RE-RUN the generator — the committed output must be byte-identical to fresh codegen under
-  the pinned generator version (verify with a zero-diff regen). Proven twice in the licensing epoch.
+  the pinned generator version (verify with a zero-diff regen). Proven in the licensing epoch's
+  merge wave (the sqlc `groups.sql.go` conflict; regen verified zero-diff by two reviewers).
 - **Release tooling is duplicated across peasant + schema** (release-guard, release-pr/release
   workflows, `scripts/update-nix-vendor-hash.sh`) **and has drifted twice** — the base64-`/` perl bug
-  was fixed independently in each copy weeks apart. When touching one copy, diff the other.
+  was fixed independently in each copy weeks apart (schema 2026-06-20, peasant#154 2026-07-06), and the
+  approval-gate deferral likewise landed in schema first and peasant only at #156. When touching one
+  copy, diff the other.
 - **The release-PR maintainer-approval assertion is deferred to the public flip** in BOTH peasant and
   schema (single active maintainer + GitHub's no-self-approval = unsatisfiable; the guard code +
-  tests remain live). Re-enable it alongside branch protection at the flip — it's on the runbook §6
-  checklist. Post-swap ceremony rule (future): contract changes = their own schema-repo PR + tag
+  tests remain live). Re-enable it alongside branch protection at the flip — it's on **peasant's**
+  runbook §6 checklist (the schema repo's runbook has NO public-flip section yet — mirroring that
+  checklist item there belongs to the rc3 epoch's approval-gate-unification decision). Post-swap ceremony rule (future): contract changes = their own schema-repo PR + tag
   BEFORE consumer PRs.
 - **Shipped-artifact hygiene — WORKER-PREVENTED, reviewer-backstopped:** NO internal task taxonomy — `plabs-*` Beads IDs, `SLICE-N` / `W*-*` slice names, `LIP-N`, leaf-task IDs, or phase/epic codenames (`Wave 1`/`Wave-2`, `defer-2`, `PROPOSAL-N`) — in shipped **code, comments, docs/READMEs, OR commit messages**. Describe everything by substance (what the code does / why). **Prevention is the WORKER's job, not the reviewers':** never write internal tracking terminology into shipped artifacts in the first place, and **before reporting a slice complete, self-grep your changed files and scrub any hit** — e.g. `git diff --name-only <base>..HEAD | xargs grep -nE 'plabs-|SLICE-|W[0-9]+-|\bLIP-|Wave[ -]?[0-9]|defer-[0-9]|PROPOSAL-|\bTB\b'`. This is a mandatory pre-report gate so reviewers never spend cycles on expensive hygiene audits. The reviewer grep + the clean landing-squash message remain only as a **backstop**, not the primary catch. (`.tb-*` CSS selectors are real DOM names, not the taxonomy token — don't flag them. Pre-existing leaks from prior repo development are out of scope unless the user asks to clean them.)
 - **Do not delete real prior-version functionality just because the persistent chrome changed.** If a route or component still serves a real user flow, default to soft-retaining it as a deprecation candidate and keep every production evidence exit that depends on it working. Only delete genuinely dead scaffolding, never-shipped experiments, or orphan wiring. If it is unclear whether something is real user-facing functionality, surface the decision before removing it.
