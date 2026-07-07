@@ -34,23 +34,23 @@ adoption guidance: `llm/fairtrade--{peasant,village}-adoption-plan.md`.
 
 ### schema → `github.com/peasant-labs/schema` (Go module)
 **Role:** the canonical **data / wire contract** (Go) — `SessionDetailPayload`, `TurnDetail`,
-`ToolCallDetail`, `CommitInfo`, enums, annotations, push envelopes. The source of truth every backend
-produces and every client consumes. Extracted from peasant's `pkg/schema` (peasant#114) — the epoch was
-**deliberately PARKED before any consumer re-pinned**, gated on licensing + fairtrade landing (both have
-now landed, so the resume is due): both consumers still import the NESTED `peasant/pkg/schema` (village
-pins `v1.5.0`), and the standalone repo lags the nested contract by one generation (no `License` type;
-specs top at 0.3.0 vs the nested 0.4.0). **Three colliding "rc" numberings — disambiguate on every
-read:** peasant product releases (`v0.1.0-rc2` published), the schema MODULE's own tags (`v0.1.0-rc1`
-only), and "rc3" = the harmonization EPOCH's name (not a tag).
-⚠️ **BOTH consumers carry stale swap branches** (`114--breaking--extract-pkg-schema` in peasant,
-`peasant-114--…` in village) derived from PRE-licensing develops — merged as-is they delete/regress the
-License contract; treat both as reference diffs only. The harmonization entry point:
-`.agents.local/HANDOFF-rc3-schema-harmonization.md`. The extraction epoch's full beads record is
-archived in the OLD workspace (`~/dev/agent-data-leverage/.beads`, prefix `unified-schema`) — read-only
-provenance; the handoff explains how to cite/supersede it.
+`ToolCallDetail`, `CommitInfo`, enums, annotations, push envelopes, the `License` surface. The source of
+truth every backend produces and every client consumes. Extracted from peasant's `pkg/schema` (peasant#114);
+**the swap LANDED 2026-07-07** — the standalone public module is now the single contract both consumers
+import (peasant `go.mod` + village `backend/go.mod` pin **`v0.1.0-rc2`**, specs `0.4.0`), the nested
+`pkg/schema` is deleted, and village serves AND enforces the spec FROM the module (served ≡ enforced,
+un-driftable). The cross-repo `vendorHash` / private-module-auth tax (peasant#119) is structurally dead.
+**rc numberings — disambiguate on every read:** peasant product releases (`v0.1.0-rc2`), the schema
+MODULE's own tags (`v0.1.0-rc1` + `v0.1.0-rc2`, both published prereleases), and "rc3" = the
+(now-complete) harmonization epoch's name (not a tag). The extraction+harmonization beads record is
+archived in the OLD workspace (`~/dev/agent-data-leverage/.beads`, prefix `unified-schema`,
+supersede-closed) — read-only provenance.
+⚠️ **Post-swap ceremony (now in effect):** a contract change is its own schema-repo PR + tag BEFORE the
+consumer PRs that re-pin it (stated in both peasant + village AGENTS.md).
 **Where to contribute:** `schema/develop` (Go source: `local_api.go`, `metadata.go`, `types.go`,
-`annotation*.go`, `CHANGELOG.md`). The TS port (`@peasant-labs/types`) has **drifted** from the Go — trust
-the Go; the durable fix is OpenAPI→TS codegen (#125/#126).
+`annotation*.go`, `CHANGELOG.md`; the spec regen + freshness/immutability gates live here now — no longer
+in peasant). The TS port (`@peasant-labs/types`) has **drifted** from the Go — trust the Go; the durable
+fix is OpenAPI→TS codegen (#125/#126).
 
 ### transcript-browser → `@peasant-labs/transcript-browser` (+ `analytics`, `types`, `theme`)
 **Role:** the reusable **transcript viewer** (pnpm monorepo). Renders a session via fairtrade's lifted
@@ -66,8 +66,9 @@ Keeps back-compat re-exports so peasant compiles unchanged across the migration.
 schema). The web app embeds transcript-browser's `<SessionDetail>`.
 **Where to contribute:** **read `peasant/develop/AGENTS.md` + `CLAUDE.md` first.** Key areas: `internal/ingest`
 (the `CommitDetector`, pipeline), `internal/transcript` (`EntriesToTurns` folds entries → the wire),
-`internal/api` (the `session_detail` WS), `internal/store` (SQLite, `session_commits`), `pkg/` (incl. the
-`schema` being extracted), `web/` (consumes transcript-browser). Owns the deferred backend wire work
+`internal/api` (the `session_detail` WS), `internal/store` (SQLite, `session_commits`), `pkg/` (`redact`
+et al.; the `schema` module was extracted out — peasant now imports `github.com/peasant-labs/schema`),
+`web/` (consumes transcript-browser). Owns the deferred backend wire work
 (git cluster → peasant#143; scorecard medians). **Licensing surfaces (landed):** push
 (`--license` flag / `push.license` config / FTUE page) and pull (V38 persists the served license;
 all four `village` CLI surfaces display it); SQLite carries TWO closed-set CHECK mirrors of the license
@@ -138,9 +139,11 @@ changes to any of those update that doc IN THE SAME COMMIT).
 - **The release-PR maintainer-approval assertion is deferred to the public flip** in BOTH peasant and
   schema (single active maintainer + GitHub's no-self-approval = unsatisfiable; the guard code +
   tests remain live). Re-enable it alongside branch protection at the flip — it's on **peasant's**
-  runbook §6 checklist (the schema repo's runbook has NO public-flip section yet — mirroring that
-  checklist item there belongs to the rc3 epoch's approval-gate-unification decision). Post-swap ceremony rule (future): contract changes = their own schema-repo PR + tag
-  BEFORE consumer PRs.
+  runbook §6 checklist (the schema repo's runbook still has NO public-flip section — mirroring that
+  checklist item there is an open followup; the rc3 epoch did NOT unify the approval gate).
+- **Post-swap contract ceremony (IN EFFECT since the rc3 swap landed 2026-07-07):** a contract change is
+  its own schema-repo PR + tag BEFORE the consumer PRs that re-pin it — stated in both peasant + village
+  AGENTS.md checklists.
 - **Shipped-artifact hygiene — WORKER-PREVENTED, reviewer-backstopped:** NO internal task taxonomy — `plabs-*` Beads IDs, `SLICE-N` / `W*-*` slice names, `LIP-N`, leaf-task IDs, or phase/epic codenames (`Wave 1`/`Wave-2`, `defer-2`, `PROPOSAL-N`) — in shipped **code, comments, docs/READMEs, OR commit messages**. Describe everything by substance (what the code does / why). **Prevention is the WORKER's job, not the reviewers':** never write internal tracking terminology into shipped artifacts in the first place, and **before reporting a slice complete, self-grep your changed files and scrub any hit** — e.g. `git diff --name-only <base>..HEAD | xargs grep -nE 'plabs-|SLICE-|W[0-9]+-|\bLIP-|Wave[ -]?[0-9]|defer-[0-9]|PROPOSAL-|\bTB\b'`. This is a mandatory pre-report gate so reviewers never spend cycles on expensive hygiene audits. The reviewer grep + the clean landing-squash message remain only as a **backstop**, not the primary catch. (`.tb-*` CSS selectors are real DOM names, not the taxonomy token — don't flag them. Pre-existing leaks from prior repo development are out of scope unless the user asks to clean them.)
 - **Do not delete real prior-version functionality just because the persistent chrome changed.** If a route or component still serves a real user flow, default to soft-retaining it as a deprecation candidate and keep every production evidence exit that depends on it working. Only delete genuinely dead scaffolding, never-shipped experiments, or orphan wiring. If it is unclear whether something is real user-facing functionality, surface the decision before removing it.
 - **Production exits must be tested on the mounted production path.** Tests against dormant legacy components are not enough. If a retained route exists because a current surface links to it, test the current mounted surface action and assert the actual navigation or callback users trigger.
@@ -169,19 +172,21 @@ How the user runs a pasture epoch — the orchestrator MUST follow this:
 - **Proposal numbering is per-epoch:** each epoch restarts at PROPOSAL-1 (and SLICE-1, etc.) — do NOT continue a prior epoch's global sequence. Revisions increment within the epoch (PROPOSAL-1 → PROPOSAL-2 …).
 - **Review completed slices in ONE wave, not piecemeal.** When multiple slices finish, dispatch the standing reviewers over ALL currently-completed slices in a single coordinated review wave — accumulate the done batch rather than firing a separate review round as each slice trickles in. Per-slice verdicts + severity trees are still preserved (one wave ≠ one merged severity tree across slices); the "wave" is about batching the *dispatch/timing*, not collapsing per-slice granularity.
 
-## Current state (2026-07-06)
+## Current state (2026-07-07)
 - **Fairtrade adoption: LANDED** in peasant + village (fairtrade **0.0.6**, transcript-browser **0.0.3**,
   pnpm-only web toolchains; peasant#149/#150, village#28).
-- **Transcript licensing: LANDED end-to-end** (village#26 + peasant#141/#152, `pkg/schema` v1.5.0 —
-  still the NESTED module).
+- **Transcript licensing: LANDED end-to-end** (village#26 + peasant#141/#152). The license contract now
+  lives in the standalone schema module (below), NOT the retired nested `pkg/schema`.
 - **peasant `v0.1.0-rc2` published** (prerelease, full gate chain green). The standing CGO-trio CI debt
   was FIXED in the cut: `internal/codegraph`'s TypeScript tree-sitter extraction is cgo-gated per the
-  `redact.MaximumAvailable` pattern — preserve that gating in any schema-swap re-derivation.
-- **NEXT EPOCH (staged): rc3 schema harmonization** — port the licensing contract into the standalone
-  schema repo, then re-pin both consumers. Entry point (verified readable-cold):
-  `.agents.local/HANDOFF-rc3-schema-harmonization.md`.
+  `redact.MaximumAvailable` pattern — preserve that gating.
+- **rc3 schema harmonization: LANDED 2026-07-07.** The `0.4.0` licensing contract was ported into the
+  standalone `github.com/peasant-labs/schema` module (tag + GitHub Release `v0.1.0-rc2`) and both
+  consumers re-pinned to it (peasant#159/#160, village#30/#31); the nested `pkg/schema` is deleted and
+  village serves+enforces from the module. See the schema-repo section above.
 - Other open follow-ups: the fairtrade rollout followup epic, transcript-browser#5 (scorecard richness),
-  peasant#143 (git cluster on the wire), the licensing ledgers peasant#151 ⇄ village#29.
+  peasant#143 (git cluster on the wire), the licensing ledgers peasant#151 ⇄ village#29, and the
+  pre-existing internal-taxonomy leak in the public schema repo's `internal/contractgates/doc.go`.
   (Beads IDs in `.agents.local/`.)
 
 ## Visual / screenshot UI harness (design-system fidelity capture)
