@@ -139,8 +139,9 @@ changes to any of those update that doc IN THE SAME COMMIT).
 - **The release-PR maintainer-approval assertion is deferred to the public flip** in BOTH peasant and
   schema (single active maintainer + GitHub's no-self-approval = unsatisfiable; the guard code +
   tests remain live). Re-enable it alongside branch protection at the flip — it's on **peasant's**
-  runbook §6 checklist (the schema repo's runbook still has NO public-flip section — mirroring that
-  checklist item there is an open followup; the rc3 epoch did NOT unify the approval gate).
+  runbook §6 checklist. The schema repo's runbook now carries its own §6 public-flip checklist
+  mirroring peasant's; the approval-gate re-enable stays deferred to the flip in both, and its
+  cross-repo unification is still an open followup.
 - **Post-swap contract ceremony (IN EFFECT since the rc3 swap landed 2026-07-07):** a contract change is
   its own schema-repo PR + tag BEFORE the consumer PRs that re-pin it — stated in both peasant + village
   AGENTS.md checklists.
@@ -185,9 +186,9 @@ How the user runs a pasture epoch — the orchestrator MUST follow this:
   consumers re-pinned to it (peasant#159/#160, village#30/#31); the nested `pkg/schema` is deleted and
   village serves+enforces from the module. See the schema-repo section above.
 - Other open follow-ups: the fairtrade rollout followup epic, transcript-browser#5 (scorecard richness),
-  peasant#143 (git cluster on the wire), the licensing ledgers peasant#151 ⇄ village#29, and the
-  pre-existing internal-taxonomy leak in the public schema repo's `internal/contractgates/doc.go`.
-  (Beads IDs in `.agents.local/`.)
+  peasant#143 (git cluster on the wire), and the licensing ledgers peasant#151 ⇄ village#29.
+  (The schema repo's `internal/contractgates/doc.go` taxonomy leak was already scrubbed 2026-07-07;
+  a broader scrub of the remaining public-godoc comments is in progress.) (Beads IDs in `.agents.local/`.)
 
 ## Visual / screenshot UI harness (design-system fidelity capture)
 Each app repo carries a headless-Chrome/Puppeteer capture harness for design-system fidelity work: shoot a surface in **both themes**, shoot the fairtrade **demo** for the same surface, stitch them **side-by-side (SxS)**, and diff/eyeball against the demo (the demo is the fidelity oracle — see "Review & UAT discipline"). **Verify computed styles (`getComputedStyle`), not just pixels** — close-value token pairs (`--surface` vs `--canvas`, `--ink-2` vs `--ink-3`) are indistinguishable in a scaled PNG.
