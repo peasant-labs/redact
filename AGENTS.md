@@ -59,8 +59,15 @@ in peasant). **The schema module now also owns the generated TypeScript contract
 `@peasant-labs/schema`** (landed schema#29/#30, first shipped in tag `v0.1.0-rc6`, 2026-07-17): Hey API +
 Zod generate the root types/runtime schemas from the Types OpenAPI catalog; `openapi-typescript` generates
 the type-only `/local-api` + `/village-api` operation contracts; `/types` is a deprecated compatibility
-re-export; nominal `ProjectHash` branding is `$ref`-anchored; npm publication stays DISABLED (package
-version `0.0.0-development` follows the module tag at an eventual npm cut). The handwritten
+re-export; nominal `ProjectHash` branding is `$ref`-anchored. **The package is PUBLISHED on npm**
+(first cut `0.1.0-rc6`, 2026-07-17, public, dist-tag `next`; the committed manifest keeps
+`0.0.0-development` + `private` as the local safety — the real version is stamped from the module tag at
+publish time). **npm publication is being AUTOMATED into the release ceremony** (schema#32, in flight):
+a `release.yml` npm-publish job behind the same guard → vendor-hash → contract-gates chain, authenticated
+via npm Trusted Publishing (GitHub OIDC — NO token secret), bound to the `npm-publish` GitHub environment,
+publishing rc tags under `next` and finals under `latest` with provenance attestation. The one-time
+registrations (GitHub environment + npm Trusted Publisher, allowed action `npm publish` only) are
+maintainer actions documented in the schema release runbook. The handwritten
 `@peasant-labs/types` port is **deprecated — never add new wire definitions there**; migrating
 transcript-browser/peasant-web onto the generated package (with a deprecated shim) is the open follow-up
 (#125/#126 are thereby resolved at the schema end).
@@ -290,8 +297,11 @@ How the user runs a pasture epoch — the orchestrator MUST follow this:
   by Hey API + Zod (root) and `openapi-typescript` (type-only Local/Village operation contracts), with
   fixture-backed export-identity/mutation/tarball/freshness gates, `$ref`-anchored nominal `ProjectHash`,
   and Go-generated closed sets. rc6 also carries Village API `0.6.0`, Local API `0.4.0` with typed map
-  diff enums (`FileChangeStatus`, `DiffLineKind`), and Types `0.3.0`. npm publication stays disabled;
-  consumer re-pins + the transcript-consumer TS migration (deprecated shim) are the open follow-ups.
+  diff enums (`FileChangeStatus`, `DiffLineKind`), and Types `0.3.0`.
+- **`@peasant-labs/schema@0.1.0-rc6` PUBLISHED on npm 2026-07-17** (public, dist-tag `next`; maintainer-run
+  first publish from the verified tag checkout). Ceremony automation via OIDC trusted publishing +
+  `npm-publish` environment is landing as schema#32; consumer re-pins + the transcript-consumer TS
+  migration (deprecated shim) remain the open follow-ups.
 - **Git-context redaction + hardened share bridge: LANDED 2026-07-15 (peasant#146).** Git remote URLs and
   branch output stay semantic `CategoryProject` but fire only at Maximum via `Rule.MinimumLevel`;
   `CategoryString` is the public canonical renderer; unknown categories and scan failures fail closed.
