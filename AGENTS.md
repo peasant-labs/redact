@@ -15,6 +15,9 @@ find the details for contributing, and how they connect. (The root also hosts ot
 - **`flake.nix`** + `.envrc` (direnv) — the Nix devShell for the workspace.
 - **`.beads/`** — shared Beads task DB, prefix **`plabs`**; run `bd` from this root. Work is tracked with
   the *pasture* 12-phase epoch protocol.
+- **Beads service boundary (hard rule): NEVER run `bd dolt start` or `bd dolt stop`.** If Beads reports
+  that its Dolt service is unavailable or needs intervention, stop Beads work and let the user handle the
+  service. Do not attempt a restart, shutdown, repair, or workaround that changes the service lifecycle.
 - **`llm/`** — cross-repo, LLM-facing planning docs (e.g. the fairtrade adoption playbooks).
 
 ## The core repos
@@ -37,27 +40,38 @@ adoption guidance: `llm/fairtrade--{peasant,village}-adoption-plan.md`.
 `ToolCallDetail`, `CommitInfo`, enums, annotations, push envelopes, the `License` surface. The source of
 truth every backend produces and every client consumes. Extracted from peasant's `pkg/schema` (peasant#114);
 **the swap LANDED 2026-07-07** — the standalone public module is now the single contract both consumers
-import (peasant `go.mod` + village `backend/go.mod` pin **`v0.1.0-rc2`**, specs `0.4.0`), the nested
+import (peasant `go.mod` + village `backend/go.mod` currently pin **`v0.1.0-rc5`** — serving/enforcing
+Village API `0.5.0` — while the module's current specs at **`v0.1.0-rc6`** are Village `0.6.0` /
+Local API `0.4.0` / Types `0.3.0`, with all retired versions byte-frozen), the nested
 `pkg/schema` is deleted, and village serves AND enforces the spec FROM the module (served ≡ enforced,
 un-driftable). The cross-repo `vendorHash` / private-module-auth tax (peasant#119) is structurally dead.
 **rc numberings — disambiguate on every read:** peasant product releases (`v0.1.0-rc2`), the schema
-MODULE's own tags (`v0.1.0-rc1` + `v0.1.0-rc2`, both published prereleases), and "rc3" = the
-(now-complete) harmonization epoch's name (not a tag). The extraction+harmonization beads record is
+MODULE's own published prerelease tags (`v0.1.0-rc1` through `v0.1.0-rc6`), and the historical phrase
+"rc3 schema harmonization" = the harmonization EPOCH's name, not a reference to the later tooling-only
+schema tag `v0.1.0-rc3`. The extraction+harmonization beads record is
 archived in the OLD workspace (`~/dev/agent-data-leverage/.beads`, prefix `unified-schema`,
 supersede-closed) — read-only provenance.
 ⚠️ **Post-swap ceremony (now in effect):** a contract change is its own schema-repo PR + tag BEFORE the
 consumer PRs that re-pin it (stated in both peasant + village AGENTS.md).
 **Where to contribute:** `schema/develop` (Go source: `local_api.go`, `metadata.go`, `types.go`,
 `annotation*.go`, `CHANGELOG.md`; the spec regen + freshness/immutability gates live here now — no longer
-in peasant). The TS port (`@peasant-labs/types`) has **drifted** from the Go — trust the Go; the durable
-fix is OpenAPI→TS codegen (#125/#126).
+in peasant). **The schema module now also owns the generated TypeScript contract package
+`@peasant-labs/schema`** (landed schema#29/#30, first shipped in tag `v0.1.0-rc6`, 2026-07-17): Hey API +
+Zod generate the root types/runtime schemas from the Types OpenAPI catalog; `openapi-typescript` generates
+the type-only `/local-api` + `/village-api` operation contracts; `/types` is a deprecated compatibility
+re-export; nominal `ProjectHash` branding is `$ref`-anchored; npm publication stays DISABLED (package
+version `0.0.0-development` follows the module tag at an eventual npm cut). The handwritten
+`@peasant-labs/types` port is **deprecated — never add new wire definitions there**; migrating
+transcript-browser/peasant-web onto the generated package (with a deprecated shim) is the open follow-up
+(#125/#126 are thereby resolved at the schema end).
 
 ### transcript-browser → `@peasant-labs/transcript-browser` (+ `analytics`, `types`, `theme`)
 **Role:** the reusable **transcript viewer** (pnpm monorepo). Renders a session via fairtrade's lifted
 components fed by the one adapter; owns the **@xyflow graph engine** (fairtrade supplies node visuals only).
 **Where to contribute:** `packages/browser` (`<SessionDetail>` → `adaptTranscript` → lifted components +
 the graph engine), `packages/analytics` (single-session metrics: scorecard / phases / personal-medians),
-`packages/types` (TS wire types — drifted; see schema), `packages/theme`, `examples/minimal` (integration
+`packages/types` (TS wire types — deprecated, superseded by schema's generated `@peasant-labs/schema`
+package; the shim migration is the open follow-up), `packages/theme`, `examples/minimal` (integration
 playground), `scripts/visual/` (the demo↔app visual-regression harness; pairs with fairtrade `shootdemo`).
 Keeps back-compat re-exports so peasant compiles unchanged across the migration.
 
@@ -90,7 +104,8 @@ changes to any of those update that doc IN THE SAME COMMIT).
 ## How they connect
 
 ```
-                schema  (Go wire contract; @peasant-labs/types = drifted TS port)
+                schema  (Go wire contract + generated @peasant-labs/schema TS package;
+                         @peasant-labs/types = deprecated handwritten port)
                    │ defines the wire
         produced by ▼                              consumed/rendered by
    peasant backend ── session_detail ──►  transcript-browser  ◄── embed ── peasant web
@@ -113,6 +128,77 @@ changes to any of those update that doc IN THE SAME COMMIT).
   `AGENTS.md` → "Adding a license" (the 10-step cross-repo table); peasant's twin section defers to it
   by name.** Licenses form a PARTIAL order (no rank, no computed meet); un-licensing is blocked
   app-side (CC grants are irrevocable). Followup ledgers: peasant#151 ⇄ village#29 (twins).
+
+## Peasant data and UX invariants (current)
+
+### Redaction: semantic category, activation level, and rendered label are separate axes
+
+- **Semantic `pkg/redact.Category` values are** `secrets`, `pii`, `paths`, and `project`. They describe
+  what a rule detects. Do NOT introduce a separate `CategoryGitContext`: git remotes, import paths,
+  Docker refs, branch names, and CI project variables remain semantically `CategoryProject`.
+- **Activation policy is independent.** `Rule.MinimumLevel` is optional: empty inherits the category's
+  minimum; a populated value may only be a valid STRICTER level. `categoryMinimumLevel` remains the
+  canonical category default. User patterns inherit their category default and do not expose their own
+  activation override.
+- **The three built-in git-context rules are the deliberate exception within `CategoryProject`:**
+  `git_remote_https`, `git_remote_ssh`, and `git_branch_output` set `MinimumLevel: Maximum`. Therefore
+  Standard keeps remote URLs and branch output; Maximum redacts them. This behavior is
+  `pkg/redact.RuleSetVersion = 3.0.0` and landed in peasant#146 + schema `v0.1.0-rc5` + village#38.
+- **Rendered consumer labels use public `pkg/redact.CategoryString`, never a private `WebCategory` or
+  an `internal/redactcategory` mapping.** `Category.String() CategoryString` is the canonical rendering:
+  `secrets → CREDENTIAL`, `pii → PII`, `paths → PATH`, `project → INTERNAL`. Raw storage tokens require
+  an explicit conversion; rendered labels use `String()`.
+- **Unknown categories fail closed.** Call `Category.Validate()` at trust boundaries. `String()` returns
+  the zero `CategoryString` for an invalid category; it never falls back to `CREDENTIAL`. The server,
+  generated mocks, and frontend must reject unknown or group/item-inconsistent categories rather than
+  silently relabeling them. Use the `pkg/redact` actionable-error machinery for redaction trust-boundary
+  failures so what/why/where/when/meaning/fix remain visible.
+
+### Kickstart selection is the user-visible project/session boundary
+
+- Kickstart persists `config.SelectionConfig`: `mode` (`all` or `selected`), per-harness project entries
+  (`gitRemote`/`name`, optional branches), and explicit session IDs. `ingest.SelectionMatcher` is the
+  canonical matcher already used by ingest, push, and prune; do not reimplement its semantics in React.
+- **Required UI invariant (tracked in peasant#164; not yet landed):** when mode is `selected`, user-facing
+  project and session LISTS show only the configured selection. This includes the WS/REST sessions lists,
+  Home + Map project pickers, command palette, and share chooser. Explicit session selection must not
+  widen visibility to every sibling session in its project. Mode `all` retains all-data behavior.
+- Apply the boundary server-side so every consumer agrees, and derive counts/empty states from the same
+  visible set. This is a visibility rule, NOT authorization to delete unselected historical rows. Preserve
+  deep-link behavior until its policy is explicitly ratified.
+
+### Git history and recorded sessions
+
+- `session_commits` is the stored association between recorded sessions and Git commits. The current
+  review-list wire collapses that richer relationship into `CommitRef.hasSession bool`; that boolean is
+  insufficient for a user-facing work history because it cannot name or link the sessions.
+- **Target experience (peasant#162):** Git is the timeline spine, annotated with the list of user sessions
+  wherever associations are available. Bound vs candidate/temporal associations must not be conflated;
+  unattached sessions remain discoverable. A wire change needs its own schema PR + tag before Peasant
+  re-pins. The current `changes` label and `/review` routes remain in force until UAT ratifies a replacement;
+  do not silently rename or delete them.
+
+### Mounted UX contracts and known follow-ups
+
+- **`/share` is canonical and shipped.** The persistent top-nav `share` action routes to `/share` and
+  stays OUTSIDE Fairtrade's graph-section registry. Do not introduce `/push` as an alternate UI route.
+  The graph registry remains `analytics | changes | code map`.
+- The current share bridge auto-scans uncached selections; caches success AND honest failure by
+  `(level, session)` across navigation; supports explicit re-scan; disables continuation on ANY failed
+  session; and fails closed on category inconsistency. Preserve these semantics when replacing its UI.
+- Fairtrade owns the future official review/redaction/consent/share composition
+  (fairtrade-design-system#3). Fairtrade `RedactionReview` must gain a per-category filtered view while
+  preserving controlled keep/revert state (fairtrade-design-system#4; prior art peasant#32). Peasant owns
+  `/share`, scan/cache/auth/network orchestration, and Village-specific transport.
+- The current code map is a known comprehension failure (peasant#165). Future work needs progressive,
+  task-oriented disclosure and real-project UAT; do not merely add text around the same dense graph or
+  fork Fairtrade's canonical graph visuals inside Peasant.
+- In the mounted transcript viewer, the view toolbar, the sentence beginning "showing every step", and
+  the steps overview must scroll away with the transcript (peasant#163). Do not leave them as a permanent
+  `shrink-0` block outside the viewer scroll, and do not hardcode a 64px shell height where mobile uses the
+  two-row header.
+- **Current session-UX tracker:** peasant#166 links #162–#165 plus Fairtrade #3/#4. Treat the linked issue
+  bodies as the validation/design records; this guide captures only ratified invariants and known gaps.
 
 ## Conventions
 - **Branches / worktrees:** a feature worktree is named `<primary-repo>-<issue#>--<semantic-commit>--<descriptive-name>`, where the *primary repo* is the one the change centers on. A cross-repo epoch reuses that one name across **every** participating repo's worktree — e.g. the fairtrade-adoption work uses `fairtrade-1--breaking--adopt-fairtrade-design-system` in fairtrade, peasant, **and** village (`fairtrade-1` = GitHub issue #1 in the primary repo, fairtrade; sibling issues are peasant#142 / village#27).
@@ -151,7 +237,7 @@ changes to any of those update that doc IN THE SAME COMMIT).
 - **Production exits must be tested on the mounted production path.** Tests against dormant legacy components are not enough. If a retained route exists because a current surface links to it, test the current mounted surface action and assert the actual navigation or callback users trigger.
 - **Shared shell visual gates compare canonical demo to current app.** For fairtrade adoption SxS artifacts, the left/reference side should be a screenshot of the fairtrade in-use demo and the right side should be the current consuming app. Do not compare app-generated baselines to the app unless that is explicitly the regression target.
 - **"Shell" means chrome plus mounted body, not a nav strip.** A shell screenshot must include persistent product header, section navigation, active-section state, route/view wiring, and representative body content for the mounted surface. Gates should fail closed when either side is missing or blank so they cannot pass on chrome-only captures.
-- **Graph app section order is canonical:** `analytics | changes | code map` (user-updated 2026-07-01, superseding the earlier `analytics | code map | changes`). Fairtrade owns the shared section registry (`GRAPH_APP_SECTIONS` in `src/ui/inuse/InUseShell.jsx`); consumers derive from it and fail loudly on unknown or unmapped section IDs rather than silently dropping sections.
+- **Graph app section order is canonical:** `analytics | changes | code map` (user-updated 2026-07-01, superseding the earlier `analytics | code map | changes`). Fairtrade owns the shared section registry (`GRAPH_APP_SECTIONS` in `src/ui/inuse/InUseShell.jsx`); consumers derive from it and fail loudly on unknown or unmapped section IDs rather than silently dropping sections. The session-annotated-timeline follow-up (peasant#162) may propose a different label/IA, but the existing order and IDs remain binding until that change is user-ratified and lands in Fairtrade first.
 
 ## Review & UAT discipline — process gaps + fixes (codified 2026-07-01 after repeats slipped)
 The user should NEVER be the backstop that catches a repeat finding or a design-system violation. These gaps recurred; the fixes are now mandatory:
@@ -169,12 +255,22 @@ How the user runs a pasture epoch — the orchestrator MUST follow this:
 - **Implementation runs as parallel slices.** Decompose for maximum concurrency. Slices MAY overlap in *files changed* as long as they touch **semantically / functionally distinct** parts — file overlap alone is NOT a reason to serialize.
 - **One isolated worktree per worker**, branched off the integration branch, so parallel workers never clobber each other's trees.
 - **Merge conflicts are the orchestrator's job**, not the workers'. When a worker wraps feature work, the orchestrator merges integration → the slice branch and resolves conflicts; ambiguous or confusing design choices are surfaced to the user.
-- **Default model tier = Opus.** Spawn ALL agents — explorers, research, architect, reviewers, workers — with `model: opus` by default; use a cheaper tier ONLY when the user specifies it for a given task. (Supersedes any earlier Haiku-explorer / Sonnet-worker defaults.)
-- **Reviewers are STANDING Opus teammates** (A = Correctness, B = Test-quality, C = Elegance; spawn with `model: opus` — do NOT inherit the agent-default tier): they PERSIST across **all** review waves in an epoch — plan review (Phase 4) AND code review (Phase 10) — re-tasked per wave, **NOT** retired between waves. The re-review rounds are Opus too. **Keep the team UP and pre-reading the relevant slices + grounding (URD/handoff/scratchpad/source) BETWEEN waves so they're warm before a review fires — prepare them ahead of need, do NOT spawn them reactively/cold on demand.** Plan review needs all three to ACCEPT; code review needs a clean 0/0/0 (fix-free) round before the gate clears.
+- **Model routing (user override, 2026-07-15):** use `gpt-5.6-luna` for scouting and implementation
+  workers, `gpt-5.6-terra` for mid-implementation review, and `gpt-5.6-sol` for final implementation
+  review, unless the user gives a task-specific override (for example, the share-nav fix explicitly used
+  Terra at high effort for implementation). Planning/architecture uses the highest available tier unless
+  the user specifies one. If the runtime cannot select the requested model, surface that limitation; do
+  not silently substitute and claim the requested model ran.
+- **Review context is STANDING even when the stage model changes** (A = Correctness, B = Test-quality,
+  C = Elegance): preserve grounding, prior findings, and the full regression checklist across plan and
+  code review waves; re-task persistent teammates where the runtime supports it, or hand the full context
+  to the stage-appropriate reviewer. **Keep reviewers pre-reading relevant slices + grounding
+  (URD/handoff/scratchpad/source) BETWEEN waves so they are warm before review fires.** Plan review needs
+  all three to ACCEPT; code review needs a clean 0/0/0 fix-free round before the gate clears.
 - **Proposal numbering is per-epoch:** each epoch restarts at PROPOSAL-1 (and SLICE-1, etc.) — do NOT continue a prior epoch's global sequence. Revisions increment within the epoch (PROPOSAL-1 → PROPOSAL-2 …).
 - **Review completed slices in ONE wave, not piecemeal.** When multiple slices finish, dispatch the standing reviewers over ALL currently-completed slices in a single coordinated review wave — accumulate the done batch rather than firing a separate review round as each slice trickles in. Per-slice verdicts + severity trees are still preserved (one wave ≠ one merged severity tree across slices); the "wave" is about batching the *dispatch/timing*, not collapsing per-slice granularity.
 
-## Current state (2026-07-07)
+## Current state (2026-07-17)
 - **Fairtrade adoption: LANDED** in peasant + village (fairtrade **0.0.6**, transcript-browser **0.0.3**,
   pnpm-only web toolchains; peasant#149/#150, village#28).
 - **Transcript licensing: LANDED end-to-end** (village#26 + peasant#141/#152). The license contract now
@@ -186,6 +282,23 @@ How the user runs a pasture epoch — the orchestrator MUST follow this:
   standalone `github.com/peasant-labs/schema` module (tag + GitHub Release `v0.1.0-rc2`) and both
   consumers re-pinned to it (peasant#159/#160, village#30/#31); the nested `pkg/schema` is deleted and
   village serves+enforces from the module. See the schema-repo section above.
+- **Schema consumers remain on `v0.1.0-rc5`; the module's latest tag is `v0.1.0-rc6`.** Schema rc4 added
+  the pull content/annotation skip-gate contract; rc5 corrected the canonical git-remote redaction fixture
+  without changing the OpenAPI wire. Peasant#146 and village#38 are landed on the rc5 pin.
+- **Schema TypeScript contract package: LANDED + RELEASED 2026-07-17** (schema#29, PR #30 squash-merged as
+  `64716f6`; release PR #31 → tag `v0.1.0-rc6`, GitHub prerelease). The bespoke Go→TS emitter is replaced
+  by Hey API + Zod (root) and `openapi-typescript` (type-only Local/Village operation contracts), with
+  fixture-backed export-identity/mutation/tarball/freshness gates, `$ref`-anchored nominal `ProjectHash`,
+  and Go-generated closed sets. rc6 also carries Village API `0.6.0`, Local API `0.4.0` with typed map
+  diff enums (`FileChangeStatus`, `DiffLineKind`), and Types `0.3.0`. npm publication stays disabled;
+  consumer re-pins + the transcript-consumer TS migration (deprecated shim) are the open follow-ups.
+- **Git-context redaction + hardened share bridge: LANDED 2026-07-15 (peasant#146).** Git remote URLs and
+  branch output stay semantic `CategoryProject` but fire only at Maximum via `Rule.MinimumLevel`;
+  `CategoryString` is the public canonical renderer; unknown categories and scan failures fail closed.
+  `/share` is linked from the persistent nav and remains separate from the graph section registry.
+- **Current Peasant session UX gaps are tracked in peasant#166:** configured-list scope (#164), a
+  session-annotated Git timeline (#162), transcript header scrolling (#163), code-map legibility (#165),
+  and the Fairtrade share/redaction component follow-ups (#3/#4).
 - Other open follow-ups: the fairtrade rollout followup epic, transcript-browser#5 (scorecard richness),
   peasant#143 (git cluster on the wire), and the licensing ledgers peasant#151 ⇄ village#29.
   (The schema repo's `internal/contractgates/doc.go` taxonomy leak was already scrubbed 2026-07-07;
