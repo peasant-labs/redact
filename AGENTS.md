@@ -171,8 +171,19 @@ changes to any of those update that doc IN THE SAME COMMIT).
   Home + Map project pickers, command palette, and share chooser. Explicit session selection must not
   widen visibility to every sibling session in its project. Mode `all` retains all-data behavior.
 - Apply the boundary server-side so every consumer agrees, and derive counts/empty states from the same
-  visible set. This is a visibility rule, NOT authorization to delete unselected historical rows. Preserve
-  deep-link behavior until its policy is explicitly ratified.
+  visible set. **Ratified (peasant#166 UAT):** selection stays a discovery+manual-prune boundary, not
+  auto-delete — already-ingested historical rows that fall outside a narrowed selection are never deleted
+  automatically; `peasant prune` (manual, pre-existing) remains the only way to remove them. Ingest already
+  forward-filters unselected sessions before they are ever stored (`buildSelectionFilter` wired into the
+  pipeline's `SessionFilter`), so this gap only ever applied to rows ingested before a selection narrowed,
+  or under mode `all`. **Meanwhile, a deep link to a hidden (unselected) session must fail closed** — the
+  session-detail trust boundary (`internal/api/store_adapter.go:SessionByID`, reached by both the WS
+  `session_detail` channel and the REST transcript-download route) applies the same
+  `sessionvisibility.Policy` the list projections already use, and returns the identical not-found result
+  whether a session is absent or merely hidden. This reverses the prior "preserve deep-link behavior"
+  stance for sessions specifically; it does not change the separate, deliberate canonical-project-hash
+  deep-link exemption in `internal/codemap/summary.go` (`ResolveProject`), which resolves a project's
+  display identity even when fully hidden and is unaffected by this session-level gate.
 
 ### Git history and recorded sessions
 
