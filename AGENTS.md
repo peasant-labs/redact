@@ -346,6 +346,7 @@ Each app repo carries a headless-Chrome/Puppeteer capture harness for design-sys
 **Workflow:** boot (+mock) → shoot the app surface + the demo (both themes) → stitch SxS → eyeball vs demo + probe computed styles + diff vs baseline.
 
 **Discipline (non-negotiable):** always **verify build provenance before trusting a capture** — grep the served `dist`/`out` for a string only the fix introduces, and confirm which fairtrade dist the app resolves (a stale server or wrong worktree silently invalidates a shot; see the build-provenance rule above). Both apps resolve fairtrade via a pnpm `workspace:*` dev-link to `fairtrade-design-system/main` (swaps to a published `^0.0.x` range at landing). When pointing a human at captures, give the **full absolute path with `{...}` brace alternatives** for the theme/surface/demo-app-sxs axes.
+**Screenshot paths are one-line output:** present any related screenshot set as exactly one Markdown line containing one absolute path expression with `{...}` brace alternatives. Do not use bullets or one path per line, and structure nested alternatives so every expansion names an existing artifact.
 
 **Pending (tracked followup):** collapse the ~58 duplicated scripts into ONE shared parameterized toolkit (`boot/shoot/stitch/diff/probe/mock/gate × --repo/--surface/--theme`) so a new surface is a config entry, not a new script.
 
