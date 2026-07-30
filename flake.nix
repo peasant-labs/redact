@@ -74,6 +74,7 @@
         ast-grep # structural code search and lint
         golangci-lint # linter suite
         actionlint # lint GitHub Actions workflow YAML (.github/workflows/*.yml)
+        shellcheck # shell linter; actionlint routes every workflow `run:` body through it when on PATH
         vacuum-go # Go-native OpenAPI/Swagger linter (contract gate; binary: vacuum)
         pnpm
         typescript
