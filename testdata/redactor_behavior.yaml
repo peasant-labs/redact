@@ -1,0 +1,53 @@
+secrets:
+  - {id: anthropic_key, level: minimal, input: "sk-ant-api03-abc123def456abc123def456abc123def456abc123", contains: "<ANTHROPIC_KEY>"}
+  - {id: openai_key, level: minimal, input: "sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789", contains: "<OPENAI_KEY>"}
+  - {id: github_pat, level: minimal, input: "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", contains: "<GITHUB_PAT>"}
+  - {id: aws_access_key, level: minimal, input: "AKIAIOSFODNN7EXAMPLE", contains: "<AWS_ACCESS_KEY>"}
+  - {id: aws_secret_key, level: minimal, input: 'aws_secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" next', contains: "<AWS_SECRET_KEY>"}
+  - {id: stripe_key, level: minimal, input: "sk_live_abcdefghijklmnopqrstuvwx", contains: "<STRIPE_KEY>"}
+  - {id: twilio_key, level: minimal, input: "ACabc123def456abc123def456abc123de", contains: "<TWILIO_KEY>"}
+  - {id: twilio_auth_token, level: minimal, input: "SKabc123def456abc123def456abc123de", contains: "<TWILIO_AUTH_TOKEN>"}
+  - {id: sendgrid_key, level: minimal, input: "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", contains: "<SENDGRID_KEY>"}
+  - {id: slack_token, level: minimal, input: "xoxb-34532454-e039d02840a0b9379c", contains: "<SLACK_TOKEN>"}
+  - {id: jwt_token, level: minimal, input: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0In0.abc123def456", contains: "<JWT_TOKEN>"}
+  - {id: private_key_block, level: minimal, input: "-----BEGIN RSA PRIVATE KEY-----", contains: "<PRIVATE_KEY>"}
+  - {id: generic_api_key, level: minimal, input: "api_key=abc123def456abc123def456abc123def456", contains: "<API_KEY>"}
+  - {id: bearer_token, level: minimal, input: "Bearer abc123def456abc123def456", contains: "<BEARER_TOKEN>"}
+  - {id: basic_auth, level: minimal, input: "Authorization: Basic dXNlcjpwYXNz", contains: "<BASIC_AUTH>"}
+  - {id: access_code, level: minimal, input: "Please enter verification code: ABCD-1234", contains: "<ACCESS_CODE>"}
+pii:
+  - {id: email_standard, level: standard, input: "user@example.com", contains: "<EMAIL>"}
+  - {id: email_minimal_unchanged, level: minimal, input: "user@example.com", absent: "<EMAIL>"}
+  - {id: phone_us_standard, level: standard, input: "+1-555-123-4567", contains: "<PHONE>"}
+  - {id: ssn_standard, level: standard, input: "123-45-6789", contains: "<SSN>"}
+  - {id: credit_card_standard, level: standard, input: "4111 1111 1111 1111", contains: "<CREDIT_CARD>"}
+  - {id: ip_address_standard, level: standard, input: "192.168.1.100", contains: "<IP_ADDRESS>"}
+paths:
+  - {id: unix_home_standard, level: standard, input: "/Users/alice/projects/foo", contains: "/Users/<USER>/projects/foo"}
+  - {id: windows_home_standard, level: standard, input: 'C:\Users\alice\projects\foo', contains: 'C:\Users\<USER>\projects\foo'}
+  - {id: unix_home_space_in_segment, level: standard, input: "/home/SFU CLASSES/project/file.go", contains: "/home/<USER>/project/file.go"}
+  - {id: windows_home_space_in_segment, level: standard, input: 'C:\Users\John Doe\Documents\file.txt', contains: 'C:\Users\<USER>\Documents\file.txt'}
+  - {id: unix_home_dual_path_on_line, level: standard, input: "Loaded config from /home/alice and /home/bob/x", contains: "Loaded config from /home/<USER> and /home/<USER>/x"}
+  - {id: claude_project_slug_minimal, level: minimal, input: "/home/<USER>/.claude/projects/-home-alice-dev-project/uuid.jsonl", contains: "-home-<USER>-"}
+  - {id: claude_project_slug_users_variant, level: standard, input: " -Users-johndoe-dev-project", contains: "-Users-<USER>-"}
+  - {id: peasant_host_slug_minimal, level: minimal, input: " --home--alice--dev--project", contains: "--home--<USER>--"}
+  - {id: peasant_host_slug_users_variant, level: standard, input: " --Users--johndoe--dev--project", contains: "--Users--<USER>--"}
+  - {id: false_positive_go_home_early, level: standard, input: "go-home-early", contains: "go-home-early"}
+  - {id: false_positive_home_assistant, level: standard, input: "home-assistant", contains: "home-assistant"}
+  - {id: false_positive_home_automation, level: standard, input: "home-automation-system", contains: "home-automation-system"}
+  - {id: false_positive_go_home_early_feature, level: standard, input: "the-go-home-early-feature", contains: "the-go-home-early-feature"}
+  - {id: false_positive_some_home_page_widget, level: standard, input: "some-home-page-widget", contains: "some-home-page-widget"}
+  - {id: slug_after_space, level: standard, input: " -home-alice-dev-project", contains: "-home-<USER>-"}
+  - {id: slug_after_slash, level: standard, input: "/-home-alice-dev-project", contains: "-home-<USER>-"}
+  - {id: unix_path_at_minimal, level: minimal, input: "/home/alice/dev/project", contains: "/home/<USER>/dev/project"}
+code_blocks:
+  - {id: standard_fences, input: "before\n```\nsome secret code\n```\nafter", want: "before<CODE_BLOCK>after"}
+  - {id: indented_fences, input: "before\n    ```\n    indented code\n    ```\nafter", want: "before<CODE_BLOCK>after"}
+  - {id: no_fences, input: "just normal text with no code blocks", want: "just normal text with no code blocks"}
+  - {id: fences_with_lang, input: "text\n```go\npackage main\n```\nmore", want: "text<CODE_BLOCK>more"}
+parity:
+  - {id: file_path_false_positive, level: minimal, input: "nttea/codebases/dayvidpham/bestiary/main.", want: "nttea/codebases/dayvidpham/bestiary/main."}
+  - {id: bare_base64_no_context, level: minimal, input: "5Y9syZ8W5sLJHHGM7EqzeVBf37Sq/f4k1p0YAQAA", want: "5Y9syZ8W5sLJHHGM7EqzeVBf37Sq/f4k1p0YAQAA"}
+  - {id: real_aws_key_with_context, level: minimal, input: 'aws_secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"', want: 'aws_secret_access_key = "<AWS_SECRET_KEY>"'}
+  - {id: back_reference_unix_home_path, level: minimal, input: "/home/alice/dev/project", want: "/home/<USER>/dev/project"}
+  - {id: back_reference_claude_project_slug, level: minimal, input: "/home/<USER>/.claude/projects/-home-alice-dev-project/uuid.jsonl", want: "/home/<USER>/.claude/projects/-home-<USER>-dev-project/uuid.jsonl"}
