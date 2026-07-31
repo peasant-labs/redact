@@ -1,7 +1,13 @@
-.PHONY: check test lint fmt vet
+.PHONY: check test lint fmt vet release-check verify-tidy
 
 # Full quality gate
 check: fmt vet test
+
+release-check: check
+	CGO_ENABLED=0 go test ./...
+	@test "$$(go list -m)" = "github.com/peasant-labs/redact"
+	@! go list -deps ./... | grep -E '^github.com/peasant-labs/peasant($$|/)' >/dev/null
+	$(MAKE) verify-tidy
 
 # Run all tests with race detector
 test:
@@ -37,9 +43,12 @@ tidy:
 
 # Verify go.sum is current
 verify-tidy:
-	go mod tidy
-	@if ! git diff --quiet go.mod go.sum; then \
+	@tmp="$$(mktemp -d)"; trap 'rm -rf "$$tmp"' EXIT; \
+	cp go.mod go.sum "$$tmp/"; \
+	go mod tidy; \
+	if ! cmp -s go.mod "$$tmp/go.mod" || ! cmp -s go.sum "$$tmp/go.sum"; then \
 		echo "::error::go.mod or go.sum is dirty after go mod tidy"; \
-		git diff go.mod go.sum; \
+		diff -u "$$tmp/go.mod" go.mod || true; \
+		diff -u "$$tmp/go.sum" go.sum || true; \
 		exit 1; \
 	fi

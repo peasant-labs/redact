@@ -18,8 +18,7 @@ const MaximumAvailable = false
 // It deliberately FAILS LOUD rather than returning a RegexAnonymizer. Returning
 // a weaker anonymizer here would mean that if the MaximumAvailable guard in
 // NewRedactor were ever removed or regressed, a !cgo build would SILENTLY apply
-// regex-as-Maximum — exactly the silent-weaker-redaction failure PROPOSAL-3
-// Amendment A forbids. A panic surfaces such a regression immediately and
+// regex-as-Maximum. A panic surfaces such a regression immediately and
 // unmistakably instead of leaking code identifiers in published transcripts.
 func newMaximumAnonymizer() ASTAnonymizer {
 	panic("redact: BUG — newMaximumAnonymizer() called in a !cgo build; the Maximum level " +

@@ -1,0 +1,40 @@
+- name: rc_title
+  operation: title
+  input: "release(v0.1.0-rc2): publish module"
+  want: v0.1.0-rc2
+- name: final_title
+  operation: title
+  input: "release(v1.2.3): stable"
+  want: v1.2.3
+- name: malformed_title
+  operation: title
+  input: "release v1.2.3"
+  want_error: true
+- name: zero_rc_title
+  operation: title
+  input: "release(v1.2.3-rc0): invalid"
+  want_error: true
+- name: rc_tag
+  operation: tag
+  input: v0.1.0-rc2
+  want: "prerelease v0.1.0"
+- name: final_tag
+  operation: tag
+  input: v0.1.0
+  want: "final v0.1.0"
+- name: malformed_tag
+  operation: tag
+  input: 0.1.0
+  want_error: true
+- name: title_with_trailing_text
+  operation: title
+  input: "release(v1.2.3): stable\nnot part of the title"
+  want_error: true
+- name: leading_zero_version
+  operation: tag
+  input: v01.2.3
+  want_error: true
+- name: leading_zero_rc
+  operation: tag
+  input: v1.2.3-rc01
+  want_error: true

@@ -66,6 +66,7 @@ type DefaultRedactor struct {
 	residueDetector ResidueDetector // post-redaction advisory scanner (v2)
 	userRules       []Rule          // v3: compiled from userPatterns at construction; read-only after init
 	lastMatches     []Match         // matches from the last Detect() call (last-call-only, not accumulated)
+	scannerConfig   scannerConfig   // immutable JSONL scanner defaults supplied at construction
 }
 
 // XDGPaths holds resolved XDG base directory paths for custom path redaction.
@@ -98,6 +99,16 @@ type XDGPaths struct {
 // ASTAnonymizer is not used (v1 code block masking applies instead), but is
 // initialized to RegexAnonymizer for forward compatibility.
 func NewRedactor(level RedactionLevel, userPatterns []UserPattern, xdg XDGPaths, opts ...Option) (Redactor, error) {
+	cfg := defaultScannerConfig()
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, scannerOptionError("NewRedactor", fmt.Sprintf("constructor option at index %d is nil", i), cfg, nil)
+		}
+		opt(&cfg)
+	}
+	if err := validateScannerConfig("NewRedactor", cfg); err != nil {
+		return nil, err
+	}
 	if !level.IsValid() {
 		return nil, &actionableError{
 			what:  fmt.Sprintf("redaction level %q is invalid", level),
@@ -141,6 +152,7 @@ func NewRedactor(level RedactionLevel, userPatterns []UserPattern, xdg XDGPaths,
 		astAnonymizer:   anon,
 		residueDetector: NewResidueDetector(),
 		userRules:       userRules,
+		scannerConfig:   cfg,
 	}, nil
 }
 
@@ -811,17 +823,14 @@ func (r *DefaultRedactor) Report() RedactionReport {
 // the specific parameter they override; all other parameters use their defaults.
 type Option func(*redactorConfig)
 
-type redactorConfig struct {
-	scannerInitBuf int
-	scannerMaxLine int
-}
+type redactorConfig = scannerConfig
 
 // WithScannerBufSize overrides the default scanner buffer sizes.
 // Default: DefaultScannerInitBuf (64 KiB) and DefaultScannerMaxLine (10 MiB).
 func WithScannerBufSize(initBuf, maxLine int) Option {
 	return func(c *redactorConfig) {
-		c.scannerInitBuf = initBuf
-		c.scannerMaxLine = maxLine
+		c.initBuf = initBuf
+		c.maxLine = maxLine
 	}
 }
 

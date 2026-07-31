@@ -1,5 +1,7 @@
 module github.com/peasant-labs/redact
 
+retract v0.1.0-rc1 // accidentally targeted a pre-module commit; use v0.1.0-rc2 or later
+
 go 1.25.5
 
 require (

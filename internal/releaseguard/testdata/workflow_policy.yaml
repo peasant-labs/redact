@@ -1,0 +1,27 @@
+- name: release_pr_exact_merge_checkout
+  file: .github/workflows/release-pr.yml
+  contains: "ref: ${{ env.MERGE_SHA }}"
+- name: release_pr_gate
+  file: .github/workflows/release-pr.yml
+  contains: make release-check
+- name: release_tag_exact_checkout
+  file: .github/workflows/release.yml
+  contains: "ref: ${{ github.sha }}"
+- name: release_tag_gate
+  file: .github/workflows/release.yml
+  contains: make release-check
+- name: final_rc_ancestry
+  file: .github/workflows/release.yml
+  contains: "same-version release-candidate ancestor"
+- name: final_rc_green_evidence
+  file: .github/workflows/release.yml
+  contains: "--status success"
+- name: normal_pr_quality_gate
+  file: .github/workflows/tests.yml
+  contains: make release-check
+- name: tag_commit_identity
+  file: .github/workflows/release.yml
+  contains: 'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"'
+- name: tag_ref_identity
+  file: .github/workflows/release.yml
+  contains: 'test "$(git rev-list -n 1 "$TAG")" = "$GITHUB_SHA"'
