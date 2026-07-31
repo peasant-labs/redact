@@ -1,0 +1,13 @@
+cases:
+  - name: category_project_inherits_standard
+    pattern:
+      id: private_project_alias
+      category: project
+      pattern: 'PROJECT-[0-9]{4}'
+      replacement: '<PROJECT_ALIAS>'
+    input: 'working on PROJECT-2048'
+    defaultLevel: standard
+    outputs:
+      minimal: 'working on PROJECT-2048'
+      standard: 'working on <PROJECT_ALIAS>'
+      maximum: 'working on <PROJECT_ALIAS>'

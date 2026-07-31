@@ -1,0 +1,218 @@
+cases:
+  - name: git_remote_https
+    ruleId: git_remote_https
+    category: project
+    minimumLevel: maximum
+    input: "remote: https://github.com/myorg/myrepo.git"
+    expectations:
+      minimal:
+        active: false
+        output: "remote: https://github.com/myorg/myrepo.git"
+      standard:
+        active: false
+        output: "remote: https://github.com/myorg/myrepo.git"
+      maximum:
+        active: true
+        output: "remote: <PROJECT_URL>"
+
+  - name: git_remote_ssh
+    ruleId: git_remote_ssh
+    category: project
+    minimumLevel: maximum
+    input: "remote: git@github.com:myorg/myrepo.git"
+    panicFallbackOutput: "remote: <PROJECT_URL>"
+    expectations:
+      minimal:
+        active: false
+        output: "remote: git@github.com:myorg/myrepo.git"
+      standard:
+        active: false
+        output: "remote: git@github.com:myorg/myrepo.git"
+      maximum:
+        active: true
+        output: "remote: <PROJECT_URL>"
+
+  - name: go_import_path
+    ruleId: go_import_path
+    category: project
+    input: 'import "github.com/myorg/myrepo"'
+    expectations:
+      minimal:
+        active: false
+        output: 'import "github.com/myorg/myrepo"'
+      standard:
+        active: true
+        output: 'import "<GO_IMPORT>"'
+      maximum:
+        active: true
+        output: 'import "<GO_IMPORT>"'
+
+  - name: go_module_path
+    ruleId: go_module_path
+    category: project
+    input: "module github.com/myorg/myrepo"
+    expectations:
+      minimal:
+        active: false
+        output: "module github.com/myorg/myrepo"
+      standard:
+        active: true
+        output: "module <GO_MODULE>"
+      maximum:
+        active: true
+        output: "module <GO_MODULE>"
+
+  - name: npm_repo_url
+    ruleId: npm_repo_url
+    category: project
+    input: '"repository": "https://github.com/myorg/myrepo"'
+    expectations:
+      minimal:
+        active: false
+        output: '"repository": "https://github.com/myorg/myrepo"'
+      standard:
+        active: true
+        output: '<NPM_REPO>"'
+      maximum:
+        active: true
+        output: '<NPM_REPO>"'
+
+  - name: docker_image_ref
+    ruleId: docker_image_ref
+    category: project
+    input: "FROM myorg/myimage:latest"
+    expectations:
+      minimal:
+        active: false
+        output: "FROM myorg/myimage:latest"
+      standard:
+        active: true
+        output: "<DOCKER_IMAGE>"
+      maximum:
+        active: true
+        output: "<DOCKER_IMAGE>"
+
+  - name: ghcr_image_ref
+    ruleId: ghcr_image_ref
+    category: project
+    input: "ghcr.io/myorg/myimage:latest"
+    expectations:
+      minimal:
+        active: false
+        output: "ghcr.io/myorg/myimage:latest"
+      standard:
+        active: true
+        output: "<GHCR_IMAGE>"
+      maximum:
+        active: true
+        output: "<GHCR_IMAGE>"
+
+  - name: git_branch_output
+    ruleId: git_branch_output
+    category: project
+    minimumLevel: maximum
+    input: "* feature/my-feature"
+    expectations:
+      minimal:
+        active: false
+        output: "* feature/my-feature"
+      standard:
+        active: false
+        output: "* feature/my-feature"
+      maximum:
+        active: true
+        output: "<BRANCH>"
+
+  - name: gitlab_ci_project
+    ruleId: gitlab_ci_project
+    category: project
+    input: "CI_PROJECT_NAME=myproject"
+    expectations:
+      minimal:
+        active: false
+        output: "CI_PROJECT_NAME=myproject"
+      standard:
+        active: true
+        output: "<CI_PROJECT>"
+      maximum:
+        active: true
+        output: "<CI_PROJECT>"
+
+  - name: github_actions_repo
+    ruleId: github_actions_repo
+    category: project
+    input: "GITHUB_REPOSITORY=myorg/myrepo"
+    expectations:
+      minimal:
+        active: false
+        output: "GITHUB_REPOSITORY=myorg/myrepo"
+      standard:
+        active: true
+        output: "<GH_REPO>"
+      maximum:
+        active: true
+        output: "<GH_REPO>"
+
+  - name: ordinary_email
+    ruleId: email
+    control: ordinary_email
+    category: pii
+    input: "git@example.com"
+    expectations:
+      minimal:
+        active: false
+        output: "git@example.com"
+      standard:
+        active: true
+        output: "<EMAIL>"
+      maximum:
+        active: true
+        output: "<EMAIL>"
+
+  - name: git_email_without_remote_path
+    ruleId: email
+    control: git_email_without_remote_path
+    category: pii
+    input: "git@github.com"
+    expectations:
+      minimal:
+        active: false
+        output: "git@github.com"
+      standard:
+        active: true
+        output: "<EMAIL>"
+      maximum:
+        active: true
+        output: "<EMAIL>"
+
+  - name: git_email_followed_by_prose
+    ruleId: email
+    control: git_email_followed_by_prose
+    category: pii
+    input: "git@github.com: note"
+    expectations:
+      minimal:
+        active: false
+        output: "git@github.com: note"
+      standard:
+        active: true
+        output: "<EMAIL>: note"
+      maximum:
+        active: true
+        output: "<EMAIL>: note"
+
+  - name: unsupported_scp_remote_email_prefix
+    ruleId: email
+    control: unsupported_scp_remote_email_prefix
+    category: pii
+    input: "git@git.internal.corp:myorg/myrepo.git"
+    expectations:
+      minimal:
+        active: false
+        output: "git@git.internal.corp:myorg/myrepo.git"
+      standard:
+        active: true
+        output: "<EMAIL>:myorg/myrepo.git"
+      maximum:
+        active: true
+        output: "<EMAIL>:myorg/myrepo.git"

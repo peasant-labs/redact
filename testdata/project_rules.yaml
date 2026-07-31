@@ -1,0 +1,114 @@
+rules:
+  - ruleId: git_remote_https
+    cases:
+      - {name: github_https, input: "https://github.com/myorg/myrepo", shouldMatch: true}
+      - {name: gitlab_https, input: "https://gitlab.com/myorg/myrepo.git", shouldMatch: true}
+      - {name: bitbucket_https, input: "https://bitbucket.org/myorg/myrepo", shouldMatch: true}
+      - {name: deep_path, input: "https://github.com/myorg/myrepo/tree/main/subdir", shouldMatch: true}
+      - {name: github_http, input: "http://github.com/myorg/myrepo", shouldMatch: true}
+      - {name: unsupported_host, input: "https://example.com/myorg/myrepo", shouldMatch: false}
+      - {name: bare_domain, input: "Visit https://github.com for more info", shouldMatch: false}
+      - {name: unsupported_scheme, input: "ssh://github.com/myorg/myrepo", shouldMatch: false}
+
+  - ruleId: git_remote_ssh
+    cases:
+      - {name: github, input: "git@github.com:myorg/myrepo.git", shouldMatch: true}
+      - {name: gitlab, input: "git@gitlab.com:myorg/myrepo.git", shouldMatch: true}
+      - {name: bitbucket, input: "git@bitbucket.org:myorg/myrepo", shouldMatch: true}
+      - {name: unsupported_host, input: "git@example.com:myorg/myrepo.git", shouldMatch: false}
+      - {name: https_form, input: "https://github.com/myorg/myrepo.git", shouldMatch: false}
+      - {name: unsupported_user, input: "user@github.com:myorg/myrepo.git", shouldMatch: false}
+
+  - ruleId: go_import_path
+    cases:
+      - {name: repository, input: '"github.com/myorg/myrepo"', shouldMatch: true}
+      - {name: subpackage, input: '"github.com/myorg/myrepo/subpkg"', shouldMatch: true}
+      - {name: punctuation, input: '"github.com/myorg/my-repo.v2"', shouldMatch: true}
+      - {name: one_segment, input: '"github.com/myrepo"', shouldMatch: false}
+      - {name: unquoted, input: "github.com/myorg/myrepo", shouldMatch: false}
+      - {name: unsupported_host, input: '"gitlab.com/myorg/myrepo"', shouldMatch: false}
+
+  - ruleId: go_module_path
+    cases:
+      - {name: repository, input: "module github.com/myorg/myrepo", shouldMatch: true}
+      - {name: extra_space, input: "module  github.com/myorg/myrepo", shouldMatch: true}
+      - {name: tab_separator, input: "module\tgithub.com/myorg/myrepo", shouldMatch: true}
+      - {name: one_segment, input: "module github.com/myrepo", shouldMatch: false}
+      - {name: unsupported_host, input: "module gitlab.com/myorg/myrepo", shouldMatch: false}
+      - {name: missing_keyword, input: "github.com/myorg/myrepo", shouldMatch: false}
+
+  - ruleId: npm_repo_url
+    cases:
+      - {name: repository, input: '"repository": "https://github.com/myorg/myrepo"', shouldMatch: true}
+      - {name: homepage, input: '"homepage": "https://github.com/myorg/myrepo#readme"', shouldMatch: true}
+      - {name: bugs, input: '"bugs": "https://github.com/myorg/myrepo/issues"', shouldMatch: true}
+      - {name: unsupported_host, input: '"repository": "https://gitlab.com/myorg/myrepo"', shouldMatch: false}
+      - {name: unsupported_field, input: '"source": "https://github.com/myorg/myrepo"', shouldMatch: false}
+      - {name: missing_field_context, input: "https://github.com/myorg/myrepo", shouldMatch: false}
+
+  - ruleId: docker_image_ref
+    cases:
+      - {name: from_tag, input: "FROM myorg/myimage:latest", shouldMatch: true}
+      - {name: from_untagged, input: "FROM myorg/myimage", shouldMatch: true}
+      - {name: registry_prefix, input: "FROM registry.example.com/myorg/myimage:1.0", shouldMatch: true}
+      - {name: compose_tag, input: "image: myorg/myimage:latest", shouldMatch: true}
+      - {name: compose_untagged, input: "image: myorg/myimage", shouldMatch: true}
+      - {name: official_from, input: "FROM ubuntu", shouldMatch: false}
+      - {name: official_from_tag, input: "FROM ubuntu:22.04", shouldMatch: false}
+      - {name: official_compose, input: "image: postgres", shouldMatch: false}
+      - {name: official_compose_tag, input: "image: postgres:15", shouldMatch: false}
+      - {name: unsupported_keyword, input: "RUN myorg/myimage:latest", shouldMatch: false}
+
+  - ruleId: ghcr_image_ref
+    cases:
+      - {name: untagged, input: "ghcr.io/myorg/myimage", shouldMatch: true}
+      - {name: latest_tag, input: "ghcr.io/myorg/myimage:latest", shouldMatch: true}
+      - {name: version_tag, input: "ghcr.io/myorg/myimage:v1.2.3", shouldMatch: true}
+      - {name: docker_registry, input: "docker.io/myorg/myimage", shouldMatch: false}
+      - {name: unsupported_registry, input: "registry.example.com/myorg/myimage", shouldMatch: false}
+      - {name: one_segment, input: "ghcr.io/myimage", shouldMatch: false}
+
+  - ruleId: git_branch_output
+    cases:
+      - {name: current_feature, input: "* feature/my-feature", shouldMatch: true}
+      - {name: indented_current, input: "  * org/branch-name", shouldMatch: true}
+      - {name: remote_feature, input: "origin/feature/my-feature", shouldMatch: true}
+      - {name: remote_release, input: "origin/myorg/release-1.2", shouldMatch: true}
+      - {name: single_main, input: "* main", shouldMatch: false}
+      - {name: single_develop, input: "* develop", shouldMatch: false}
+      - {name: remote_main, input: "origin/main", shouldMatch: false}
+      - {name: remote_single_release, input: "origin/release-1.2", shouldMatch: false}
+      - {name: unrelated_path, input: "path/to/file", shouldMatch: false}
+
+  - ruleId: gitlab_ci_project
+    cases:
+      - {name: name_assignment, input: "CI_PROJECT_NAME=myproject", shouldMatch: true}
+      - {name: path_assignment, input: "CI_PROJECT_PATH=myorg/myrepo", shouldMatch: true}
+      - {name: url_assignment, input: "CI_PROJECT_URL=https://gitlab.com/myorg/myrepo", shouldMatch: true}
+      - {name: name_yaml, input: "CI_PROJECT_NAME: myproject", shouldMatch: true}
+      - {name: path_yaml, input: "CI_PROJECT_PATH: myorg/myrepo", shouldMatch: true}
+      - {name: unsupported_id, input: "CI_PROJECT_ID=12345", shouldMatch: false}
+      - {name: unsupported_namespace, input: "CI_PROJECT_NAMESPACE=myorg", shouldMatch: false}
+      - {name: wrong_prefix, input: "CI_PIPELINE_NAME=myproject", shouldMatch: false}
+
+  - ruleId: github_actions_repo
+    cases:
+      - {name: assignment, input: "GITHUB_REPOSITORY=myorg/myrepo", shouldMatch: true}
+      - {name: yaml, input: "GITHUB_REPOSITORY: myorg/myrepo", shouldMatch: true}
+      - {name: punctuation, input: "GITHUB_REPOSITORY=myorg/my.repo", shouldMatch: true}
+      - {name: surrounding_context, input: "env: GITHUB_REPOSITORY=myorg/myrepo", shouldMatch: true}
+      - {name: short_name, input: "GITHUB_REPO=myorg/myrepo", shouldMatch: false}
+      - {name: alternate_prefix, input: "GH_REPOSITORY=myorg/myrepo", shouldMatch: false}
+      - {name: wrong_variable, input: "GITHUB_WORKSPACE=myorg/myrepo", shouldMatch: false}
+
+residues:
+  - {name: git_remote_https, ruleId: residue_git_remote_https, input: "clone: https://github.com/myorg/"}
+  - {name: git_remote_ssh, ruleId: residue_git_remote_ssh, input: "remote: git@github.com:"}
+  - {name: go_import_path, ruleId: residue_go_import_path, input: "import github.com/myorg/myrepo"}
+  - {name: go_module_path, ruleId: residue_go_module_path, input: "module github.com/myorg"}
+  - {name: npm_repo_url, ruleId: residue_npm_repo_url, input: '"repository": "https://github.com'}
+  - {name: docker_image_ref, ruleId: residue_docker_image_ref, input: "FROM ubuntu:latest"}
+  - {name: ghcr_image_ref, ruleId: residue_ghcr_image_ref, input: "ghcr.io/myorg"}
+  - {name: git_branch_output, ruleId: residue_git_branch_output, input: "* main"}
+  - {name: gitlab_ci_project, ruleId: residue_gitlab_ci_project, input: "CI_PROJECT_NAMESPACE=myorg"}
+  - {name: github_actions_repo, ruleId: residue_github_actions_repo, input: "GITHUB_REPOSITORY"}

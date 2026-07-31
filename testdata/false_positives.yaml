@@ -1,0 +1,2795 @@
+cases:
+  # ---------------------------------------------------------------------------
+  # FALSE POSITIVES (expect: no_match) — inputs that should NOT be flagged
+  # These are real patterns observed in agent transcripts that triggered false
+  # positives before the awsSecretKeyFilter was introduced.
+  # ---------------------------------------------------------------------------
+
+  - name: fp_file_path_with_slashes
+    # A file path with many "/" chars is a 40-char base64-alphabet string but
+    # the awsSecretKeyFilter rejects it because there is no AWS keyword context.
+    input: "nttea/codebases/dayvidpham/bestiary/main."
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      File path components are base64-alphabet strings; the filter rejects them
+      because there is no AWS keyword in the surrounding 200-char window.
+    source: real_transcript
+
+  - name: fp_alphabet_digits_no_aws_context
+    # ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcd is exactly 40 chars and matches
+    # the base64 regex. NOTE: isSequentialString() returns FALSE for this input
+    # ('ABCD' and 'abcd' both fold to 'abcd', so the sorted 40-char string is not
+    # a prefix of any known charset). It is rejected by the CONTEXT check: no AWS
+    # keyword appears within the 200-char window.
+    #
+    # The isSequentialString pre-filter itself is unit-tested directly in
+    # entropy_test.go (TestIsSequentialString_Alpha/Digits/Hex). It cannot be
+    # exercised through the aws_secret_key rule: the only 40-char strings whose
+    # sorted form is a charset prefix necessarily contain '=', '-', or '_'
+    # mid-string — none of which are in the aws_secret_key body class
+    # [A-Za-z0-9+/], so the regex rejects them ('=' is allowed only as
+    # trailing padding). So no aws_secret_key fixture can trigger the sequential
+    # pre-filter — hence this case documents the context-check rejection.
+    input: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcd"
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      A 40-char alphabet+digits run with no AWS keyword nearby. isSequentialString
+      does NOT fire here (case-folded repeats defeat the sorted-prefix check); the
+      context-window check rejects it because no awsKeyword/AKIA appears within
+      200 chars.
+    source: detect_secrets
+
+  - name: fp_git_sha_no_context
+    # A 40-char hex Git SHA with no AWS keywords nearby.
+    # The sha matches the base64 regex (hex is a subset of base64 alphabet).
+    input: "commit a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2 in repo"
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      Git SHAs are 40 hex chars that match the aws_secret_key regex, but they
+      appear without AWS keyword context so the filter rejects them.
+    source: real_transcript
+
+  - name: fp_base64_no_aws_context
+    # A random-looking 40-char base64 string with no AWS keyword context.
+    input: "Yz9mK2xP1nRqTs5vBhJwLcGdFoEaUiNzXeOkMjAp"
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      A bare 40-char base64 string without any AWS keyword in context is rejected
+      by the filter's context-window check.
+    source: synthetic
+
+  - name: fp_go_sum_hash
+    # A go.sum entry: "h1:" prefix + 39-char base64 + "=". The regex matches a
+    # 39+= substring (stripping "h1:"), but the filter rejects it — no AWS context.
+    input: "h1:abc123def456abc123def456abc123def456abcde="
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      go.sum hashes share the 39-char-base64+"=" form of the aws_secret_key pattern
+      but appear with no AWS context, so the filter rejects them.
+    source: real_transcript
+
+  - name: fp_npm_package_hash
+    # An npm registry integrity field (sha512 base64) that happens to contain a
+    # 40-char substring matching the aws_secret_key regex.
+    input: "sha512-mZ4XeA5nvzfJ5cpPeBpIkJFpPBVAzAJ6kwPaZSFaYmkYVxUr6x0mPjGHoqBAMiZi1Sk="
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      npm integrity hashes contain long base64 strings that include 40-char
+      substrings. The filter rejects them because "sha512" is not an AWS keyword.
+    source: real_transcript
+
+  - name: fp_docker_layer_hash
+    # A Docker image layer SHA256 hex digest (64 chars) that partially matches.
+    # The first 40 chars of the digest form a valid base64-alphabet match.
+    input: "sha256:abc123def456abc123def456abc123def456abc1"
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      Docker layer hashes start with "sha256:" which is not an AWS keyword;
+      the filter rejects the match despite the hex chars matching the regex.
+    source: real_transcript
+
+  - name: fp_config_base64_no_context
+    # A base64-encoded configuration value (decoded: "this is a normal base64 string")
+    # that matches the 40-char regex but has no AWS keyword.
+    input: "config_value = dGhpcyBpcyBhIG5vcm1hbCBiYXNlNjQgc3RyaW5n"
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      Generic base64-encoded config values often match the aws_secret_key regex
+      structurally, but the filter rejects them without AWS keyword context.
+    source: synthetic
+
+  - name: fp_base64_end_of_string
+    # A 40-char base64 string at end-of-string (no trailing delimiter).
+    # The regex group 2 matches the empty end-of-string alternative ($).
+    # extractBase64Body returns the full string unchanged (isBase64Char=true for 'p').
+    # The filter still rejects it: no AWS context.
+    input: "Yz9mK2xP1nRqTs5vBhJwLcGdFoEaUiNzXeOkMjAp"
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      End-of-string edge case: group 2 matches empty via the ($) alternative so
+      extractBase64Body returns the full 40-char body unchanged. The filter still
+      rejects it because there is no AWS keyword context.
+    source: synthetic
+
+  - name: fp_padded_base64_end_of_string
+    # A 38-char base64 + "==" at end-of-string (padded variant).
+    # The regex matches the 38+== form. extractBase64Body returns the full
+    # matched text (last char '=' is a base64 char). Filter rejects: no context.
+    input: "Yz9mK2xP1nRqTs5vBhJwLcGdFoEaUiNzXeOkMj=="
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      End-of-string edge case for the 38-char+== padded variant: extractBase64Body
+      keeps the trailing '=' (it is a base64 char). The filter rejects: no context.
+    source: synthetic
+
+  # ---------------------------------------------------------------------------
+  # TRUE POSITIVES (expect: match) — inputs that SHOULD be flagged
+  # ---------------------------------------------------------------------------
+
+  - name: tp_aws_secret_key_with_aws_keyword
+    # The canonical AWS example key from AWS documentation.
+    # "aws" keyword appears within the 200-char context window.
+    input: "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+    rule: aws_secret_key
+    expect: match
+    reason: >
+      Real AWS secret key with "aws" keyword in the assignment prefix.
+      The key contains "/" chars (common in real AWS keys) and passes the filter.
+    source: detect_secrets
+
+  - name: tp_aws_secret_key_amazon_context
+    # AWS key with "amazon" keyword (one of the awsKeywords list).
+    input: "amazon storage: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+    rule: aws_secret_key
+    expect: match
+    reason: >
+      Real AWS secret key with "amazon" in context. The "/" chars in the key
+      body are irrelevant — the filter keeps the match because an AWS keyword
+      appears within the 200-char context window.
+    source: synthetic
+
+  - name: tp_aws_secret_key_aws_secret_keyword
+    # A high-entropy 40-char base64 string near the keyword "aws_secret".
+    input: "aws_secret=Yz9mK2xP1nRqTs5vBhJwLcGdFoEaUiNzXeOkMjAp"
+    rule: aws_secret_key
+    expect: match
+    reason: >
+      The keyword "aws_secret" is in awsKeywords; the filter accepts the match.
+    source: synthetic
+
+  - name: fp_aws_secret_key_bare_secret_keyword
+    # Bare "secret" is no longer in awsKeywords — too many false positives in
+    # coding transcripts discussing secrets management, password fields, etc.
+    input: "secret=Yz9mK2xP1nRqTs5vBhJwLcGdFoEaUiNzXeOkMjAp"
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      Bare "secret" was removed from awsKeywords to reduce false positives.
+      Only AWS-specific phrases like "aws_secret" or "secret_access_key" pass.
+    source: synthetic
+
+  - name: tp_aws_access_key_akia
+    # AWS access key ID — matched by the aws_access_key rule (AKIA prefix + 16 chars).
+    input: "AKIAIOSFODNN7EXAMPLE"
+    rule: aws_access_key
+    expect: match
+    reason: >
+      AWS access key IDs start with AKIA followed by 16 uppercase alphanumeric
+      chars. This is the canonical test vector from AWS documentation.
+    source: detect_secrets
+
+  - name: tp_akia_proximity_unlocks_secret
+    # A 40-char base64 string that lacks AWS keywords in text but has an AKIA
+    # access key ID nearby. The filter accepts it via the access-key proximity check.
+    input: "AKIAIOSFODNN7EXAMPLE Yz9mK2xP1nRqTs5vBhJwLcGdFoEaUiNzXeOkMjAp"
+    rule: aws_secret_key
+    expect: match
+    reason: >
+      An AWS access key ID (AKIA prefix) within the 200-char window triggers
+      the access-key proximity acceptance path in awsSecretKeyFilter.
+    source: synthetic
+
+  - name: tp_email_address
+    # A plain email address matched by the email rule.
+    input: "contact test@example.com for support"
+    rule: email
+    expect: match
+    reason: >
+      Standard email pattern; the email rule fires at Standard level.
+    source: synthetic
+
+  - name: tp_github_pat
+    # Real-format GitHub PAT from detect-secrets/tests/plugins/github_token_test.py.
+    # GitHub PATs are exactly 36 chars after the ghp_ prefix.
+    input: "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"
+    rule: github_pat
+    expect: match
+    reason: >
+      GitHub PATs are ghp_ + exactly 36 [A-Za-z0-9_] chars. This is the canonical
+      detect-secrets test value (github_token_test.py:11).
+    source: detect_secrets
+
+  - name: fp_github_pat_too_short_32_chars
+    # Documents the v2.0.0 narrowing: a 32-char synthetic body that passed the
+    # old loose {20,} quantifier no longer matches the exact {36} requirement.
+    input: "ghp_abc123def456abc123def456abc12345"
+    rule: github_pat
+    expect: no_match
+    reason: >
+      Body is 32 chars (less than the exact 36 GitHub uses). The old regex was
+      {20,} which over-matched synthetic test values like this; v2.0.0 aligned
+      with detect-secrets' exact {36}.
+    source: pattern_analysis
+
+  - name: tp_anthropic_key
+    # An Anthropic API key (sk-ant-api03- prefix per Anthropic docs).
+    # Anthropic is not covered by detect-secrets; pattern derived from
+    # https://docs.anthropic.com/en/api/getting-started
+    input: "sk-ant-api03-abc123def456abc123def456abc123def456abc123"
+    rule: anthropic_key
+    expect: match
+    reason: >
+      Anthropic API keys begin with sk-ant-{type}- followed by 20+ chars.
+      No detect-secrets plugin covers Anthropic; format is from Anthropic docs.
+    source: synthetic
+
+  - name: tp_private_key_header
+    # PEM private key block header.
+    input: "-----BEGIN RSA PRIVATE KEY-----"
+    rule: private_key_block
+    expect: match
+    reason: >
+      PEM private key blocks are unambiguously secrets; the exact header string
+      matches the private_key_block rule.
+    source: detect_secrets
+
+  - name: tp_bearer_token
+    # An Authorization header with a Bearer token (JWT-shaped).
+    input: "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.abc123def456abc123"
+    rule: bearer_token
+    expect: match
+    reason: >
+      Bearer tokens in Authorization headers are active credentials that must
+      be redacted at all levels.
+    source: real_transcript
+
+  - name: tp_slack_token
+    # Real-shape Slack bot token from detect-secrets/tests/plugins/slack_test.py:30.
+    # Format: xoxb- + numeric segments + alphanumeric token.
+    input: "xoxb-34532454-e039d02840a0b9379c"
+    rule: slack_token
+    expect: match
+    reason: >
+      Real Slack tokens embed workspace/bot IDs as digit segments followed by
+      an alphanumeric token. detect-secrets requires (?:\d+-)+[a-z0-9]+ shape.
+    source: detect_secrets
+
+  - name: fp_slack_token_no_numeric_segments
+    # Documents the v2.0.0 narrowing: synthetic alphanumeric-only segments
+    # no longer match the slack_token rule (was too loose pre-v2.0.0).
+    input: "xoxb-abc123-abc123-abc123def456"
+    rule: slack_token
+    expect: no_match
+    reason: >
+      Segments are alphanumeric, not numeric. detect-secrets requires digit-only
+      segments before the final alphanumeric token segment. Old loose regex
+      accepted this synthetic value; v2.0.0 aligned with the real format.
+    source: pattern_analysis
+
+  # ---------------------------------------------------------------------------
+  # 100+ additional cases covering all 50 rules
+  # Organized by rule; FP risk level noted in comments.
+  # ---------------------------------------------------------------------------
+
+  # --- openai_key (aligned with detect-secrets/openai.py: requires T3BlbkFJ marker) ---
+  # Real OpenAI keys always embed the literal substring "T3BlbkFJ" (base64 of "OpenAI").
+  # Pre-v2.0.0 the rule looked for sk-(live|test|proj)- which is actually Stripe's
+  # prefix shape; v2.0.0 aligned with detect-secrets' canonical regex.
+
+  - name: tp_openai_key_legacy
+    # Legacy user API key: sk-{20alnum}T3BlbkFJ{20alnum}.
+    input: "OPENAI_API_KEY=sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789"
+    rule: openai_key
+    expect: match
+    reason: >
+      Legacy OpenAI key format: sk- + 20 alphanumeric + T3BlbkFJ marker + 20 alphanumeric.
+      Pattern from detect-secrets/openai.py + OpenAI community docs.
+    source: detect_secrets
+
+  - name: tp_openai_key_project
+    # Project-scoped key: sk-proj-{name}-{20alnum}T3BlbkFJ{20alnum}.
+    input: "key = sk-proj-myproj-abcdefghij0123456789T3BlbkFJabcdefghij0123456789"
+    rule: openai_key
+    expect: match
+    reason: >
+      Project-scoped OpenAI key format with sk-proj-{name} prefix segment. The
+      regex sk-[A-Za-z0-9_-]*[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20} matches any
+      prefix variant as long as the T3BlbkFJ marker is present.
+    source: detect_secrets
+
+  - name: fp_openai_key_no_t3blbkfj_marker
+    # v2.0.0 narrowing: keys lacking the T3BlbkFJ marker no longer match.
+    # Pre-v2.0.0 the rule incorrectly used sk-(live|test|proj)- which is Stripe's
+    # format, not OpenAI's.
+    input: "sk-live-abcdefghijklmnopqrstuvwxyz1234567890"
+    rule: openai_key
+    expect: no_match
+    reason: >
+      sk-live- is Stripe's prefix, not OpenAI's. Without the T3BlbkFJ marker
+      this is not a real OpenAI key. The old regex incorrectly matched this
+      Stripe-shaped synthetic value.
+    source: pattern_analysis
+
+  - name: fp_openai_key_old_format_no_marker
+    input: "sk-abc123def456ghi789jklmnopqrstu"
+    rule: openai_key
+    expect: no_match
+    reason: >
+      Bare sk- string without T3BlbkFJ marker is not an OpenAI key.
+    source: pattern_analysis
+
+  # --- github_pat (low FP risk: gh[pours]_ prefix) ---
+
+  - name: tp_github_pat_user
+    # Real-format ghu_ token: exactly 36 chars body.
+    input: "token = ghu_wWPw5k4aXcaT4fNP0UcnZwJUVFk6LO0pINUx"
+    rule: github_pat
+    expect: match
+    reason: >
+      GitHub user-to-server token (ghu_ prefix) with real 36-char body matches.
+      Body derived from detect-secrets canonical ghp_ test value (same length).
+    source: synthetic
+
+  - name: tp_github_pat_server
+    input: "ghs_wWPw5k4aXcaT4fNP0UcnZwJUVFk6LO0pINUx"
+    rule: github_pat
+    expect: match
+    reason: >
+      GitHub server-to-server token (ghs_ prefix) with real 36-char body matches.
+    source: synthetic
+
+  - name: tp_github_pat_oauth
+    input: "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"
+    rule: github_pat
+    expect: match
+    reason: >
+      GitHub OAuth token (gho_ prefix) with real 36-char body matches.
+    source: synthetic
+
+  - name: tp_github_pat_refresh
+    input: "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"
+    rule: github_pat
+    expect: match
+    reason: >
+      GitHub refresh token (ghr_ prefix) with real 36-char body matches.
+      detect-secrets covers all five prefixes (ghp|gho|ghu|ghs|ghr).
+    source: synthetic
+
+  - name: fp_github_pat_url
+    input: "Visit https://github.com/user/repo for details"
+    rule: github_pat
+    expect: no_match
+    reason: >
+      A GitHub URL does not match the gh[pours]_ prefix pattern for PATs.
+    source: pattern_analysis
+
+  - name: fp_github_pat_short
+    input: "ghp_short123"
+    rule: github_pat
+    expect: no_match
+    reason: >
+      Token body under 20 characters does not meet the minimum length threshold.
+    source: synthetic
+
+  # --- aws_access_key (low FP risk: strict prefix) ---
+
+  - name: tp_aws_access_key_agpa
+    input: "AGPAIOSFODNN7EXAMPLE1234"
+    rule: aws_access_key
+    expect: match
+    reason: >
+      AWS group policy attachment key with AGPA prefix + 16 uppercase alphanumeric chars.
+    source: pattern_analysis
+
+  - name: tp_aws_access_key_asia
+    input: "ASIAXYZ123ABCDEFGHIJ"
+    rule: aws_access_key
+    expect: match
+    reason: >
+      Temporary session token key with ASIA prefix matches the aws_access_key rule.
+    source: detect_secrets
+
+  - name: fp_aws_access_key_prefix_only
+    input: "AKIA is the prefix for AWS access keys"
+    rule: aws_access_key
+    expect: no_match
+    reason: >
+      The word "AKIA" alone without 16 following uppercase alphanumeric chars does not match.
+    source: pattern_analysis
+
+  # --- aws_secret_key (high FP risk: broad 40-char base64) ---
+
+  - name: tp_aws_secret_key_credential_keyword
+    input: "credential=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+    rule: aws_secret_key
+    expect: match
+    reason: >
+      "credential" is in awsKeywords; 40-char base64 with "/" chars near the keyword is accepted.
+    source: synthetic
+
+  - name: tp_aws_secret_key_secret_access_key_keyword
+    input: "secret_access_key wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY set"
+    rule: aws_secret_key
+    expect: match
+    reason: >
+      "secret_access_key" is in awsKeywords; the filter accepts the 40-char key.
+    source: synthetic
+
+  - name: fp_aws_secret_key_bare_password_keyword
+    # Bare "password" was removed from awsKeywords — too common in coding transcripts.
+    input: "password wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY set"
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      Bare "password" was removed from awsKeywords to reduce false positives.
+      Real AWS keys appear near "aws_secret_access_key" or "secret_access_key".
+    source: synthetic
+
+  - name: fp_aws_secret_key_uuid_body
+    input: "token=550e8400-e29b-41d4-a716-446655440000extra"
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      The token body contains a UUID pattern; isPotentialUUID() returns true and
+      the filter rejects it before the context window check.
+    source: pattern_analysis
+
+  - name: fp_aws_secret_key_go_sum_padded
+    input: "h1:XyZaBcDeFgHiJkLmNoPqRsTuVwXyZaBcDeFgH="
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      A go.sum-style 39-char base64 + "=" without AWS context is rejected by the filter.
+    source: real_transcript
+
+  - name: fp_aws_secret_key_base64_config_padded
+    input: "cert_fingerprint=YWJjZGVmZ2hpamtsbW5vcA=="
+    rule: aws_secret_key
+    expect: no_match
+    reason: >
+      A padded base64 config value (38 chars + ==) without AWS keyword context is rejected.
+    source: synthetic
+
+  # --- stripe_key (aligned with detect-secrets/stripe.py: exact {24} body) ---
+
+  - name: tp_stripe_key_live
+    # Real-format Stripe key: sk_live_ + exactly 24 alphanumeric chars.
+    input: "STRIPE_SECRET_KEY=sk_live_abcdefghijklmnopqrstuvwx"
+    rule: stripe_key
+    expect: match
+    reason: >
+      Stripe live secret key: sk_live_ + exactly 24 alphanumeric chars per
+      detect-secrets/stripe.py.
+    source: detect_secrets
+
+  - name: tp_stripe_key_test
+    # Test variant: sk_test_ + exactly 24 chars. detect-secrets does not
+    # cover test keys; we extend the rule to cover both per Stripe docs.
+    input: "stripe_key = sk_test_abcdefghijklmnopqrstuvwx"
+    rule: stripe_key
+    expect: match
+    reason: >
+      Stripe test secret key: sk_test_ + exactly 24 chars. Our rule extends
+      detect-secrets' sk_live_ coverage to include test mode.
+    source: synthetic
+
+  - name: tp_stripe_key_restricted_live
+    # Restricted-key variant: rk_live_ prefix per detect-secrets/stripe.py and
+    # https://docs.stripe.com/keys. v2.0.0 added rk_ prefix support.
+    input: "rk_live_abcdefghijklmnopqrstuvwx"
+    rule: stripe_key
+    expect: match
+    reason: >
+      Stripe restricted key: rk_live_ + exactly 24 chars. detect-secrets uses
+      (?:r|s)k_live_; v2.0.0 added the rk_ prefix alternative.
+    source: detect_secrets
+
+  - name: fp_stripe_key_too_short_20_chars
+    # v2.0.0 narrowing: synthetic 20-char body no longer matches the exact {24}.
+    input: "sk_live_abcdefghijklmnopqrstu"
+    rule: stripe_key
+    expect: no_match
+    reason: >
+      Body is 21 chars (less than the exact 24 Stripe uses). Old loose {20,}
+      quantifier matched this synthetic value; v2.0.0 aligned with the exact format.
+    source: pattern_analysis
+
+  # --- twilio_key (medium FP risk: AC + hex, no word boundary) ---
+
+  - name: tp_twilio_key
+    input: "TWILIO_ACCOUNT_SID=ACa1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"
+    rule: twilio_key
+    expect: match
+    reason: >
+      Twilio Account SID with AC prefix + 32 lowercase hex chars matches.
+    source: detect_secrets
+
+  - name: fp_twilio_key_uppercase
+    input: "error code ACABCDEF0123456789ABCDEF01234567EF"
+    rule: twilio_key
+    expect: no_match
+    reason: >
+      The twilio_key pattern requires lowercase hex [a-f0-9]; uppercase hex after AC does not match.
+    source: pattern_analysis
+
+  # --- sendgrid_key (aligned with detect-secrets/sendgrid.py: exact {22}.{43}) ---
+
+  - name: tp_sendgrid_key
+    # Real-format SendGrid key from detect-secrets/tests/plugins/sendgrid_test.py:11.
+    input: "SENDGRID_API_KEY=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"
+    rule: sendgrid_key
+    expect: match
+    reason: >
+      SendGrid API key: SG. + exactly 22 chars + . + exactly 43 chars per
+      detect-secrets/sendgrid.py. This is the canonical test value.
+    source: detect_secrets
+
+  - name: fp_sendgrid_key_short_second_segment
+    # v2.0.0 narrowing: synthetic 22+22 segment lengths no longer match {22}.{43}.
+    input: "SG.abcdefghijklmnopqrstuv.wxyzABCDEFGHIJKLMNOPQRST"
+    rule: sendgrid_key
+    expect: no_match
+    reason: >
+      Second segment is 22 chars (less than the exact 43 required). Old loose
+      {22,}.{22,} matched this synthetic value; v2.0.0 aligned with detect-secrets.
+    source: pattern_analysis
+
+  - name: fp_sendgrid_key_one_segment
+    input: "SG.abcdefghijklmnopqrstuv"
+    rule: sendgrid_key
+    expect: no_match
+    reason: >
+      A single-segment SG. string without the second dot-segment does not match.
+    source: pattern_analysis
+
+  # --- jwt_token (medium FP risk: eyJ prefix common in docs/logs) ---
+
+  - name: tp_jwt_token_full
+    input: "token: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+    rule: jwt_token
+    expect: match
+    reason: >
+      Full JWT with three base64url segments matches. The eyJ prefix ensures header/payload start.
+    source: detect_secrets
+
+  - name: tp_jwt_token_in_log
+    input: "2024-01-15 DEBUG auth: validating eyJhbGciOiJSUzI1NiJ9.eyJpc3MiOiJ0ZXN0In0.abc123def456ghi789"
+    rule: jwt_token
+    expect: match
+    reason: >
+      A JWT embedded in a log line still matches; the eyJ prefix is highly specific.
+    source: real_transcript
+
+  - name: fp_jwt_token_incomplete
+    input: "encoded header: eyJhbGciOiJIUzI1NiJ9 (truncated)"
+    rule: jwt_token
+    expect: no_match
+    reason: >
+      A JWT header without the payload segment (second eyJ...) does not match; the pattern requires
+      at least two dot-separated eyJ segments.
+    source: pattern_analysis
+
+  - name: fp_jwt_token_base64_only
+    input: "data: eyJhbGciOiJub25lIn0"
+    rule: jwt_token
+    expect: no_match
+    reason: >
+      A single base64url segment starting with eyJ without a dot separator does not match.
+    source: synthetic
+
+  - name: fp_jwt_tiny_segments
+    input: "eyJa.eyJb"
+    rule: jwt_token
+    expect: no_match
+    reason: >
+      Tiny 2-segment JWT shape with single-character bodies after eyJ. The v2.1.1
+      pattern adds a {10,} minimum on both head and payload character classes:
+      eyJ[a-zA-Z0-9_-]{10,}.eyJ[a-zA-Z0-9_-]{10,}. The shortest real JSON object
+      {"a":1} encodes to 10 base64url chars so a {10,} floor keeps all real unsigned
+      JWTs while rejecting documentation-example shapes like "eyJa.eyJb".
+    source: pattern_analysis
+
+  # --- private_key_block (low FP risk: highly specific PEM header) ---
+
+  - name: tp_private_key_ec
+    input: "-----BEGIN EC PRIVATE KEY-----"
+    rule: private_key_block
+    expect: match
+    reason: >
+      Elliptic curve private key PEM header matches the optional type prefix pattern.
+    source: detect_secrets
+
+  - name: tp_private_key_openssh
+    input: "-----BEGIN OPENSSH PRIVATE KEY-----"
+    rule: private_key_block
+    expect: match
+    reason: >
+      OpenSSH private key PEM header matches.
+    source: detect_secrets
+
+  - name: tp_private_key_generic
+    input: "-----BEGIN PRIVATE KEY-----"
+    rule: private_key_block
+    expect: match
+    reason: >
+      Generic PKCS#8 private key header (no type prefix) matches; the type prefix is optional.
+    source: detect_secrets
+
+  - name: fp_private_key_public
+    input: "-----BEGIN PUBLIC KEY-----"
+    rule: private_key_block
+    expect: no_match
+    reason: >
+      A PUBLIC KEY header does not match the PRIVATE KEY pattern.
+    source: pattern_analysis
+
+  - name: fp_private_key_certificate
+    input: "-----BEGIN CERTIFICATE-----"
+    rule: private_key_block
+    expect: no_match
+    reason: >
+      A CERTIFICATE PEM block does not match the PRIVATE KEY pattern.
+    source: pattern_analysis
+
+  - name: ds_private_key_pgp_block
+    input: "-----BEGIN PGP PRIVATE KEY BLOCK-----"
+    rule: private_key_block
+    expect: match
+    reason: >
+      Real PGP private key PEM header includes the word BLOCK. The correct format
+      is "-----BEGIN PGP PRIVATE KEY BLOCK-----" (not "BEGIN PGP PRIVATE KEY").
+      v2.1.1 adds a dedicated arm for this form: before v2.1.1, "PGP " was inside
+      the optional-prefix group which generated the incorrect "BEGIN PGP PRIVATE KEY"
+      header without BLOCK, silently missing real PGP keys in transcripts.
+    source: detect_secrets
+
+  # --- generic_api_key (high FP risk: broad pattern matches placeholders) ---
+
+  - name: tp_generic_api_key_env
+    input: "api_key=abcdefghijklmnopqrstu"
+    rule: generic_api_key
+    expect: match
+    reason: >
+      A 20+ char alphanumeric value after api_key= matches the generic_api_key rule.
+    source: synthetic
+
+  - name: tp_generic_api_key_quoted
+    input: "apikey: \"mySecretApiKey12345678\""
+    rule: generic_api_key
+    expect: match
+    reason: >
+      A quoted API key value matches; quotes are stripped by the optional ["']? group.
+    source: synthetic
+
+  - name: tp_generic_api_key_hyphenated
+    input: "api-key = longApiKeyValue1234567890"
+    rule: generic_api_key
+    expect: match
+    reason: >
+      Hyphenated api-key= variant also matches the api[_-]?key pattern.
+    source: synthetic
+
+  - name: fp_generic_api_key_short
+    input: "api_key=short"
+    rule: generic_api_key
+    expect: no_match
+    reason: >
+      Values under 20 characters do not meet the minimum length requirement.
+    source: pattern_analysis
+
+  - name: fp_generic_api_key_env_var
+    input: "api_key=${MY_API_KEY}"
+    rule: generic_api_key
+    expect: no_match
+    reason: >
+      Shell variable reference ${...} contains special chars not in [a-zA-Z0-9_-], so the
+      20+ char requirement cannot be met by the variable name alone.
+    source: pattern_analysis
+
+  # --- bearer_token (medium FP risk: generic Bearer prefix) ---
+
+  - name: tp_bearer_token_opaque
+    input: "Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123"
+    rule: bearer_token
+    expect: match
+    reason: >
+      An opaque bearer token (not a JWT) with 20+ alphanumeric chars matches.
+    source: synthetic
+
+  - name: tp_bearer_token_base64url
+    input: "Bearer dXNlcjpwYXNzd29yZA==abcdefghijk"
+    rule: bearer_token
+    expect: match
+    reason: >
+      A base64-encoded bearer token (with = padding) matches because "=" is in the charset.
+    source: synthetic
+
+  - name: fp_bearer_token_short
+    input: "Bearer abc123short"
+    rule: bearer_token
+    expect: no_match
+    reason: >
+      Bearer token under 20 characters does not meet the minimum length.
+    source: pattern_analysis
+
+  - name: fp_bearer_token_env_var
+    input: "Authorization: Bearer ${BEARER_TOKEN}"
+    rule: bearer_token
+    expect: no_match
+    reason: >
+      Shell variable reference contains "$" and "{}" which are not in the token charset,
+      preventing a 20+ char match.
+    source: pattern_analysis
+
+  # --- basic_auth (medium FP risk: base64 after "Basic ") ---
+
+  - name: tp_basic_auth_header
+    input: "Authorization: Basic dXNlcjpwYXNzd29yZA=="
+    rule: basic_auth
+    expect: match
+    reason: >
+      Standard HTTP Authorization Basic header with base64 credentials matches.
+    source: detect_secrets
+
+  - name: tp_basic_auth_assignment
+    input: "Basic auth = dXNlcjpwYXNzd29yZA=="
+    rule: basic_auth
+    expect: match
+    reason: >
+      Config file basic auth assignment format matches the alternative pattern branch.
+    source: synthetic
+
+  - name: fp_basic_auth_short
+    input: "Authorization: Basic dXNlcg=="
+    rule: basic_auth
+    expect: no_match
+    reason: >
+      A base64 value under 10 characters (even with padding) does not meet the minimum length.
+    source: pattern_analysis
+
+  # --- PII rules ---
+
+  # email
+  - name: tp_email_subdomain
+    input: "reply-to: alice@mail.example.co.uk"
+    rule: email
+    expect: match
+    reason: >
+      Email with subdomain and two-part TLD matches the email pattern.
+    source: synthetic
+
+  - name: tp_email_plus_addressing
+    input: "filter for user+tag@example.com"
+    rule: email
+    expect: match
+    reason: >
+      Plus-addressed email (user+tag@...) is valid and matches; "+" is in the local-part charset.
+    source: synthetic
+
+  - name: fp_email_no_tld
+    input: "send to user@localhost"
+    rule: email
+    expect: no_match
+    reason: >
+      An address without a dot-separated TLD (localhost has no dot) does not match.
+    source: pattern_analysis
+
+  # phone_us
+  - name: tp_phone_us_dotted
+    input: "call 800.555.1234"
+    rule: phone_us
+    expect: match
+    reason: >
+      Dotted US phone number format (NXX.NXX.XXXX) matches the phone_us pattern.
+    source: synthetic
+
+  - name: tp_phone_us_international
+    input: "+1-800-555-1234"
+    rule: phone_us
+    expect: match
+    reason: >
+      International format with +1 prefix matches; the +1 group is optional in the pattern.
+    source: synthetic
+
+  - name: tp_phone_us_part_number
+    input: "part 100-200-3000 assembly"
+    rule: phone_us
+    expect: match
+    reason: >
+      A 3-3-4 digit part number is structurally identical to a US phone number; the regex
+      cannot distinguish them. This is a documented false positive accepted by design.
+    source: pattern_analysis
+
+  # ssn
+  - name: tp_ssn
+    input: "SSN: 123-45-6789"
+    rule: ssn
+    expect: match
+    reason: >
+      Standard SSN format (3-2-4 digits with dashes) matches the ssn rule.
+    source: synthetic
+
+  - name: tp_ssn_date_like
+    input: "filed on 123-45-2024"
+    rule: ssn
+    expect: match
+    reason: >
+      A 3-2-4 digit pattern used as a date-like identifier matches the SSN regex;
+      the SSN rule cannot distinguish this from a real SSN by structure alone.
+      This is a documented false positive accepted by design.
+    source: pattern_analysis
+
+  - name: fp_ssn_too_many_digits
+    input: "ID: 1234-56-7890"
+    rule: ssn
+    expect: no_match
+    reason: >
+      A 4-2-4 digit pattern does not match the 3-2-4 SSN pattern.
+    source: pattern_analysis
+
+  # credit_card
+  - name: tp_credit_card_visa
+    input: "card: 4111111111111111"
+    rule: credit_card
+    expect: match
+    reason: >
+      Standard 16-digit Visa test card number (no separators) matches.
+    source: detect_secrets
+
+  - name: fp_credit_card_with_dashes
+    input: "payment 4111-1111-1111-1111 charged"
+    rule: credit_card
+    expect: no_match
+    reason: >
+      Dash-separated 4-digit groups are rejected by creditCardFilter. Dashes
+      strongly indicate UUID/order-number patterns rather than real credit cards.
+    source: detect_secrets
+
+  - name: tp_credit_card_with_spaces
+    input: "4111 1111 1111 1111"
+    rule: credit_card
+    expect: match
+    reason: >
+      16-digit card number with space separators matches.
+    source: detect_secrets
+
+  - name: tp_credit_card_16digit_id
+    input: "transaction_id: 1234567890123456"
+    rule: credit_card
+    expect: match
+    reason: >
+      Any 16-digit number matches the credit_card regex; transaction IDs are a known
+      false positive. The rule comment in rules.go explicitly acknowledges this trade-off.
+    source: pattern_analysis
+
+  - name: fp_credit_card_order_number
+    input: "order: 1234-5678-9012-3456"
+    rule: credit_card
+    expect: no_match
+    reason: >
+      The creditCardFilter rejects dash-separated 4-digit groups — these typically come
+      from UUID fragments or order numbers, not real credit cards.
+    source: pattern_analysis
+
+  - name: fp_credit_card_short_sequence
+    input: "code: 1234-5678-9012"
+    rule: credit_card
+    expect: no_match
+    reason: >
+      A 4-4-4 digit sequence (12 digits) does not have the required fourth 4-digit group.
+    source: pattern_analysis
+
+  - name: fp_credit_card_uuid_fragment
+    # UUID middle portion (4-4-4-4 digit groups) matches the credit_card regex but
+    # the creditCardFilter rejects it because of the dash-separated 4-digit pattern.
+    input: "id: 54375256-9939-4381-8382"
+    rule: credit_card
+    expect: no_match
+    reason: >
+      UUID fragments contain 4-digit groups separated by dashes which match the
+      credit_card regex. The creditCardFilter rejects matches that start with
+      three dash-separated 4-digit groups, which is the UUID signature.
+    source: real_transcript
+
+  - name: fp_credit_card_dashed_with_dashes
+    # A 16-digit card number written with dashes — now filtered by creditCardFilter.
+    # Real credit cards use spaces or no separator; dashes indicate UUID/order IDs.
+    input: "card 4111-1111-1111-1111 end"
+    rule: credit_card
+    expect: no_match
+    reason: >
+      Dash-separated 4-digit groups are rejected by creditCardFilter. Real credit
+      card numbers use spaces or no separators; dashes strongly correlate with
+      UUIDs, order numbers, and other non-card identifiers.
+    source: pattern_analysis
+
+  # ip_address
+  - name: tp_ip_address_private
+    input: "connecting to 192.168.1.100"
+    rule: ip_address
+    expect: match
+    reason: >
+      Private network IP address matches the ip_address pattern.
+    source: synthetic
+
+  - name: tp_ip_address_loopback
+    input: "server listening on 127.0.0.1:8080"
+    rule: ip_address
+    expect: match
+    reason: >
+      Loopback address 127.0.0.1 matches; the rule redacts all IPs at Standard level.
+    source: synthetic
+
+  - name: tp_ip_address_version_number
+    input: "version 1.2.3.4 released"
+    rule: ip_address
+    expect: match
+    reason: >
+      A four-octet version number (1.2.3.4) is structurally identical to an IP address;
+      the ip_address rule matches it. This is a known false positive — version numbers
+      like "v1.2.3.4" are over-redacted by the ip_address rule.
+    source: pattern_analysis
+
+  - name: fp_ip_address_invalid_range
+    input: "octet 999.999.999.999 out of range"
+    rule: ip_address
+    expect: no_match
+    reason: >
+      Values above 255 per octet are not matched by the octet-range constraint in the pattern.
+    source: pattern_analysis
+
+  # --- Paths rules ---
+
+  # unix_home_path
+  - name: tp_unix_home_path_linux
+    input: "reading /home/alice/config.yaml"
+    rule: unix_home_path
+    expect: match
+    reason: >
+      Linux home path /home/<user> matches; the username segment is captured.
+    source: synthetic
+
+  - name: tp_unix_home_path_macos
+    input: "found at /Users/bob/Library/Application Support"
+    rule: unix_home_path
+    expect: match
+    reason: >
+      macOS home path /Users/<user> matches the unix_home_path pattern.
+    source: synthetic
+
+  - name: fp_unix_home_path_etc
+    input: "config at /etc/passwd"
+    rule: unix_home_path
+    expect: no_match
+    reason: >
+      /etc/passwd does not contain /home/ or /Users/ so it does not match.
+    source: pattern_analysis
+
+  - name: fp_unix_home_path_var
+    input: "log at /var/log/syslog"
+    rule: unix_home_path
+    expect: no_match
+    reason: >
+      /var/log path does not start with /home/ or /Users/.
+    source: pattern_analysis
+
+  # windows_home_path
+  - name: tp_windows_home_path
+    input: "opening C:\\Users\\alice\\Documents\\file.txt"
+    rule: windows_home_path
+    expect: match
+    reason: >
+      Windows home path C:\Users\<user>\ matches; case-insensitive pattern.
+    source: synthetic
+
+  - name: fp_windows_home_path_other_drive
+    input: "D:\\Users\\alice\\Documents"
+    rule: windows_home_path
+    expect: no_match
+    reason: >
+      The windows_home_path pattern is anchored to drive C: only.
+    source: pattern_analysis
+
+  # claude_project_slug
+  - name: tp_claude_project_slug
+    input: "id=-home-alice-myproject-rest"
+    rule: claude_project_slug
+    expect: match
+    reason: >
+      A Claude project slug with a \W prefix char (=) directly before -home-{user}- matches.
+      The username is captured by the non-greedy group before the trailing dash.
+    source: synthetic
+
+  - name: fp_claude_project_slug_word_prefix
+    input: "go-home-early-feature branch"
+    rule: claude_project_slug
+    expect: no_match
+    reason: >
+      The (\W) anchor prevents matching when a word character precedes the -home- segment;
+      "go-home-early" has 'o' (word char) before "-home-" so it does not match.
+    source: pattern_analysis
+
+  # peasant_host_slug
+  - name: tp_peasant_host_slug
+    input: "=--home--alice--myproject"
+    rule: peasant_host_slug
+    expect: match
+    reason: >
+      A peasant host slug with --home--{user}-- double-dash pattern and \W prefix (=) matches.
+      The non-greedy username group captures "alice" before the closing "--".
+    source: synthetic
+
+  # --- detect-secrets expansion rules ---
+
+  # artifactory_api_token
+  - name: tp_artifactory_api_token
+    input: " AKCabcdefghijklm "
+    rule: artifactory_api_token
+    expect: match
+    reason: >
+      Artifactory API token with AKC prefix surrounded by whitespace (boundary anchors) matches.
+    source: detect_secrets
+
+  - name: fp_artifactory_api_token_embedded
+    input: "xAKCabcdefghijklm"
+    rule: artifactory_api_token
+    expect: no_match
+    reason: >
+      An AKC token embedded in an identifier (no word-break before it) does not match;
+      the boundary anchor (?:^|[\s=:"]) requires whitespace or a delimiter before AKC.
+    source: pattern_analysis
+
+  - name: fp_artifactory_api_token_in_url
+    input: "https://myrepo.jfrog.io/artifactory/AKCabcdefghijklm/path"
+    rule: artifactory_api_token
+    expect: no_match
+    reason: >
+      AKC embedded in a URL path without a preceding whitespace/delimiter does not match
+      because the leading '/' is not in [\s=:"].
+    source: pattern_analysis
+
+  # artifactory_password
+  - name: tp_artifactory_password
+    input: " AP1abcdefghi "
+    rule: artifactory_password
+    expect: match
+    reason: >
+      Artifactory password with AP + uppercase hex digit + 8+ alphanum surrounded by whitespace matches.
+    source: detect_secrets
+
+  - name: fp_artifactory_password_lowercase_hex
+    input: " APaabcdefghi "
+    rule: artifactory_password
+    expect: no_match
+    reason: >
+      Artifactory passwords require the third character to be [0-9A-F] (uppercase hex);
+      'a' (lowercase) does not match.
+    source: pattern_analysis
+
+  # azure_storage_key
+  - name: tp_azure_storage_key
+    input: "AccountKey=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/abcdefghijklmnopqrstuvwx"
+    rule: azure_storage_key
+    expect: match
+    reason: >
+      Azure Storage Account Key with AccountKey= prefix followed by exactly 88 base64 chars matches.
+    source: detect_secrets
+
+  - name: fp_azure_storage_key_short
+    input: "AccountKey=tooshortvalue"
+    rule: azure_storage_key
+    expect: no_match
+    reason: >
+      Azure Storage Key requires exactly 88 base64 characters; a short value does not match.
+    source: pattern_analysis
+
+  # discord_bot_token
+  - name: tp_discord_bot_token
+    input: "NTc4NzUwNTU4MDA2MjY1NzI4.abcdef.ABCDEFGHIJKLMNOPQRSTUVWXYZ0"
+    rule: discord_bot_token
+    expect: match
+    reason: >
+      Discord bot token with N prefix + 23-25 chars + 6-char segment + 27+ char segment matches.
+    source: detect_secrets
+
+  - name: fp_discord_bot_token_wrong_prefix
+    input: "XTc4NzUwNTU4MDA2MjY1NzI4.abcdef.ABCDEFGHIJKLMNOPQRSTUVWXYZ0"
+    rule: discord_bot_token
+    expect: no_match
+    reason: >
+      Discord tokens must start with M, N, or O; X prefix does not match.
+    source: pattern_analysis
+
+  # gitlab_pat
+  - name: tp_gitlab_pat
+    input: "CI_TOKEN=glpat-abcdefghijklmnopqrstu "
+    rule: gitlab_pat
+    expect: match
+    reason: >
+      GitLab personal access token with glpat- prefix and 20+ chars matches.
+    source: detect_secrets
+
+  - name: tp_gitlab_deploy_token
+    input: "gldt-abcdefghijklmnopqrstuv "
+    rule: gitlab_pat
+    expect: match
+    reason: >
+      GitLab deploy token (gldt- prefix) matches the gitlab_pat rule.
+    source: detect_secrets
+
+  - name: fp_gitlab_pat_short
+    input: "glpat-tooshort "
+    rule: gitlab_pat
+    expect: no_match
+    reason: >
+      GitLab PAT body under 20 characters does not match the {20,50} quantifier.
+    source: pattern_analysis
+
+  # gitlab_runner_registration
+  - name: tp_gitlab_runner_registration
+    input: "runner token: GR1348941abcdefghijklmnopqrstu "
+    rule: gitlab_runner_registration
+    expect: match
+    reason: >
+      GitLab runner registration token with GR1348941 prefix + 20+ chars matches.
+    source: detect_secrets
+
+  - name: fp_gitlab_runner_wrong_prefix
+    input: "GR1348942abcdefghijklmnopqrstu "
+    rule: gitlab_runner_registration
+    expect: no_match
+    reason: >
+      The runner registration token prefix must be exactly GR1348941; digit 2 at the end fails.
+    source: pattern_analysis
+
+  # gitlab_cicd
+  - name: tp_gitlab_cicd_plain
+    input: "glcbt-abcdefghijklmnopqrstu "
+    rule: gitlab_cicd
+    expect: match
+    reason: >
+      GitLab CI/CD token without partition prefix (no hex_) matches.
+    source: detect_secrets
+
+  - name: tp_gitlab_cicd_partitioned
+    input: "token=glcbt-ab_abcdefghijklmnopqrstu "
+    rule: gitlab_cicd
+    expect: match
+    reason: >
+      GitLab CI/CD token with optional 2-char hex partition prefix (ab_) matches.
+    source: detect_secrets
+
+  # gitlab_incoming_mail
+  - name: tp_gitlab_incoming_mail
+    input: "mail_token=glimt-abcdefghijklmnopqrstuvwxy "
+    rule: gitlab_incoming_mail
+    expect: match
+    reason: >
+      GitLab incoming mail token with glimt- prefix + exactly 25 chars matches.
+    source: detect_secrets
+
+  - name: fp_gitlab_incoming_mail_wrong_len
+    input: "glimt-tooshort "
+    rule: gitlab_incoming_mail
+    expect: no_match
+    reason: >
+      Incoming mail token body must be exactly 25 characters; "tooshort" is 8 chars.
+    source: pattern_analysis
+
+  # gitlab_trigger
+  - name: tp_gitlab_trigger
+    input: "trigger_token=glptt-abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN "
+    rule: gitlab_trigger
+    expect: match
+    reason: >
+      GitLab trigger token with glptt- prefix + exactly 40 chars matches.
+    source: detect_secrets
+
+  - name: fp_gitlab_trigger_short
+    input: "glptt-tooshort "
+    rule: gitlab_trigger
+    expect: no_match
+    reason: >
+      Trigger token must have exactly 40 characters after the prefix; "tooshort" fails.
+    source: pattern_analysis
+
+  # gitlab_agent
+  - name: tp_gitlab_agent
+    input: "agent_token=glagent-abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX "
+    rule: gitlab_agent
+    expect: match
+    reason: >
+      GitLab agent token with glagent- prefix + 50+ chars matches.
+      Body here is exactly 50 characters (a-z = 26, A-X = 24).
+    source: detect_secrets
+
+  - name: fp_gitlab_agent_short
+    input: "glagent-tooshort "
+    rule: gitlab_agent
+    expect: no_match
+    reason: >
+      Agent token body must be 50+ characters; "tooshort" is far below threshold.
+    source: pattern_analysis
+
+  # gitlab_oauth_secret
+  - name: tp_gitlab_oauth_secret
+    input: "oauth_secret=gloas-abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789AB "
+    rule: gitlab_oauth_secret
+    expect: match
+    reason: >
+      GitLab OAuth application secret with gloas- prefix + exactly 64 chars matches.
+    source: detect_secrets
+
+  - name: fp_gitlab_oauth_secret_short
+    input: "gloas-tooshort "
+    rule: gitlab_oauth_secret
+    expect: no_match
+    reason: >
+      OAuth secret must be exactly 64 characters; "tooshort" fails.
+    source: pattern_analysis
+
+  # mailchimp_api_key
+  - name: tp_mailchimp_api_key
+    input: "MAILCHIMP_KEY=a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4-us12 "
+    rule: mailchimp_api_key
+    expect: match
+    reason: >
+      Mailchimp API key with 32 lowercase alphanumeric chars + -usNN datacenter suffix matches.
+    source: detect_secrets
+
+  - name: fp_mailchimp_api_key_uppercase
+    input: "A1B2C3D4E5F6A1B2C3D4E5F6A1B2C3D4-us12 "
+    rule: mailchimp_api_key
+    expect: no_match
+    reason: >
+      Mailchimp key pattern requires [0-9a-z] (lowercase); uppercase hex chars do not match.
+    source: pattern_analysis
+
+  # npm_auth_token
+  - name: tp_npm_auth_token_npm_prefix
+    input: "//registry.npmjs.org/:_authToken=npm_abc123def456ghi789jkl"
+    rule: npm_auth_token
+    expect: match
+    reason: >
+      npm auth token with npm_ prefix format matches; npm_ can be followed by any chars.
+    source: detect_secrets
+
+  - name: tp_npm_auth_token_uuid
+    input: "//registry.npmjs.org/:_authToken=12345678-1234-1234-1234-123456789012"
+    rule: npm_auth_token
+    expect: match
+    reason: >
+      Legacy npm auth token in UUID format (36 chars: 8-4-4-4-12 hex) matches.
+    source: detect_secrets
+
+  - name: fp_npm_auth_token_env_placeholder
+    input: "//registry.npmjs.org/:_authToken=${NPM_TOKEN}"
+    rule: npm_auth_token
+    expect: no_match
+    reason: >
+      An environment variable placeholder ${NPM_TOKEN} does not start with npm_ or match UUID
+      format, so it does not match the npm_auth_token pattern.
+    source: pattern_analysis
+
+  # pypi_api_token
+  - name: tp_pypi_api_token
+    input: "PYPI_TOKEN=pypi-AgEIcHlwaS5vcmcABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-ABCDEFG"
+    rule: pypi_api_token
+    expect: match
+    reason: >
+      PyPI production token with fixed base64 prefix pypi-AgEIcHlwaS5vcmc + 70+ chars matches.
+    source: detect_secrets
+
+  - name: fp_pypi_api_token_wrong_prefix
+    input: "pypi-ABCDEFGHIJKLMNOPabcdefghijklmnopqrstuvwxyz0123456789_-ABCDEFGH"
+    rule: pypi_api_token
+    expect: no_match
+    reason: >
+      A pypi- token without the exact fixed prefix AgEIcHlwaS5vcmc does not match.
+    source: pattern_analysis
+
+  # pypi_test_token
+  - name: tp_pypi_test_token
+    input: "TEST_PYPI=pypi-AgENdGVzdC5weXBpLm9yZwABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-ABCDEFG"
+    rule: pypi_test_token
+    expect: match
+    reason: >
+      PyPI test instance token with its distinct base64 prefix pypi-AgENdGVzdC5weXBpLm9yZw matches.
+    source: detect_secrets
+
+  # square_oauth_secret
+  - name: tp_square_oauth_secret
+    input: "SQUARE_SECRET=sq0csp-abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOP1"
+    rule: square_oauth_secret
+    expect: match
+    reason: >
+      Square OAuth application secret with sq0csp- prefix + exactly 43 chars matches.
+      Body: a-z (26) + A-P (16) + 1 = 43 characters.
+    source: detect_secrets
+
+  - name: fp_square_oauth_secret_short
+    input: "sq0csp-tooshort"
+    rule: square_oauth_secret
+    expect: no_match
+    reason: >
+      Square OAuth secret requires exactly 43 characters; "tooshort" fails length check.
+    source: pattern_analysis
+
+  # telegram_bot_token
+  - name: tp_telegram_bot_token
+    input: " 110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw1 "
+    rule: telegram_bot_token
+    expect: match
+    reason: >
+      Telegram bot token with 9-digit bot ID + colon + exactly 35 [A-Za-z0-9_-] chars
+      surrounded by whitespace matches.
+    source: detect_secrets
+
+  - name: fp_telegram_bot_token_short_id
+    input: " 1234:tooshort "
+    rule: telegram_bot_token
+    expect: no_match
+    reason: >
+      A short numeric ID (4 digits) does not meet the 8-10 digit bot ID requirement, and
+      the body is too short. Neither condition satisfies the pattern.
+    source: pattern_analysis
+
+  # --- Project rules ---
+
+  # git_remote_https
+  - name: tp_git_remote_https_github
+    input: "remote origin = https://github.com/myorg/myrepo.git"
+    rule: git_remote_https
+    expect: match
+    level: maximum
+    reason: >
+      GitHub HTTPS remote URL matches the git_remote_https rule (Maximum only).
+    source: synthetic
+
+  - name: tp_git_remote_https_gitlab
+    input: "origin: https://gitlab.com/mygroup/myproject"
+    rule: git_remote_https
+    expect: match
+    level: maximum
+    reason: >
+      GitLab HTTPS remote URL matches; gitlab.com is one of the three anchored hostnames (Maximum only).
+    source: synthetic
+
+  - name: tp_git_remote_https_bitbucket
+    input: "git remote add origin https://bitbucket.org/myteam/myrepo.git"
+    rule: git_remote_https
+    expect: match
+    level: maximum
+    reason: >
+      Bitbucket HTTPS remote URL matches; bitbucket.org is anchored in the pattern (Maximum only).
+    source: synthetic
+
+  - name: fp_git_remote_https_self_hosted
+    input: "remote: https://git.company.internal/myorg/myrepo"
+    rule: git_remote_https
+    expect: no_match
+    reason: >
+      Self-hosted git servers with custom domains are not matched; the pattern only covers
+      github.com, gitlab.com, and bitbucket.org.
+    source: pattern_analysis
+
+  - name: fp_git_remote_https_bare_host
+    input: "visit https://github.com for docs"
+    rule: git_remote_https
+    expect: no_match
+    reason: >
+      A bare hostname without a path component (no org/repo after the host) does not match
+      because the pattern requires at least one "/" after the hostname.
+    source: pattern_analysis
+
+  # git_remote_ssh
+  - name: tp_git_remote_ssh_github
+    input: "git@github.com:myorg/myrepo.git"
+    rule: git_remote_ssh
+    expect: match
+    level: maximum
+    reason: >
+      GitHub SSH remote URL in SCP syntax matches (Maximum only).
+    source: synthetic
+
+  - name: tp_git_remote_ssh_gitlab
+    input: "remote = git@gitlab.com:mygroup/myproject.git"
+    rule: git_remote_ssh
+    expect: match
+    level: maximum
+    reason: >
+      GitLab SSH remote URL matches (Maximum only).
+    source: synthetic
+
+  - name: fp_git_remote_ssh_other_host
+    input: "git@git.internal.corp:myorg/myrepo.git"
+    rule: git_remote_ssh
+    expect: no_match
+    reason: >
+      SSH remote to a custom domain is not matched; only the three major hosts are anchored.
+    source: pattern_analysis
+
+  # go_import_path
+  - name: tp_go_import_path
+    input: "import \"github.com/myorg/myrepo\""
+    rule: go_import_path
+    expect: match
+    reason: >
+      A quoted Go import path rooted at github.com with org/repo matches.
+    source: synthetic
+
+  - name: tp_go_import_subpackage
+    input: "import \"github.com/myorg/myrepo/internal/api\""
+    rule: go_import_path
+    expect: match
+    reason: >
+      A sub-package import path with additional segments matches.
+    source: synthetic
+
+  - name: fp_go_import_bare_org
+    input: "\"github.com/myorg\""
+    rule: go_import_path
+    expect: no_match
+    reason: >
+      A path with only org (no repo segment) does not match; at least org/repo is required.
+    source: pattern_analysis
+
+  # go_module_path
+  - name: tp_go_module_path
+    input: "module github.com/myorg/myrepo"
+    rule: go_module_path
+    expect: match
+    reason: >
+      A go.mod module declaration with github.com/org/repo matches.
+    source: synthetic
+
+  - name: fp_go_module_bare_org
+    input: "module github.com/myorg"
+    rule: go_module_path
+    expect: no_match
+    reason: >
+      A module path with only the org segment (no repo) does not match; two path segments required.
+    source: pattern_analysis
+
+  # npm_repo_url
+  - name: tp_npm_repo_url_repository
+    input: "\"repository\": \"https://github.com/myorg/myrepo\""
+    rule: npm_repo_url
+    expect: match
+    reason: >
+      The "repository" JSON key with a GitHub URL value matches.
+    source: synthetic
+
+  - name: tp_npm_repo_url_homepage
+    input: "\"homepage\": \"https://github.com/myorg/myrepo#readme\""
+    rule: npm_repo_url
+    expect: match
+    reason: >
+      The "homepage" JSON key with a GitHub URL (including anchor) matches.
+    source: synthetic
+
+  - name: fp_npm_repo_url_description
+    input: "\"description\": \"hosted at https://github.com/myorg/myrepo\""
+    rule: npm_repo_url
+    expect: no_match
+    reason: >
+      The "description" key is not in the anchored set (repository|homepage|bugs), so it does not match.
+    source: pattern_analysis
+
+  # docker_image_ref
+  - name: tp_docker_image_ref_from
+    input: "FROM myorg/myimage:latest"
+    rule: docker_image_ref
+    expect: match
+    reason: >
+      A Dockerfile FROM line with org/image:tag format matches.
+    source: synthetic
+
+  - name: tp_docker_image_ref_yaml
+    input: "image: myorg/myapp:v1.2.3"
+    rule: docker_image_ref
+    expect: match
+    reason: >
+      A docker-compose YAML image: field with org/app:version format matches.
+    source: synthetic
+
+  - name: fp_docker_image_ref_official
+    input: "FROM ubuntu:20.04"
+    rule: docker_image_ref
+    expect: no_match
+    reason: >
+      Official single-word image names (no slash) do not match; a slash is required to
+      avoid over-redacting public official images.
+    source: pattern_analysis
+
+  # ghcr_image_ref
+  - name: tp_ghcr_image_ref
+    input: "image: ghcr.io/myorg/myapp:latest"
+    rule: ghcr_image_ref
+    expect: match
+    reason: >
+      GitHub Container Registry image reference matches; ghcr.io is a strong anchor.
+    source: synthetic
+
+  - name: tp_ghcr_image_ref_digest
+    input: "FROM ghcr.io/myorg/myapp:sha-abc1234"
+    rule: ghcr_image_ref
+    expect: match
+    reason: >
+      A ghcr.io image with a digest tag also matches.
+    source: synthetic
+
+  - name: fp_ghcr_image_ref_missing_repo
+    input: "ghcr.io/myimage"
+    rule: ghcr_image_ref
+    expect: no_match
+    reason: >
+      A ghcr.io path with only one segment (no org/image structure) does not match.
+    source: pattern_analysis
+
+  # git_branch_output
+  - name: tp_git_branch_current
+    input: "* feat/my-feature"
+    rule: git_branch_output
+    expect: match
+    level: maximum
+    reason: >
+      The current branch marker "* " followed by a slash-containing branch name matches (Maximum only).
+    source: synthetic
+
+  - name: tp_git_branch_remote_tracking
+    input: "  origin/feat/my-feature"
+    rule: git_branch_output
+    expect: match
+    level: maximum
+    reason: >
+      A remote tracking ref "origin/..." with a slash-containing branch name matches (Maximum only).
+    source: synthetic
+
+  - name: fp_git_branch_single_word
+    input: "* main"
+    rule: git_branch_output
+    expect: no_match
+    reason: >
+      A single-word branch name (no slash) does not match; at least one slash is required
+      to avoid flagging common branch names like "main", "develop", "release" in prose.
+    source: pattern_analysis
+
+  # gitlab_ci_project
+  - name: tp_gitlab_ci_project_name
+    input: "CI_PROJECT_NAME=myproject"
+    rule: gitlab_ci_project
+    expect: match
+    reason: >
+      GitLab CI variable CI_PROJECT_NAME with a value matches.
+    source: synthetic
+
+  - name: tp_gitlab_ci_project_url
+    input: "CI_PROJECT_URL: https://gitlab.com/mygroup/myproject"
+    rule: gitlab_ci_project
+    expect: match
+    reason: >
+      GitLab CI variable CI_PROJECT_URL in YAML format (colon separator) matches.
+    source: synthetic
+
+  - name: fp_gitlab_ci_other_variable
+    input: "CI_COMMIT_SHA=abc123def456"
+    rule: gitlab_ci_project
+    expect: no_match
+    reason: >
+      Other CI_ variables that do not include PROJECT_NAME|PATH|URL do not match.
+    source: pattern_analysis
+
+  # github_actions_repo
+  - name: tp_github_actions_repo_equals
+    input: "GITHUB_REPOSITORY=owner/repo"
+    rule: github_actions_repo
+    expect: match
+    reason: >
+      GitHub Actions GITHUB_REPOSITORY env var with = assignment matches.
+    source: synthetic
+
+  - name: tp_github_actions_repo_colon
+    input: "GITHUB_REPOSITORY: owner/repo"
+    rule: github_actions_repo
+    expect: match
+    reason: >
+      GitHub Actions GITHUB_REPOSITORY in YAML format (colon separator) matches.
+    source: synthetic
+
+  - name: fp_github_actions_other_var
+    input: "GITHUB_ACTOR=octocat"
+    rule: github_actions_repo
+    expect: no_match
+    reason: >
+      Other GITHUB_ variables (GITHUB_ACTOR, GITHUB_SHA, etc.) do not match;
+      only GITHUB_REPOSITORY is anchored.
+    source: pattern_analysis
+# Auto-generated from detect-secrets test suite. Do not hand-edit these cases;
+# re-run /tmp/extract_ds_cases.py to refresh.
+# Generator preserves verbatim test inputs from detect-secrets/tests/plugins/*.py.
+
+  # ============================================================
+  # detect-secrets/tests/plugins/artifactory_test.py (25 cases)
+  # ============================================================
+
+  - name: ds_artifactory_tp_00_ap6xxxxxxxxxx
+    input: 'AP6xxxxxxxxxx'
+    rule: artifactory_password
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_01_ap2xxxxxxxxxx
+    input: 'AP2xxxxxxxxxx'
+    rule: artifactory_password
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_02_ap3xxxxxxxxxx
+    input: 'AP3xxxxxxxxxx'
+    rule: artifactory_password
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_03_ap5xxxxxxxxxx
+    input: 'AP5xxxxxxxxxx'
+    rule: artifactory_password
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_04_apaxxxxxxxxxx
+    input: 'APAxxxxxxxxxx'
+    rule: artifactory_password
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_05_apbxxxxxxxxxx
+    input: 'APBxxxxxxxxxx'
+    rule: artifactory_password
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_06_akcxxxxxxxxxx
+    input: 'AKCxxxxxxxxxx'
+    rule: artifactory_api_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_07_ap6xxxxxxxxxx
+    input: ' AP6xxxxxxxxxx'
+    rule: artifactory_password
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_08_akcxxxxxxxxxx
+    input: ' AKCxxxxxxxxxx'
+    rule: artifactory_api_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_09_ap6xxxxxxxxxx
+    input: '=AP6xxxxxxxxxx'
+    rule: artifactory_password
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_10_akcxxxxxxxxxx
+    input: '=AKCxxxxxxxxxx'
+    rule: artifactory_api_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_11_ap6xxxxxxxxxx
+    input: '"AP6xxxxxxxxxx"'
+    rule: artifactory_password
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_12_akcxxxxxxxxxx
+    input: '"AKCxxxxxxxxxx"'
+    rule: artifactory_api_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_13_artif_key_ap6xxxxxxxxxx
+    input: 'artif-key:AP6xxxxxxxxxx'
+    rule: artifactory_password
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_14_artif_key_akcxxxxxxxxxx
+    input: 'artif-key:AKCxxxxxxxxxx'
+    rule: artifactory_api_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_15_x_jfrog_art_api__akcxxxx
+    input: 'X-JFrog-Art-Api: AKCxxxxxxxxxx'
+    rule: artifactory_api_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_16_x_jfrog_art_api__ap6xxxx
+    input: 'X-JFrog-Art-Api: AP6xxxxxxxxxx'
+    rule: artifactory_password
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_17_artifactoryx__password_a
+    input: 'artifactoryx:_password=AKCxxxxxxxxxx'
+    rule: artifactory_api_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_tp_18_artifactoryx__password_a
+    input: 'artifactoryx:_password=AP6xxxxxxxxxx'
+    rule: artifactory_password
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_fp_19_testakcwithinsomeirrelev
+    input: 'testAKCwithinsomeirrelevantstring'
+    rule: artifactory_api_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_fp_20_testap6withinsomeirrelev
+    input: 'testAP6withinsomeirrelevantstring'
+    rule: artifactory_password
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_fp_21_x_jfrog_art_api___api_ke
+    input: 'X-JFrog-Art-Api: $API_KEY'
+    rule: artifactory_api_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_fp_22_x_jfrog_art_api___passwo
+    input: 'X-JFrog-Art-Api: $PASSWORD'
+    rule: artifactory_api_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_fp_23_artifactory__password_ap
+    input: 'artifactory:_password=AP6xxxxxx'
+    rule: artifactory_password
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_artifactory_fp_24_artifactory__password_ak
+    input: 'artifactory:_password=AKCxxxxxxxx'
+    rule: artifactory_api_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/artifactory_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/aws_key_test.py (7 cases)
+  # ============================================================
+
+  - name: ds_aws_key_tp_00_akiazzzzzzzzzzzzzzzz
+    input: 'AKIAZZZZZZZZZZZZZZZZ'
+    rule: aws_access_key
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/aws_key_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_aws_key_fp_01_akiazzzzzzzzzzzzzzzz
+    input: 'akiazzzzzzzzzzzzzzzz'
+    rule: aws_access_key
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/aws_key_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_aws_key_fp_02_akiazzz
+    input: 'AKIAZZZ'
+    rule: aws_access_key
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/aws_key_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_aws_key_tp_03_a3t0zzzzzzzzzzzzzzzz
+    input: 'A3T0ZZZZZZZZZZZZZZZZ'
+    rule: aws_access_key
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/aws_key_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_aws_key_tp_04_abiazzzzzzzzzzzzzzzz
+    input: 'ABIAZZZZZZZZZZZZZZZZ'
+    rule: aws_access_key
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/aws_key_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_aws_key_tp_05_accazzzzzzzzzzzzzzzz
+    input: 'ACCAZZZZZZZZZZZZZZZZ'
+    rule: aws_access_key
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/aws_key_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_aws_key_tp_06_asiazzzzzzzzzzzzzzzz
+    input: 'ASIAZZZZZZZZZZZZZZZZ'
+    rule: aws_access_key
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/aws_key_test.py. Should match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/azure_storage_key_test.py (1 cases)
+  # ============================================================
+
+  - name: ds_azure_storage_key_tp_00_accountkey_ljzrc1ydhaaa2
+    input: 'AccountKey=lJzRc1YdHaAA2KCNJJ1tkYwF/+mKK6Ygw0NGe170Xu592euJv2wYUtBlV8z+qnlcNQSnIYVTkLWntUO1F8j8rQ=='
+    rule: azure_storage_key
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/azure_storage_key_test.py. Should match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/basic_auth_test.py (6 cases)
+  # ============================================================
+
+  - name: ds_basic_auth_tp_00_https___username_passwor
+    input: 'https://username:password@yelp.com'
+    rule: basic_auth_uri
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/basic_auth_test.py. URI-form basic auth → matched by basic_auth_uri rule (separate from HTTP-header basic_auth).'
+    source: detect_secrets
+
+  - name: ds_basic_auth_fp_01_http___localhost_5000
+    input: 'http://localhost:5000/<%= @variable %>'
+    rule: basic_auth
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/basic_auth_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_basic_auth_fp_02_https___url_8000___some
+    input: '"https://url:8000";@something else'
+    rule: basic_auth
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/basic_auth_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_basic_auth_fp_03_https___url_8000___some
+    input: |
+      'https://url:8000';@something else
+    rule: basic_auth
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/basic_auth_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_basic_auth_fp_04_https___url_8000__someth
+    input: 'https://url:8000 @something else'
+    rule: basic_auth
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/basic_auth_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_basic_auth_fp_05_https___url_8000___somet
+    input: 'https://url:8000/ @something else'
+    rule: basic_auth
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/basic_auth_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/discord_test.py (16 cases)
+  # ============================================================
+
+  - name: ds_discord_tp_00_mtk4njiyndgzndcxoti1mjq4
+    input: 'MTk4NjIyNDgzNDcxOTI1MjQ4.Cl2FMQ.ZnCjm1XVW7vRze4b7Cq4se7kKWs'
+    rule: discord_bot_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_discord_tp_01_nzk5mjgxndk0ndc2ndu1otg3
+    input: 'Nzk5MjgxNDk0NDc2NDU1OTg3.YABS5g.2lmzECVlZv3vv6miVnUaKPQi2wI'
+    rule: discord_bot_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_discord_tp_02_mz1ygvktje0ry0cv8i47cjaa
+    input: 'MZ1yGvKTjE0rY0cV8i47CjAa.uRHQPq.Xb1Mk2nEhe-4iUcrGOuegj57zMC'
+    rule: discord_bot_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_discord_tp_03_otuyned5mdk2mtmxnzc2mkez
+    input: 'OTUyNED5MDk2MTMxNzc2MkEz.YjESug.UNf-1GhsIG8zWT409q2C7Bh_zWQ'
+    rule: discord_bot_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_discord_tp_04_otuyned5mdk2mtmxnzc2mkez
+    input: 'OTUyNED5MDk2MTMxNzc2MkEz.GSroKE.g2MTwve8OnUAAByz8KV_ZTV1Ipzg4o_NmQWUMs'
+    rule: discord_bot_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_discord_tp_05_mtayotq4mtn5otu5mtdwmecx
+    input: 'MTAyOTQ4MTN5OTU5MTDwMEcxNg.GSwJyi.sbaw8msOR3Wi6vPUzeIWy_P0vJbB0UuRVjH8l8'
+    rule: discord_bot_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_discord_tp_06_atmyotq4mtn5otu5mtdwmecx
+    input: 'ATMyOTQ4MTN5OTU5MTDwMEcxNg.GSwJyi.sbaw8msOR3Wi6vPUzeIWy_P0vJbB0UuRVjH8l8'
+    rule: discord_bot_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_discord_tp_07_mtayotq4mtn5otu5mtdwmec
+    input: '=MTAyOTQ4MTN5OTU5MTDwMEcxN.GSwJyi.sbaw8msOR3Wi6vPUzeIWy_P0vJbB0UuRVjH8l8'
+    rule: discord_bot_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_discord_tp_08_mtayotq4mtn5otu5mtdwmecx
+    input: 'MTAyOTQ4MTN5OTU5MTDwMEcxNg.YjESug.UNf-1GhsIG8zWT409q2C7Bh_zWQ!4o_NmQWUMs'
+    rule: discord_bot_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_discord_fp_09_mz1ygvktj0ry0cv8i47cjaa
+    input: 'MZ1yGvKTj0rY0cV8i47CjAa.uHQPq.Xb1Mk2nEhe-4icrGOuegj57zMC'
+    rule: discord_bot_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_discord_fp_10_mz1ygvktj0ry0cv8i47cjaa
+    input: 'MZ1yGvKTj0rY0cV8i47CjAa.uRHQPq.Xb1Mk2nEhe-4iUcrGOuegj57zMC'
+    rule: discord_bot_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_discord_fp_11_mz1ygvktje0ry0cv8i47cjaa
+    input: 'MZ1yGvKTjE0rY0cV8i47CjAa.uHQPq.Xb1Mk2nEhe-4iUcrGOuegj57zMC'
+    rule: discord_bot_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_discord_fp_12_mz1ygvktje0ry0cv8i47cjaa
+    input: 'MZ1yGvKTjE0rY0cV8i47CjAa.uRHQPq.Xb1Mk2nEhe-4iUcrGOuegj57zM'
+    rule: discord_bot_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_discord_fp_13_mz1ygvktje0ry0cv8i47cjaa
+    input: 'MZ1yGvKTjE0rY0cV8i47CjAa.uRHQPq.Xb1Mk2nEhe,4iUcrGOuegj57zMC'
+    rule: discord_bot_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_discord_fp_14_pz1ygvktje0ry0cv8i47cjaa
+    input: 'PZ1yGvKTjE0rY0cV8i47CjAa.uRHQPq.Xb1Mk2nEhe-4iUcrGOuegj57zMC'
+    rule: discord_bot_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_discord_fp_15_mtayotq4mtn5otu5mtdwmecx
+    input: 'MTAyOTQ4MTN5OTU5MTDwMEcxNg0.GSwJyi.sbaw8msOR3Wi6vPUzeIWy_P0vJbB0UuRVjH8l8'
+    rule: discord_bot_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/discord_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/github_token_test.py (3 cases)
+  # ============================================================
+
+  - name: ds_github_token_tp_00_ghp_wwpw5k4axcat4fnp0ucn
+    input: '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'
+    rule: github_pat
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/github_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_github_token_fp_01_foo_wwpw5k4axcat4fnp0ucn
+    input: 'foo_wWPw5k4aXcaT4fNP0UcnZwJUVFk6LO0pINUx'
+    rule: github_pat
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/github_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_github_token_fp_02_foo
+    input: 'foo'
+    rule: github_pat
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/github_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/gitlab_token_test.py (26 cases)
+  # ============================================================
+
+  - name: ds_gitlab_token_tp_00_glpat_helloworld380_test
+    input: 'glpat-hellOworld380_testin'
+    rule: gitlab_pat
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_01_glpat_helloworld380_test
+    input: 'glpat-hellOWorld380 testin'
+    rule: gitlab_pat
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_02_glpat_helloworld380_test
+    input: 'glpat_hellOworld380_testin'
+    rule: gitlab_pat
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_tp_03_gldt_hwllouhfw_wu0rld_ye
+    input: 'gldt-HwllOuhfw-wu0rlD_yep'
+    rule: gitlab_pat
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_04_gldt_seems_too000sshorty
+    input: 'gldt-seems_too000Sshorty'
+    rule: gitlab_pat
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_05_foo_hello_world80_testin
+    input: 'foo-hello-world80_testin'
+    rule: gitlab_pat
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_tp_06_glsoat_prefix_helloworld
+    input: 'glsoat-PREfix_helloworld380_testin_pretty_long_token_long'
+    rule: gitlab_pat
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_07_glsoat_prefix_helloworld
+    input: 'glsoat-PREfix_helloworld380_testin_pretty_long_token_long_'
+    rule: gitlab_pat
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_08_ghp_wwpw5k4axcat4fnp0ucn
+    input: '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'
+    rule: gitlab_pat
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_tp_09_gr1348941prefix_hellowor
+    input: 'GR1348941PREfix_helloworld380'
+    rule: gitlab_runner_registration
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_tp_10_gr1348941prefix_hellowor
+    input: 'GR1348941PREfix_helloworld380_testin_pretty_long_token_long'
+    rule: gitlab_runner_registration
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_11_gr1348941prefix_hellowor
+    input: 'GR1348941PREfix_helloworld380_testin_pretty_long_token_long_'
+    rule: gitlab_runner_registration
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_12_gr1348941helloword0
+    input: 'GR1348941helloWord0'
+    rule: gitlab_runner_registration
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_tp_13_glcbt_helloworld380_test
+    input: 'glcbt-helloworld380_testin'
+    rule: gitlab_cicd
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_tp_14_glimt_my_tokens_are_corr
+    input: 'glimt-my-tokens_are-correctAB38'
+    rule: gitlab_incoming_mail
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_15_glimt_my_tokens_are_corr
+    input: 'glimt-my-tokens_are-correctAB'
+    rule: gitlab_incoming_mail
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_16_glimt_my_tokens_are_corr
+    input: 'glimt-my-tokens_are-correctAB38_280'
+    rule: gitlab_incoming_mail
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_tp_17_glptt_need5_t00_be_exact
+    input: 'glptt-Need5_T00-be-exactly-40-chars--ELse_fail'
+    rule: gitlab_trigger
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_18_glptt_need5_t00_be_exact
+    input: 'glptt-Need5_T00-be-exactly-40-chars--ELse_failing'
+    rule: gitlab_trigger
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_19_glptt_helloworld380_test
+    input: 'glptt-hellOworld380_testin'
+    rule: gitlab_trigger
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_tp_20_glagent_need5_t00_bee_lo
+    input: 'glagent-Need5_T00-bee-longer-than-50_chars-or-else-failING'
+    rule: gitlab_agent
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_tp_21_glagent_need5_t00_bee_lo
+    input: 'glagent-Need5_T00-bee-longer-than-50_chars-or-else-failING-still_OK'
+    rule: gitlab_agent
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_22_glagent_helloworld380_te
+    input: 'glagent-hellOworld380_testin'
+    rule: gitlab_agent
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_tp_23_gloas_checking_length_is
+    input: 'gloas-checking_Length-Is-_exactly_64--checking_Length-Is-_exactly_64--'
+    rule: gitlab_oauth_secret
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_24_gloas_checking_length_is
+    input: 'gloas-checking_Length-Is-checking_Length-Is-'
+    rule: gitlab_oauth_secret
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_gitlab_token_fp_25_gloas_checking_length_is
+    input: 'gloas-checking_Length-Is-_exactly_64--Xchecking_Length-Is-_longer_longer'
+    rule: gitlab_oauth_secret
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/gitlab_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/jwt_test.py (14 cases)
+  # ============================================================
+
+  - name: ds_jwt_tp_00_eyjhbgcioijiuzi1niisinr5
+    input: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c'
+    rule: jwt_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/jwt_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_jwt_tp_01_eyj0exaioijkv1qila0kimfs
+    input: 'eyJ0eXAiOiJKV1QiLA0KImFsZyI6IkhTMjU2In0.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ'
+    rule: jwt_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/jwt_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_jwt_tp_02_eyj0exaioijkv1qilcjhbgci
+    input: 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJuYW1lIjoiSm9lIiwKInN0YXR1cyI6ImVtcGxveWVlIgp9'
+    rule: jwt_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/jwt_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_jwt_tp_03_eyjhbgcioijiuzi1niisinr5
+    input: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IsWww6HFkcOtIMOWxZHDqcOoIiwiaWF0IjoxNTE2MjM5MDIyfQ.k5HibI_uLn_RTuPcaCNkaVaQH2y5q6GvJg8GPpGMRwQ'
+    rule: jwt_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/jwt_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_jwt_tp_04_eyjhbgcioijiuzi1niisinr5
+    input: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c'
+    rule: jwt_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/jwt_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_jwt_tp_05_eyjhbgcioijiuzi1niisinr5
+    input: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ'
+    rule: jwt_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/jwt_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_jwt_fp_06_alg___hs256___typ___jw
+    input: '{"alg":"HS256","typ":"JWT"}.{"name":"Jon Doe"}.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c'
+    rule: jwt_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/jwt_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_jwt_fp_07_bm90x3zhbglkx2pzb25fyxrf
+    input: 'bm90X3ZhbGlkX2pzb25fYXRfYWxs.bm90X3ZhbGlkX2pzb25fYXRfYWxs.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c'
+    rule: jwt_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/jwt_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_jwt_fp_08_eyjhbgcioijiuzi1niisinr5
+    input: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'
+    rule: jwt_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/jwt_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_jwt_fp_09_jwt
+    input: 'jwt'
+    rule: jwt_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/jwt_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  # NOTE: Two of the four detect-secrets JWT negative cases (jwt_test.py FP_10 and
+  # FP_11) are intentionally flipped from expect: no_match to expect: match.
+  # detect-secrets rejects these via is_formally_valid (base64-decode each segment
+  # + JSON-parse). We do not replicate that validator in Go — the FP cost in
+  # transcripts is one extra redaction, while the FN cost (leaking a real JWT) is
+  # high. Documented deviation: we accept structural JWT shape for long-segment cases
+  # (FP_10, FP_11), detect-secrets adds formal validity.
+  #
+  # FP_12 (eyJAAAA.eyJBBB) and FP_13 (eyJBB.eyJCC.eyJDDDD) remain as no_match
+  # (aligned with detect-secrets) because the v2.1.1 jwt_token pattern adds a {10,}
+  # minimum on head/payload bodies. Tiny synthetic segments (≤4 chars after eyJ)
+  # do not encode valid JSON objects — the floor {"a":1} encodes to 10 chars.
+
+  - name: ds_jwt_fp_10_eyjhbasdgcioijiuaddasdas
+    input: 'eyJhbasdGciOiJIUaddasdasfsasdasdzI1NiIasdsInR5cCI6IkpXVCasdJasd9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c'
+    rule: jwt_token
+    expect: match
+    reason: 'Ported from detect-secrets/tests/plugins/jwt_test.py FP. detect-secrets rejects via is_formally_valid (base64+JSON validator we do not replicate); we accept structural JWT shape since the FP cost is one over-redaction and the FN cost is leaking real auth credentials.'
+    source: detect_secrets
+
+  - name: ds_jwt_fp_11_eyjhbgcioijiuzi1niisinr5
+    input: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c'
+    rule: jwt_token
+    expect: match
+    reason: 'Ported from detect-secrets/tests/plugins/jwt_test.py FP. detect-secrets rejects via base64+JSON validator we do not replicate; structural JWT shape accepted by our regex.'
+    source: detect_secrets
+
+  - name: ds_jwt_fp_12_eyjaaaa_eyjbbb
+    input: 'eyJAAAA.eyJBBB'
+    rule: jwt_token
+    expect: no_match
+    reason: 'Ported from detect-secrets/tests/plugins/jwt_test.py FP. Previously accepted structurally; v2.1.1 adds {10,} minimum on head/payload bodies so tiny synthetic segments (4 and 3 chars after eyJ) are now rejected. Real JWT headers encode at least {"a":1} which produces 10 chars.'
+    source: detect_secrets
+
+  - name: ds_jwt_fp_13_eyjbb_eyjcc_eyjdddd
+    input: 'eyJBB.eyJCC.eyJDDDD'
+    rule: jwt_token
+    expect: no_match
+    reason: 'Ported from detect-secrets/tests/plugins/jwt_test.py FP. Previously accepted structurally; v2.1.1 {10,} floor rejects this 3-segment shape because BB (2 chars) and CC (2 chars) are far below the 10-char minimum that a real JSON object requires.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/mailchimp_key_test.py (6 cases)
+  # ============================================================
+
+  - name: ds_mailchimp_key_tp_00_343ea45721923ed956e2b38c
+    input: '343ea45721923ed956e2b38c31db76aa-us30'
+    rule: mailchimp_api_key
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/mailchimp_key_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_mailchimp_key_tp_01_a2937653ed38c31a43ea46e2
+    input: 'a2937653ed38c31a43ea46e2b19257db-us2'
+    rule: mailchimp_api_key
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/mailchimp_key_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_mailchimp_key_fp_02_3ea4572956e2b381923ed34c
+    input: '3ea4572956e2b381923ed34c31db76aa-2'
+    rule: mailchimp_api_key
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/mailchimp_key_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_mailchimp_key_fp_03_aea462953eb192d38c31a433
+    input: 'aea462953eb192d38c31a433e76257db-al32'
+    rule: mailchimp_api_key
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/mailchimp_key_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_mailchimp_key_fp_04_9276a43e2951aa46e2b1c33e
+    input: '9276a43e2951aa46e2b1c33ED38357DB-us2'
+    rule: mailchimp_api_key
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/mailchimp_key_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_mailchimp_key_fp_05_3a5633e829d3c71_us2
+    input: '3a5633e829d3c71-us2'
+    rule: mailchimp_api_key
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/mailchimp_key_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/npm_test.py (10 cases)
+  # ============================================================
+
+  - name: ds_npm_tp_00_registry_npmjs_org___a
+    input: '//registry.npmjs.org/:_authToken=743b294a-cd03-11ec-9d64-0242ac120002'
+    rule: npm_auth_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/npm_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_npm_tp_01_registry_npmjs_org___a
+    input: '//registry.npmjs.org/:_authToken=346a14f2-a672-4668-a892-956a462ab56e'
+    rule: npm_auth_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/npm_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_npm_tp_02_registry_npmjs_org___a
+    input: '//registry.npmjs.org/:_authToken= 743b294a-cd03-11ec-9d64-0242ac120002'
+    rule: npm_auth_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/npm_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_npm_tp_03_registry_npmjs_org___a
+    input: '//registry.npmjs.org/:_authToken=npm_xxxxxxxxxxx'
+    rule: npm_auth_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/npm_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_npm_fp_04_registry_npmjs_org__au
+    input: '//registry.npmjs.org:_authToken=743b294a-cd03-11ec-9d64-0242ac120002'
+    rule: npm_auth_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/npm_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_npm_fp_05_registry_npmjs_org___aut
+    input: 'registry.npmjs.org/:_authToken=743b294a-cd03-11ec-9d64-0242ac120002'
+    rule: npm_auth_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/npm_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_npm_fp_06_authtoken_743b294a
+    input: '///:_authToken=743b294a-cd03-11ec-9d64-0242ac120002'
+    rule: npm_auth_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/npm_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_npm_fp_07_authtoken_743b294a_cd03
+    input: '_authToken=743b294a-cd03-11ec-9d64-0242ac120002'
+    rule: npm_auth_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/npm_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_npm_fp_08_foo
+    input: 'foo'
+    rule: npm_auth_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/npm_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_npm_fp_09_registry_npmjs_org___a
+    input: '//registry.npmjs.org/:_authToken=${NPM_TOKEN}'
+    rule: npm_auth_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/npm_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/openai_test.py (3 cases)
+  # ============================================================
+
+  - name: ds_openai_tp_00_sk_xi8tcnihv9awbccviltet
+    input: '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'
+    rule: openai_key
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/openai_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_openai_tp_01_sk_proj_xi8tdmjhv6pmbbbw
+    input: 'sk-proj-Xi8tdMjHV6pmbBbwilTeT3BlbkFJ3UDnpdEwNNm6wVBpYM0o'
+    rule: openai_key
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/openai_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_openai_fp_02_sk_proj_xi8tdmjhv6pmbbbw
+    input: 'sk-proj-Xi8tdMjHV6pmbBbwilTeT4BlbkFJ3UDnpdEwNNm6wVBpYM0o'
+    rule: openai_key
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/openai_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/private_key_test.py (2 cases)
+  # ============================================================
+
+  - name: ds_private_key_tp_00_begin_rsa_private_k
+    input: |
+      -----BEGIN RSA PRIVATE KEY-----
+      super secret private key here
+      -----END RSA PRIVATE KEY-----
+    rule: private_key_block
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/private_key_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_private_key_tp_01_some_text_here______begi
+    input: |
+      some text here
+      -----BEGIN PRIVATE KEY-----
+      yabba dabba doo
+    rule: private_key_block
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/private_key_test.py. Should match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/pypi_token_test.py (3 cases)
+  # ============================================================
+
+  - name: ds_pypi_token_tp_00_pypi_ageichlwas5vcmccjdu
+    input: 'pypi-AgEIcHlwaS5vcmcCJDU3OTM1MjliLWIyYTYtNDEwOC05NzRkLTM0MjNiNmEwNWIzYgACF1sxLFsitesttestbWluaW1hbC1wcm9qZWN0Il1dAAIsWzIsWyJjYWY4OTAwZi0xNDMwLTRiYQstYmFmMi1mMDE3OGIyNWZhNTkiXV0AAAYgh2UINPjWBDwT0r3tQ1o5oZyswcjN0-IluP6z34SX3KM'
+    rule: pypi_api_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/pypi_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_pypi_token_tp_01_pypi_agendgvzdc5wexbplm9
+    input: 'pypi-AgENdGVzdC5weXBpLm9yZwIkN2YxOWZhOWEtY2FjYS00MGZhLTj2MGEtODFjMnE2MjdmMzY0AAIqWzMsImJlM2FiOWI5LTRmYUTnNEg4ZS04Mjk0LWFlY2Y2NWYzNGYzNyJdAAAGIMb5Hb8nVvhcAizcVVzA-bKKnwN7Pe0RmgPRCvrPwyJf'
+    rule: pypi_test_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/pypi_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_pypi_token_fp_02_pypi_ageichlwas5vcmccjdu
+    input: 'pypi-AgEIcHlwaS5vcmcCJDU3OTM1MjliLWIyYTYtNDEwOC05NzRkLTM0MjNiNmEwNWIzYgACF1sxLFsibWluaW1h'
+    rule: pypi_api_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/pypi_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/sendgrid_test.py (4 cases)
+  # ============================================================
+
+  - name: ds_sendgrid_tp_00_sg_ngevfqfyqlku0ufo8x5d1
+    input: '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'
+    rule: sendgrid_key
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/sendgrid_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_sendgrid_fp_01_sg_ngevfqfyqlku0ufo8x5d1
+    input: 'SG.ngeVfQFYQlKU0ufo8x5d1A..TwL2iGABf9DHoTf-09kqeF8tAmbihYzrnopKc-1s5cr'
+    rule: sendgrid_key
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/sendgrid_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_sendgrid_fp_02_ag_ngevfqfyqlku0ufo8x5d1
+    input: 'AG.ngeVfQFYQlKU0ufo8x5d1A.TwL2iGABf9DHoTf-09kqeF8tAmbihYzrnopKc-1s5cr'
+    rule: sendgrid_key
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/sendgrid_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_sendgrid_fp_03_foo
+    input: 'foo'
+    rule: sendgrid_key
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/sendgrid_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/slack_test.py (8 cases)
+  # ============================================================
+
+  - name: ds_slack_tp_00_xoxp_523423_234243_23423
+    input: 'xoxp-523423-234243-234233-e039d02840a0b9379c'
+    rule: slack_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/slack_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_slack_tp_01_xoxo_523423_234243_23423
+    input: 'xoxo-523423-234243-234233-e039d02840a0b9379c'
+    rule: slack_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/slack_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_slack_tp_02_xoxs_523423_234243_23423
+    input: 'xoxs-523423-234243-234233-e039d02840a0b9379c'
+    rule: slack_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/slack_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_slack_tp_03_xoxa_511111111_311111111
+    input: 'xoxa-511111111-31111111111-3111111111111-e039d02840a0b9379c'
+    rule: slack_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/slack_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_slack_tp_04_xoxa_2_511111111_3111111
+    input: 'xoxa-2-511111111-31111111111-3111111111111-e039d02840a0b9379c'
+    rule: slack_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/slack_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_slack_tp_05_xoxr_523423_234243_23423
+    input: 'xoxr-523423-234243-234233-e039d02840a0b9379c'
+    rule: slack_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/slack_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_slack_tp_06_xoxb_34532454_e039d02840
+    input: 'xoxb-34532454-e039d02840a0b9379c'
+    rule: slack_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/slack_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_slack_tp_07_https___hooks_slack_com
+    input: 'https://hooks.slack.com/services/Txxxxxxxx/Bxxxxxxxx/xxxxxxxxxxxxxxxxxxxxxxxx'
+    rule: slack_webhook_url
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/slack_test.py. Slack incoming webhook URL → matched by slack_webhook_url rule (separate from slack_token).'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/square_oauth_test.py (1 cases)
+  # ============================================================
+
+  - name: ds_square_oauth_tp_00_square_oauth___sq0csp_ab
+    input: 'square_oauth = sq0csp-ABCDEFGHIJK_LMNOPQRSTUVWXYZ-0123456789\abcd'
+    rule: square_oauth_secret
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/square_oauth_test.py. Should match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/stripe_key_test.py (4 cases)
+  # ============================================================
+
+  - name: ds_stripe_key_tp_00_sk_live_retllpyqyfizu2jn
+    input: 'sk_live_ReTllpYQYfIZu2Jnf2lAPFjD'
+    rule: stripe_key
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/stripe_key_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_stripe_key_tp_01_rk_live_5tcwfjkmjgpql9hj
+    input: 'rk_live_5TcWfjKmJgpql9hjpRnwRXbT'
+    rule: stripe_key
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/stripe_key_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_stripe_key_fp_02_pk_live_j5kry8xtgicdahdb
+    input: 'pk_live_j5krY8XTgIcDaHDb3YrsAfCl'
+    rule: stripe_key
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/stripe_key_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_stripe_key_fp_03_sk_live
+    input: 'sk_live_'
+    rule: stripe_key
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/stripe_key_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/telegram_token_test.py (6 cases)
+  # ============================================================
+
+  - name: ds_telegram_token_fp_00_bot110201543_aahdqtcvch1
+    input: 'bot110201543:AAHdqTcvCH1vGWJxfSe1ofSAs0K5PALDsaw'
+    rule: telegram_bot_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/telegram_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_telegram_token_tp_01_110201543_aahdqtcvch1vgw
+    input: '110201543:AAHdqTcvCH1vGWJxfSe1ofSAs0K5PALDsaw'
+    rule: telegram_bot_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/telegram_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_telegram_token_tp_02_7213808860_aah1bjqpkkw3m
+    input: '7213808860:AAH1bjqpKKW3maRSPAxzIU-0v6xNuq2-NjM'
+    rule: telegram_bot_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/telegram_token_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_telegram_token_fp_03_foo_aah1bjqpkkw3marspaxz
+    input: 'foo:AAH1bjqpKKW3maRSPAxzIU-0v6xNuq2-NjM'
+    rule: telegram_bot_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/telegram_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_telegram_token_fp_04_foo
+    input: 'foo'
+    rule: telegram_bot_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/telegram_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  - name: ds_telegram_token_fp_05_arn_aws_sns_aaa_11112222
+    input: 'arn:aws:sns:aaa:111122223333:aaaaaaaaaaaaaaaaaaassssssddddddddddddd'
+    rule: telegram_bot_token
+    expect: no_match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/telegram_token_test.py. Negative case — should not match.'
+    source: detect_secrets
+
+  # ============================================================
+  # detect-secrets/tests/plugins/twilio_test.py (2 cases)
+  # ============================================================
+
+  - name: ds_twilio_tp_00_skxxxxxxxxxxxxxxxxxxxxxx
+    input: 'SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+    rule: twilio_auth_token
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/twilio_test.py. Should match.'
+    source: detect_secrets
+
+  - name: ds_twilio_tp_01_acxxxxxxxxxxxxxxxxxxxxxx
+    input: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+    rule: twilio_key
+    expect: match
+    reason: 'Ported verbatim from detect-secrets/tests/plugins/twilio_test.py. Should match.'
+    source: detect_secrets
+
+  # ---------------------------------------------------------------------------
+  # v2.1.1 FP boundary cases for new v2.1.0 rules
+  # Covers the three rules added in v2.1.0 and documents the jwt_token {10,}
+  # floor.
+  # ---------------------------------------------------------------------------
+
+  - name: fp_slack_webhook_url_incomplete_missing_bot_and_token
+    input: "https://hooks.slack.com/services/T12345"
+    rule: slack_webhook_url
+    expect: no_match
+    reason: >
+      Incomplete Slack webhook URL: real Slack incoming webhooks require all three
+      path segments — /services/{workspace_id}/{bot_user_id}/{token}. This URL
+      has only the workspace_id segment (T12345) and is missing the required /B{...}/{...}
+      suffix. The pattern requires T[a-zA-Z0-9_]+/B[a-zA-Z0-9_]+/[a-zA-Z0-9_]+ so
+      a single segment alone does not match.
+    source: pattern_analysis
+
+  - name: fp_basic_auth_uri_no_credentials
+    input: "http://localhost:5000/<%= @variable %>"
+    rule: basic_auth_uri
+    expect: no_match
+    reason: >
+      URL without embedded credentials (no user:pass@ form) does not match the
+      basic_auth_uri rule. The pattern requires ://user:pass@host where both user
+      and pass must be non-empty and separated by colon before the @ sign. A bare
+      localhost URL with no credentials is not URI-form basic auth.
+    source: pattern_analysis
+
+  - name: fp_twilio_auth_token_too_short
+    input: "SK"
+    rule: twilio_auth_token
+    expect: no_match
+    reason: >
+      The SK prefix alone (without 32 lowercase hex characters after it) does not
+      match the twilio_auth_token rule. The pattern requires SK[a-z0-9]{32} so the
+      body must be exactly 32 characters. A bare "SK" prefix with no body fails
+      the length requirement.
+    source: pattern_analysis

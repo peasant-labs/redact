@@ -1,0 +1,10 @@
+invalid:
+  - name: empty
+    kind: empty
+    category: ""
+  - name: unknown
+    kind: unknown
+    category: unknown
+  - name: capitalized
+    kind: capitalized
+    category: Secrets

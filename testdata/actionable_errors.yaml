@@ -1,0 +1,201 @@
+cases:
+  - name: rendering_and_unwrap
+    kind: render
+    expected:
+      what: fixture operation failed
+      why: fixture reason
+      where: fixture location
+      when: fixture operation
+      means: fixture consequence
+      fix: fixture remedy
+    rendered: |-
+      what: fixture operation failed
+      why: fixture reason
+      where: fixture location
+      when: fixture operation
+      means: fixture consequence
+      fix: fixture remedy
+      cause: fixture root cause
+    cause: fixture root cause
+
+  - name: invalid_level
+    kind: invalid_level
+    expected:
+      what: 'redaction level "unsupported" is invalid'
+      why: NewRedactor accepts only minimal, standard, or maximum
+      where: pkg/redact NewRedactor
+      when: constructing a redactor before any content was scanned
+      means: no redactor was created, so the caller cannot safely scan or redact content
+      fix: pass redact.Minimal, redact.Standard, or redact.Maximum
+    rendered: |-
+      what: redaction level "unsupported" is invalid
+      why: NewRedactor accepts only minimal, standard, or maximum
+      where: pkg/redact NewRedactor
+      when: constructing a redactor before any content was scanned
+      means: no redactor was created, so the caller cannot safely scan or redact content
+      fix: pass redact.Minimal, redact.Standard, or redact.Maximum
+
+  - name: invalid_rule_category
+    kind: invalid_rule_category
+    expected:
+      what: 'built-in redaction rule "fixture_rule" has invalid category "unknown"'
+      why: rule activation requires one of the canonical semantic categories
+      where: pkg/redact validateRuleActivationMetadata
+      when: NewRedactor validated built-in rule metadata before scanning content
+      means: the rule cannot be classified safely, so no redactor was created
+      fix: assign the rule to secrets, pii, paths, or project
+    rendered: |-
+      what: built-in redaction rule "fixture_rule" has invalid category "unknown"
+      why: rule activation requires one of the canonical semantic categories
+      where: pkg/redact validateRuleActivationMetadata
+      when: NewRedactor validated built-in rule metadata before scanning content
+      means: the rule cannot be classified safely, so no redactor was created
+      fix: assign the rule to secrets, pii, paths, or project
+
+  - name: invalid_rule_minimum
+    kind: invalid_rule_minimum
+    expected:
+      what: 'built-in redaction rule "fixture_rule" has invalid minimum level "unsupported"'
+      why: MinimumLevel accepts only minimal, standard, maximum, or empty inheritance
+      where: pkg/redact validateRuleActivationMetadata
+      when: NewRedactor validated built-in rule metadata before scanning content
+      means: the rule might otherwise be silently disabled, so no redactor was created
+      fix: 'set MinimumLevel to a valid RedactionLevel or leave it empty to inherit "standard"'
+    rendered: |-
+      what: built-in redaction rule "fixture_rule" has invalid minimum level "unsupported"
+      why: MinimumLevel accepts only minimal, standard, maximum, or empty inheritance
+      where: pkg/redact validateRuleActivationMetadata
+      when: NewRedactor validated built-in rule metadata before scanning content
+      means: the rule might otherwise be silently disabled, so no redactor was created
+      fix: set MinimumLevel to a valid RedactionLevel or leave it empty to inherit "standard"
+
+  - name: weak_rule_minimum
+    kind: weak_rule_minimum
+    expected:
+      what: 'built-in redaction rule "fixture_rule" sets minimum level "minimal" below its "project" category default "standard"'
+      why: a per-rule override may make activation stricter, but may not weaken the category default
+      where: pkg/redact validateRuleActivationMetadata
+      when: NewRedactor validated built-in rule metadata before scanning content
+      means: the override would weaken the category's privacy policy, so no redactor was created
+      fix: 'remove MinimumLevel to inherit "standard" or choose a stricter level'
+    rendered: |-
+      what: built-in redaction rule "fixture_rule" sets minimum level "minimal" below its "project" category default "standard"
+      why: a per-rule override may make activation stricter, but may not weaken the category default
+      where: pkg/redact validateRuleActivationMetadata
+      when: NewRedactor validated built-in rule metadata before scanning content
+      means: the override would weaken the category's privacy policy, so no redactor was created
+      fix: remove MinimumLevel to inherit "standard" or choose a stricter level
+
+  - name: empty_pattern_id
+    kind: empty_pattern_id
+    expected:
+      what: user redaction pattern at index 0 has an empty ID
+      why: every configured pattern needs a stable non-empty identifier
+      where: pkg/redact compileUserPatterns
+      when: NewRedactor compiled configured user patterns before scanning content
+      means: the pattern cannot be reported or audited safely, so no redactor was created
+      fix: set a unique non-empty id for the configured pattern
+    rendered: |-
+      what: user redaction pattern at index 0 has an empty ID
+      why: every configured pattern needs a stable non-empty identifier
+      where: pkg/redact compileUserPatterns
+      when: NewRedactor compiled configured user patterns before scanning content
+      means: the pattern cannot be reported or audited safely, so no redactor was created
+      fix: set a unique non-empty id for the configured pattern
+
+  - name: invalid_pattern_category
+    kind: invalid_pattern_category
+    expected:
+      what: 'user redaction pattern "fixture_pattern" has invalid category "unknown"'
+      why: user patterns must use one of the canonical semantic categories
+      where: pkg/redact compileUserPatterns
+      when: NewRedactor compiled configured user patterns before scanning content
+      means: the pattern's default activation level cannot be determined, so no redactor was created
+      fix: set category to secrets, pii, paths, or project
+    rendered: |-
+      what: user redaction pattern "fixture_pattern" has invalid category "unknown"
+      why: user patterns must use one of the canonical semantic categories
+      where: pkg/redact compileUserPatterns
+      when: NewRedactor compiled configured user patterns before scanning content
+      means: the pattern's default activation level cannot be determined, so no redactor was created
+      fix: set category to secrets, pii, paths, or project
+
+  - name: invalid_pattern_regex
+    kind: invalid_pattern_regex
+    expected:
+      what: 'user redaction pattern "fixture_pattern" has an invalid regular expression'
+      why: the pattern is not a valid Go regular expression
+      where: pkg/redact compileUserPatterns
+      when: NewRedactor compiled configured user patterns before scanning content
+      means: the pattern cannot be matched safely, so no redactor was created
+      fix: 'correct the regular expression for configured pattern "fixture_pattern"'
+    rendered: |-
+      what: user redaction pattern "fixture_pattern" has an invalid regular expression
+      why: the pattern is not a valid Go regular expression
+      where: pkg/redact compileUserPatterns
+      when: NewRedactor compiled configured user patterns before scanning content
+      means: the pattern cannot be matched safely, so no redactor was created
+      fix: correct the regular expression for configured pattern "fixture_pattern"
+      cause: error parsing regexp: missing closing ]: `[invalid`
+    cause: 'error parsing regexp: missing closing ]: `[invalid`'
+
+  - name: maximum_unavailable
+    kind: maximum_unavailable
+    expected:
+      what: maximum redaction is unavailable in this binary
+      why: maximum redaction requires code-aware tree-sitter anonymization, but this binary was built without cgo
+      where: pkg/redact validateMaximumAvailability
+      when: NewRedactor checked runtime capabilities before constructing a maximum-level redactor
+      means: no redactor was created because silently falling back could leak code identifiers
+      fix: use standard redaction in a cgo-free build, or rebuild with cgo using nix develop or make build
+    rendered: |-
+      what: maximum redaction is unavailable in this binary
+      why: maximum redaction requires code-aware tree-sitter anonymization, but this binary was built without cgo
+      where: pkg/redact validateMaximumAvailability
+      when: NewRedactor checked runtime capabilities before constructing a maximum-level redactor
+      means: no redactor was created because silently falling back could leak code identifiers
+      fix: use standard redaction in a cgo-free build, or rebuild with cgo using nix develop or make build
+
+  - name: malformed_false_positive_yaml
+    kind: false_positive_malformed_yaml
+    input: |-
+      cases:
+        - name: broken
+          level: [
+    expected:
+      what: the false-positive fixture YAML could not be parsed
+      why: 'yaml: line 3: did not find expected node content'
+      where: pkg/redact/testdata/false_positives.yaml via LoadFalsePositiveFixtures
+      when: loading embedded redaction fixtures before running the false-positive corpus
+      means: the corpus cannot run, so rule false-positive coverage is unavailable
+      fix: fix the YAML syntax in pkg/redact/testdata/false_positives.yaml
+    rendered: |-
+      what: the false-positive fixture YAML could not be parsed
+      why: yaml: line 3: did not find expected node content
+      where: pkg/redact/testdata/false_positives.yaml via LoadFalsePositiveFixtures
+      when: loading embedded redaction fixtures before running the false-positive corpus
+      means: the corpus cannot run, so rule false-positive coverage is unavailable
+      fix: fix the YAML syntax in pkg/redact/testdata/false_positives.yaml
+      cause: yaml: line 3: did not find expected node content
+    cause: 'yaml: line 3: did not find expected node content'
+
+  - name: invalid_false_positive_level
+    kind: false_positive_invalid_level
+    input: |-
+      cases:
+        - name: invalid_fixture_level
+          level: unsupported
+    expected:
+      what: 'fixture case "invalid_fixture_level" at cases[0] has invalid redaction level "unsupported"'
+      why: fixture levels must be minimal, standard, maximum, or empty for the Standard default
+      where: pkg/redact/testdata/false_positives.yaml via LoadFalsePositiveFixtures
+      when: validating embedded fixtures before selecting a redactor level
+      means: the test cannot safely choose a level and the false-positive corpus cannot run
+      fix: set the fixture level to minimal, standard, maximum, or remove it to use Standard
+    rendered: |-
+      what: fixture case "invalid_fixture_level" at cases[0] has invalid redaction level "unsupported"
+      why: fixture levels must be minimal, standard, maximum, or empty for the Standard default
+      where: pkg/redact/testdata/false_positives.yaml via LoadFalsePositiveFixtures
+      when: validating embedded fixtures before selecting a redactor level
+      means: the test cannot safely choose a level and the false-positive corpus cannot run
+      fix: set the fixture level to minimal, standard, maximum, or remove it to use Standard
