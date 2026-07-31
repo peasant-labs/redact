@@ -3,71 +3,48 @@ package redact
 import "testing"
 
 func TestRedactionLevel_Ord(t *testing.T) {
-	tests := []struct {
-		name  string
-		level RedactionLevel
-		want  int
-	}{
-		{"minimal", Minimal, 0},
-		{"standard", Standard, 1},
-		{"maximum", Maximum, 2},
-		{"unknown", RedactionLevel("bogus"), -1},
-		{"empty", RedactionLevel(""), -1},
+	fixtures, err := loadLevelFixtures()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.level.Ord(); got != tt.want {
-				t.Errorf("RedactionLevel(%q).Ord() = %d, want %d", tt.level, got, tt.want)
+	for _, fixture := range fixtures.Ord {
+		t.Run(fixture.ID, func(t *testing.T) {
+			if got := fixture.Level.Ord(); got != fixture.Want {
+				t.Errorf("RedactionLevel(%q).Ord() = %d, want %d", fixture.Level, got, fixture.Want)
+			}
+			if got := fixture.Level.String(); got != fixture.WantString {
+				t.Errorf("RedactionLevel(%q).String() = %q, want %q", fixture.Level, got, fixture.WantString)
 			}
 		})
 	}
 }
 
 func TestRedactionLevel_Max(t *testing.T) {
-	tests := []struct {
-		name string
-		a    RedactionLevel
-		b    RedactionLevel
-		want RedactionLevel
-	}{
-		{"minimal_vs_standard", Minimal, Standard, Standard},
-		{"standard_vs_minimal", Standard, Minimal, Standard},
-		{"maximum_vs_standard", Maximum, Standard, Maximum},
-		{"standard_vs_maximum", Standard, Maximum, Maximum},
-		{"standard_vs_standard", Standard, Standard, Standard},
-		{"minimal_vs_minimal", Minimal, Minimal, Minimal},
-		{"maximum_vs_maximum", Maximum, Maximum, Maximum},
-		{"minimal_vs_maximum", Minimal, Maximum, Maximum},
+	fixtures, err := loadLevelFixtures()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := Max(tt.a, tt.b); got != tt.want {
-				t.Errorf("Max(%q, %q) = %q, want %q", tt.a, tt.b, got, tt.want)
+	for _, fixture := range fixtures.Max {
+		t.Run(fixture.ID, func(t *testing.T) {
+			if got := Max(fixture.A, fixture.B); got != fixture.Want {
+				t.Errorf("Max(%q, %q) = %q, want %q", fixture.A, fixture.B, got, fixture.Want)
 			}
 		})
 	}
 }
 
 func TestRedactionLevel_IsValid(t *testing.T) {
-	tests := []struct {
-		name  string
-		level RedactionLevel
-		valid bool
-	}{
-		{"minimal", Minimal, true},
-		{"standard", Standard, true},
-		{"maximum", Maximum, true},
-		{"empty", RedactionLevel(""), false},
-		{"unknown", RedactionLevel("bogus"), false},
-		{"capitalized", RedactionLevel("Minimal"), false},
+	fixtures, err := loadLevelFixtures()
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.level.IsValid(); got != tt.valid {
-				t.Errorf("RedactionLevel(%q).IsValid() = %v, want %v", tt.level, got, tt.valid)
+	for _, fixture := range fixtures.Valid {
+		t.Run(fixture.ID, func(t *testing.T) {
+			if got := fixture.Level.IsValid(); got != fixture.Want {
+				t.Errorf("RedactionLevel(%q).IsValid() = %v, want %v", fixture.Level, got, fixture.Want)
 			}
 		})
 	}

@@ -408,58 +408,22 @@ func TestDefaultRedactor_TreeSitterKeywordPreservation(t *testing.T) {
 // TestDefaultRedactor_TreeSitterAllLanguages runs a smoke test for all 5 languages
 // through the full NewRedactor(Maximum) pipeline.
 func TestDefaultRedactor_TreeSitterAllLanguages(t *testing.T) {
-	tests := []struct {
-		lang        string
-		code        string
-		mustAbsent  []string
-		mustPresent []string
-	}{
-		{
-			lang:        "go",
-			code:        "func processUser() {}",
-			mustAbsent:  []string{"processUser"},
-			mustPresent: []string{"func"},
-		},
-		{
-			lang:        "python",
-			code:        "def processData(input):\n    return input",
-			mustAbsent:  []string{"processData"},
-			mustPresent: []string{"def", "return"},
-		},
-		{
-			lang:        "typescript",
-			code:        "function fetchData(userId: number): string { return userId.toString(); }",
-			mustAbsent:  []string{"fetchData", "userId"},
-			mustPresent: []string{"function", "return"},
-		},
-		{
-			lang:        "javascript",
-			code:        "function fetchData(userId) { return userId; }",
-			mustAbsent:  []string{"fetchData", "userId"},
-			mustPresent: []string{"function", "return"},
-		},
-		{
-			lang:        "bash",
-			code:        "function deployService() {\n    local serviceName=\"myapp\"\n    echo ${serviceName}\n}",
-			mustAbsent:  []string{"deployService", "serviceName"},
-			mustPresent: []string{"function", "local", "echo"},
-		},
-	}
+	tests := loadTreeSitterFixtures(t).AllLanguages
 
 	for _, tt := range tests {
-		t.Run(tt.lang, func(t *testing.T) {
+		t.Run(tt.ID, func(t *testing.T) {
 			r := mustNewRedactor(t, Maximum, nil)
-			fenced := "Code:\n```" + tt.lang + "\n" + tt.code + "\n```"
+			fenced := "Code:\n```" + tt.Language + "\n" + tt.Input + "\n```"
 			got := r.RedactText(fenced)
 
-			for _, absent := range tt.mustAbsent {
+			for _, absent := range tt.MustAbsent {
 				if strings.Contains(got, absent) {
-					t.Errorf("lang=%s: identifier %q was NOT anonymized in: %q", tt.lang, absent, got)
+					t.Errorf("lang=%s: identifier %q was NOT anonymized in: %q", tt.Language, absent, got)
 				}
 			}
-			for _, present := range tt.mustPresent {
+			for _, present := range tt.MustPresent {
 				if !strings.Contains(got, present) {
-					t.Errorf("lang=%s: keyword/structure %q missing from: %q", tt.lang, present, got)
+					t.Errorf("lang=%s: keyword/structure %q missing from: %q", tt.Language, present, got)
 				}
 			}
 		})

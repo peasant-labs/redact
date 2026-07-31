@@ -1,0 +1,51 @@
+supported_languages:
+  - id: go-is-supported
+    lang: go
+    supported: true
+  - id: python-is-supported
+    lang: python
+    supported: true
+  - id: typescript-is-supported
+    lang: typescript
+    supported: true
+  - id: javascript-is-supported
+    lang: javascript
+    supported: true
+  - id: bash-is-supported
+    lang: bash
+    supported: true
+  - id: unknown-is-not-supported
+    lang: ""
+    supported: false
+  - id: ruby-is-not-supported
+    lang: ruby
+    supported: false
+
+language_hints:
+  - {id: canonical-go, hint: go, want: go}
+  - {id: golang-alias, hint: golang, want: go}
+  - {id: canonical-python, hint: python, want: python}
+  - {id: python-short-alias, hint: py, want: python}
+  - {id: canonical-typescript, hint: typescript, want: typescript}
+  - {id: typescript-short-alias, hint: ts, want: typescript}
+  - {id: canonical-javascript, hint: javascript, want: javascript}
+  - {id: javascript-short-alias, hint: js, want: javascript}
+  - {id: canonical-bash, hint: bash, want: bash}
+  - {id: shell-short-alias, hint: sh, want: bash}
+  - {id: shell-name-alias, hint: shell, want: bash}
+  - {id: zsh-alias, hint: zsh, want: bash}
+  - {id: unsupported-ruby, hint: ruby, want: ""}
+  - {id: unsupported-haskell, hint: haskell, want: ""}
+  - {id: empty-hint, hint: "", want: ""}
+
+word_extractions:
+  - {id: function-name, input: "func processUser() {}", needle: "func ", want: processUser}
+  - {id: numbered-identifier, input: "func id1() {}", needle: "func ", want: id1}
+  - {id: missing-needle, input: "no match here", needle: "func ", want: ""}
+  - {id: no-text-after-needle, input: "func ", needle: "func ", want: ""}
+  - {id: delimiter-after-needle, input: "func ()", needle: "func ", want: ""}
+  - {id: terminal-word, input: "abc func end", needle: "func ", want: end}
+  - id: newline-delimited-word
+    input: "prefix func word\n"
+    needle: "func "
+    want: word

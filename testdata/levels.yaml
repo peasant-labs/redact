@@ -1,0 +1,75 @@
+ord:
+  - id: ord-minimal
+    level: minimal
+    want: 0
+    want_string: minimal
+  - id: ord-standard
+    level: standard
+    want: 1
+    want_string: standard
+  - id: ord-maximum
+    level: maximum
+    want: 2
+    want_string: maximum
+  - id: ord-unknown
+    level: bogus
+    want: -1
+    want_string: bogus
+  - id: ord-empty
+    level: ""
+    want: -1
+    want_string: ""
+
+max:
+  - id: max-minimal-standard
+    a: minimal
+    b: standard
+    want: standard
+  - id: max-standard-minimal
+    a: standard
+    b: minimal
+    want: standard
+  - id: max-maximum-standard
+    a: maximum
+    b: standard
+    want: maximum
+  - id: max-standard-maximum
+    a: standard
+    b: maximum
+    want: maximum
+  - id: max-standard-standard
+    a: standard
+    b: standard
+    want: standard
+  - id: max-minimal-minimal
+    a: minimal
+    b: minimal
+    want: minimal
+  - id: max-maximum-maximum
+    a: maximum
+    b: maximum
+    want: maximum
+  - id: max-minimal-maximum
+    a: minimal
+    b: maximum
+    want: maximum
+
+valid:
+  - id: valid-minimal
+    level: minimal
+    want: true
+  - id: valid-standard
+    level: standard
+    want: true
+  - id: valid-maximum
+    level: maximum
+    want: true
+  - id: invalid-empty
+    level: ""
+    want: false
+  - id: invalid-unknown
+    level: bogus
+    want: false
+  - id: invalid-capitalized
+    level: Minimal
+    want: false

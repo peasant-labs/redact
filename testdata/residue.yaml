@@ -1,0 +1,66 @@
+positive_triggers:
+  - id: residue_openai_key
+    rule_id: residue_openai_key
+    input: "key: sk-live-abcdefghij1234567890"
+  - id: residue_github_pat
+    rule_id: residue_github_pat
+    input: "ghp_abcdefghij1234567890xyz"
+  - id: residue_aws_access_key
+    rule_id: residue_aws_access_key
+    input: "AKIAIOSFODNN7EXAMPLE0000"
+  - id: residue_stripe_key
+    rule_id: residue_stripe_key
+    input: "sk_live_abcdefghij1234567890"
+  - id: residue_twilio_key
+    rule_id: residue_twilio_key
+    input: "ACa1b2c3d4e5f6a1b2c3d4e5f6"
+  - id: residue_sendgrid_key
+    rule_id: residue_sendgrid_key
+    input: "SG.abcdefghij1234567890xyz"
+  - id: residue_slack_token
+    rule_id: residue_slack_token
+    input: "token: xoxb-12345678-abcdefgh"
+  - id: residue_jwt_token
+    rule_id: residue_jwt_token
+    input: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.sig"
+  - id: residue_private_key
+    rule_id: residue_private_key
+    input: "-----BEGIN RSA PRIVATE KEY-----"
+  - id: residue_generic_api_key
+    rule_id: residue_generic_api_key
+    input: "api_key=abcdefghij1234567890"
+  - id: residue_basic_auth
+    rule_id: residue_basic_auth
+    input: "Authorization: Basic dXNlcjpwYXNz123456789"
+  - id: residue_phone
+    rule_id: residue_phone
+    input: "call 555-867-5309 now"
+  - id: residue_ssn
+    rule_id: residue_ssn
+    input: "ssn: 123-45-6789"
+  - id: residue_credit_card
+    rule_id: residue_credit_card
+    input: "card: 4111-1111-1111-1111"
+  - id: residue_ip_address
+    rule_id: residue_ip_address
+    input: "server 192.168.1.100 is up"
+  - id: residue_unix_path
+    rule_id: residue_unix_path
+    input: "log at /home/alice/app.log"
+  - id: residue_windows_path
+    rule_id: residue_windows_path
+    input: 'path: C:\Users\alice\Documents'
+  - id: residue_broad_api_key
+    rule_id: residue_broad_api_key
+    input: "sk-aabbccddee-ffgghhiijj"
+
+report_warnings:
+  - id: hex_slips_through
+    input: "hash: aaaabbbbccccddddaaaabbbbccccdddd done"
+    want_rule_hint: hex
+  - id: api_key_variant_slips_through
+    input: "token: ACaaaaaaaaaaaaaaaaaaaa auth"
+    want_rule_hint: twilio
+  - id: broad_api_key_slips_through
+    input: "api: sk-aabbccddee-ffgghhii done"
+    want_rule_hint: api_key

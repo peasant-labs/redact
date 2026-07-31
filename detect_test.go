@@ -266,60 +266,20 @@ func TestRedact_OnlyReplacesProvidedSpans(t *testing.T) {
 // This is the key regression test: any divergence means the two code paths
 // have drifted and a privacy regression exists.
 func TestRedactText_ParityWithDetectRedact(t *testing.T) {
-	fixtureInputs := []struct {
-		name  string
-		level RedactionLevel
-		input string
-	}{
-		{
-			name:  "anthropic_key_minimal",
-			level: Minimal,
-			input: "token: " + testAnthropicKey,
-		},
-		{
-			name:  "email_standard",
-			level: Standard,
-			input: "contact user@example.com for support",
-		},
-		{
-			name:  "key_and_email_standard",
-			level: Standard,
-			input: testAnthropicKey + " user@example.com path=/home/alice/config",
-		},
-		{
-			name:  "no_match_minimal",
-			level: Minimal,
-			input: "hello world no secrets here",
-		},
-		{
-			name:  "empty_string",
-			level: Standard,
-			input: "",
-		},
-		{
-			name:  "github_pat_minimal",
-			level: Minimal,
-			input: "ghp_abc123def456abc123def456abc12345",
-		},
-		{
-			name:  "aws_access_key_minimal",
-			level: Minimal,
-			input: "AKIAIOSFODNN7EXAMPLE config value",
-		},
-	}
+	fixtureInputs := loadDetectFixtures(t).Parity
 
 	for _, tt := range fixtureInputs {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.ID, func(t *testing.T) {
 			// Create two independent redactors to avoid shared state.
-			r1 := mustNewRedactor(t, tt.level, nil)
-			r2 := mustNewRedactor(t, tt.level, nil)
+			r1 := mustNewRedactor(t, tt.Level, nil)
+			r2 := mustNewRedactor(t, tt.Level, nil)
 
-			oldPath := r1.RedactText(tt.input)
-			newPath := r2.Redact(tt.input, r2.Detect(tt.input))
+			oldPath := r1.RedactText(tt.Input)
+			newPath := r2.Redact(tt.Input, r2.Detect(tt.Input))
 
 			if oldPath != newPath {
 				t.Errorf("Parity violation for %q (level=%s):\n  RedactText:    %q\n  Detect+Redact: %q",
-					tt.input, tt.level, oldPath, newPath)
+					tt.Input, tt.Level, oldPath, newPath)
 			}
 		})
 	}
