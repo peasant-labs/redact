@@ -118,99 +118,20 @@ func TestResidueDetector_BearerPrefix(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestResidueRules_PositiveTriggers(t *testing.T) {
-	// Each case provides an input that MUST trigger the named rule.
-	// This table covers the 15 rules not exercised by other dedicated tests.
-	cases := []struct {
-		ruleID string
-		input  string
-	}{
-		{
-			ruleID: "residue_openai_key",
-			input:  "key: sk-live-abcdefghij1234567890",
-		},
-		{
-			ruleID: "residue_github_pat",
-			input:  "ghp_abcdefghij1234567890xyz",
-		},
-		{
-			ruleID: "residue_aws_access_key",
-			input:  "AKIAIOSFODNN7EXAMPLE0000",
-		},
-		{
-			ruleID: "residue_stripe_key",
-			input:  "sk_live_abcdefghij1234567890",
-		},
-		{
-			ruleID: "residue_twilio_key",
-			input:  "ACa1b2c3d4e5f6a1b2c3d4e5f6",
-		},
-		{
-			ruleID: "residue_sendgrid_key",
-			input:  "SG.abcdefghij1234567890xyz",
-		},
-		{
-			ruleID: "residue_slack_token",
-			input:  "token: xoxb-12345678-abcdefgh",
-		},
-		{
-			ruleID: "residue_jwt_token",
-			input:  "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.sig",
-		},
-		{
-			ruleID: "residue_private_key",
-			input:  "-----BEGIN RSA PRIVATE KEY-----",
-		},
-		{
-			ruleID: "residue_generic_api_key",
-			input:  "api_key=abcdefghij1234567890",
-		},
-		{
-			ruleID: "residue_basic_auth",
-			input:  "Authorization: Basic dXNlcjpwYXNz123456789",
-		},
-		{
-			ruleID: "residue_phone",
-			input:  "call 555-867-5309 now",
-		},
-		{
-			ruleID: "residue_ssn",
-			input:  "ssn: 123-45-6789",
-		},
-		{
-			ruleID: "residue_credit_card",
-			input:  "card: 4111-1111-1111-1111",
-		},
-		{
-			ruleID: "residue_ip_address",
-			input:  "server 192.168.1.100 is up",
-		},
-		{
-			ruleID: "residue_unix_path",
-			input:  "log at /home/alice/app.log",
-		},
-		{
-			ruleID: "residue_windows_path",
-			input:  `path: C:\Users\alice\Documents`,
-		},
-		{
-			ruleID: "residue_broad_api_key",
-			input:  "sk-aabbccddee-ffgghhiijj",
-		},
-	}
-
+	fixtures := loadResidueFixtures(t)
 	d := NewResidueDetector()
-	for _, tc := range cases {
-		t.Run(tc.ruleID, func(t *testing.T) {
-			warnings := d.Scan(tc.input)
+	for _, tc := range fixtures.PositiveTriggers {
+		t.Run(tc.ID, func(t *testing.T) {
+			warnings := d.Scan(tc.Input)
 			found := false
 			for _, w := range warnings {
-				if w.RuleID == tc.ruleID {
+				if w.RuleID == tc.RuleID {
 					found = true
 					break
 				}
 			}
 			if !found {
-				t.Errorf("rule %q did not trigger on input %q; got warnings %v", tc.ruleID, tc.input, warnings)
+				t.Errorf("rule %q did not trigger on input %q; got warnings %v", tc.RuleID, tc.Input, warnings)
 			}
 		})
 	}
@@ -475,59 +396,26 @@ func TestDefaultRedactor_ResidueWarningsInReport(t *testing.T) {
 	// Each case uses an input that slips PAST the primary Rules at Maximum level
 	// but is still caught by the broader residue scanner. This simulates real
 	// near-misses: patterns close to but not exactly matching the primary rules.
-	tests := []struct {
-		name         string
-		input        string
-		wantRuleHint string // substring expected in at least one warning string
-	}{
-		{
-			// 34-char hex: long enough for residue_hex_long (≥32) but does not
-			// match the primary aws_access_key or aws_secret_key rules (wrong
-			// character class / prefix). The hex string slips through.
-			// Use low-entropy hex (entropy ~2.0) to bypass entropy detector and reach residue scanner.
-			name:         "hex_slips_through",
-			input:        "hash: aaaabbbbccccddddaaaabbbbccccdddd done",
-			wantRuleHint: "hex",
-		},
-		{
-			// A Twilio-like key with only 20 hex chars after "AC" — the primary
-			// twilio_key rule requires exactly 32 chars (AC[a-f0-9]{32}), so this
-			// slips past but the residue_twilio_key rule catches it (AC[a-f0-9]{20,}).
-			// Use low-entropy hex (entropy ~0.53) to bypass entropy detector and reach residue scanner.
-			name:         "api_key_variant_slips_through",
-			input:        "token: ACaaaaaaaaaaaaaaaaaaaa auth",
-			wantRuleHint: "twilio",
-		},
-		{
-			// A low-entropy "sk-" token that doesn't match any specific provider
-			// rule (anthropic requires "sk-ant-", openai requires "sk-live|test|proj-",
-			// stripe requires "sk_live|test_"). Low entropy prevents the entropy
-			// detector from catching it. residue_broad_api_key catches it.
-			name:         "broad_api_key_slips_through",
-			input:        "api: sk-aabbccddee-ffgghhii done",
-			wantRuleHint: "api_key",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	fixtures := loadResidueFixtures(t)
+	for _, tc := range fixtures.ReportWarnings {
+		t.Run(tc.ID, func(t *testing.T) {
 			r := mustNewRedactor(t, Maximum, nil)
-			_ = r.RedactText(tc.input)
+			_ = r.RedactText(tc.Input)
 			report := r.Report()
 
 			if len(report.Warnings) == 0 {
-				t.Errorf("ResidueWarningsInReport[%s]: expected Report().Warnings populated; got none", tc.name)
+				t.Errorf("ResidueWarningsInReport[%s]: expected Report().Warnings populated; got none", tc.ID)
 				return
 			}
 			found := false
 			for _, w := range report.Warnings {
-				if strings.Contains(w, tc.wantRuleHint) {
+				if strings.Contains(w, tc.WantRuleHint) {
 					found = true
 					break
 				}
 			}
 			if !found {
-				t.Errorf("ResidueWarningsInReport[%s]: no warning containing %q; got %v", tc.name, tc.wantRuleHint, report.Warnings)
+				t.Errorf("ResidueWarningsInReport[%s]: no warning containing %q; got %v", tc.ID, tc.WantRuleHint, report.Warnings)
 			}
 		})
 	}

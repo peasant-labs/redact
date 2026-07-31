@@ -11,52 +11,20 @@ import (
 // ---------------------------------------------------------------------------
 
 func TestSupportedLang_IsSupported(t *testing.T) {
-	tests := []struct {
-		lang      SupportedLang
-		supported bool
-	}{
-		{LangGo, true},
-		{LangPython, true},
-		{LangTypeScript, true},
-		{LangJavaScript, true},
-		{LangBash, true},
-		{LangUnknown, false},
-		{SupportedLang("ruby"), false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.lang.String(), func(t *testing.T) {
-			if got := tt.lang.IsSupported(); got != tt.supported {
-				t.Errorf("SupportedLang(%q).IsSupported() = %v, want %v", tt.lang, got, tt.supported)
+	for _, tt := range loadASTFixtures(t).SupportedLanguages {
+		t.Run(tt.ID, func(t *testing.T) {
+			if got := tt.Lang.IsSupported(); got != tt.Supported {
+				t.Errorf("SupportedLang(%q).IsSupported() = %v, want %v", tt.Lang, got, tt.Supported)
 			}
 		})
 	}
 }
 
 func TestParseLangHint(t *testing.T) {
-	tests := []struct {
-		hint string
-		want SupportedLang
-	}{
-		{"go", LangGo},
-		{"golang", LangGo},
-		{"python", LangPython},
-		{"py", LangPython},
-		{"typescript", LangTypeScript},
-		{"ts", LangTypeScript},
-		{"javascript", LangJavaScript},
-		{"js", LangJavaScript},
-		{"bash", LangBash},
-		{"sh", LangBash},
-		{"shell", LangBash},
-		{"zsh", LangBash},
-		{"ruby", LangUnknown},
-		{"haskell", LangUnknown},
-		{"", LangUnknown},
-	}
-	for _, tt := range tests {
-		t.Run(tt.hint, func(t *testing.T) {
-			if got := ParseLangHint(tt.hint); got != tt.want {
-				t.Errorf("ParseLangHint(%q) = %q, want %q", tt.hint, got, tt.want)
+	for _, tt := range loadASTFixtures(t).LanguageHints {
+		t.Run(tt.ID, func(t *testing.T) {
+			if got := ParseLangHint(tt.Hint); got != tt.Want {
+				t.Errorf("ParseLangHint(%q) = %q, want %q", tt.Hint, got, tt.Want)
 			}
 		})
 	}
@@ -455,24 +423,13 @@ func extractWordAfter(s, needle string) string {
 }
 
 func TestExtractWordAfter(t *testing.T) {
-	tests := []struct {
-		s      string
-		needle string
-		want   string
-	}{
-		{"func processUser() {}", "func ", "processUser"},
-		{"func id1() {}", "func ", "id1"},
-		{"no match here", "func ", ""},
-		{"func ", "func ", ""},   // nothing after needle
-		{"func ()", "func ", ""}, // delimiter immediately after needle
-		{"abc func end", "func ", "end"},
-		{"prefix func word\n", "func ", "word"},
-	}
-	for _, tt := range tests {
-		got := extractWordAfter(tt.s, tt.needle)
-		if got != tt.want {
-			t.Errorf("extractWordAfter(%q, %q) = %q, want %q", tt.s, tt.needle, got, tt.want)
-		}
+	for _, tt := range loadASTFixtures(t).WordExtractions {
+		t.Run(tt.ID, func(t *testing.T) {
+			got := extractWordAfter(tt.S, tt.Needle)
+			if got != tt.Want {
+				t.Errorf("extractWordAfter(%q, %q) = %q, want %q", tt.S, tt.Needle, got, tt.Want)
+			}
+		})
 	}
 }
 

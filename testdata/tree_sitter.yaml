@@ -1,0 +1,32 @@
+all_languages:
+  - id: go-production-pipeline
+    language: go
+    input: 'func processUser() {}'
+    must_absent: [processUser]
+    must_present: [func]
+  - id: python-production-pipeline
+    language: python
+    input: |-
+      def processData(input):
+          return input
+    must_absent: [processData]
+    must_present: [def, return]
+  - id: typescript-production-pipeline
+    language: typescript
+    input: 'function fetchData(userId: number): string { return userId.toString(); }'
+    must_absent: [fetchData, userId]
+    must_present: [function, return]
+  - id: javascript-production-pipeline
+    language: javascript
+    input: 'function fetchData(userId) { return userId; }'
+    must_absent: [fetchData, userId]
+    must_present: [function, return]
+  - id: bash-production-pipeline
+    language: bash
+    input: |-
+      function deployService() {
+          local serviceName="myapp"
+          echo ${serviceName}
+      }
+    must_absent: [deployService, serviceName]
+    must_present: [function, local, echo]

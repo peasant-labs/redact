@@ -49,13 +49,10 @@ jobs:
 
       - name: Validate release PR title grammar
         run: |
-          # Simple regex validation: release(vX.Y.Z[-rcN]): <summary>
-          if ! echo "$PR_TITLE" | grep -qE '^release\(v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?\): .+'; then
-            echo "::error::Invalid release PR title format. Expected: release(vX.Y.Z[-rcN]): <summary>"
-            echo "  Got: $PR_TITLE"
-            exit 1
-          fi
-          echo "Release PR title is valid: $PR_TITLE"
+          go run ./cmd/releaseguard title "$PR_TITLE"
+
+      - name: Run release quality gate
+        run: make release-check
 
       - name: Assert author is a maintainer
         run: |
@@ -96,18 +93,25 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
           token: ${{ steps.tok.outputs.token }}
+          ref: ${{ env.MERGE_SHA }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
 
       - name: Extract version from PR title
         id: version
         run: |
-          # Extract version from release(vX.Y.Z[-rcN]): <summary>
-          VERSION=$(echo "$PR_TITLE" | sed -n 's/^release(\(v[^)]+\)).*/\1/p')
-          if [ -z "$VERSION" ]; then
-            echo "::error::Could not extract version from PR title: $PR_TITLE"
-            exit 1
-          fi
+          VERSION=$(go run ./cmd/releaseguard title "$PR_TITLE")
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Detected version: ${VERSION}"
+
+      - name: Run release quality gate on merge commit
+        run: |
+          test "$(git rev-parse HEAD)" = "$MERGE_SHA"
+          make release-check
 
       - name: Validate tag does not exist
         run: |
@@ -135,5 +139,6 @@ jobs:
           git config user.name "peasant-release-bot"
           git config user.email "bots@peasant-labs.invalid"
           git tag -a "${VERSION}" "${TAG_SHA}" -m "${PR_TITLE}"
+          test "$(git rev-list -n 1 "${VERSION}")" = "${TAG_SHA}"
           git push origin "refs/tags/${VERSION}"
           echo "::notice::pushed annotated tag ${VERSION} on ${TAG_SHA}"

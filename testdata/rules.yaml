@@ -1,0 +1,283 @@
+rules:
+  - ruleId: artifactory_api_token
+    cases:
+      - {name: start_of_string, input: 'AKCxxxxxxxxxx1234', shouldFlag: true}
+      - {name: leading_space, input: ' AKCxxxxxxxxxx1234', shouldFlag: true}
+      - {name: equals_separator, input: '=AKCxxxxxxxxxx1234', shouldFlag: true}
+      - {name: colon_separator, input: ':AKCxxxxxxxxxx1234', shouldFlag: true}
+      - {name: quoted, input: '"AKCxxxxxxxxxx1234"', shouldFlag: true}
+      - {name: header_separator, input: 'artif-key:AKCxxxxxxxxxx1234', shouldFlag: true}
+      - {name: http_header, input: 'X-JFrog-Art-Api: AKCxxxxxxxxxx1234', shouldFlag: true}
+      - {name: embedded_word, input: 'testAKCwithinsomeirrelevantstring', shouldFlag: false}
+      - {name: embedded_ap_prefix, input: 'testAP6withinsomeirrelevantstring', shouldFlag: false}
+      - {name: embedded_without_boundary, input: 'xAKCabc123defghi', shouldFlag: false}
+      - {name: api_env_reference, input: 'X-JFrog-Art-Api: $API_KEY', shouldFlag: false}
+      - {name: password_env_reference, input: 'X-JFrog-Art-Api: $PASSWORD', shouldFlag: false}
+      - {name: too_short_at_start, input: 'AKCxxxxxxxx', shouldFlag: false}
+      - {name: too_short_after_colon, input: ':AKCxxxxxxxx', shouldFlag: false}
+      - {name: wrong_suffix_prefix, input: 'AKDxxxxxxxxxx1234', shouldFlag: false}
+      - {name: wrong_first_prefix, input: 'BKCxxxxxxxxxx1234', shouldFlag: false}
+
+  - ruleId: artifactory_password
+    cases:
+      - {name: start_of_string, input: 'AP6xxxxxxxxxx', shouldFlag: true}
+      - {name: leading_space, input: ' AP6xxxxxxxxxx', shouldFlag: true}
+      - {name: equals_separator, input: '=AP6xxxxxxxxxx', shouldFlag: true}
+      - {name: colon_separator, input: ':AP6xxxxxxxxxx', shouldFlag: true}
+      - {name: quoted, input: '"AP6xxxxxxxxxx"', shouldFlag: true}
+      - {name: hex_a_suffix, input: 'APAxxxxxxxxxx', shouldFlag: true}
+      - {name: hex_f_suffix, input: 'APFxxxxxxxxxx', shouldFlag: true}
+      - {name: header_separator, input: 'artif-key:AP6xxxxxxxxxx', shouldFlag: true}
+      - {name: embedded_word, input: 'testAP6withinsomeirrelevantstring', shouldFlag: false}
+      - {name: too_short, input: 'AP6xxxxxxx', shouldFlag: false}
+      - {name: invalid_hex_suffix, input: 'APGxxxxxxxxxx', shouldFlag: false}
+      - {name: wrong_prefix, input: 'BPAxxxxxxxxxx', shouldFlag: false}
+
+  - ruleId: azure_storage_key
+    cases:
+      - {name: valid_key, input: 'AccountKey=lJzRc1YdHaAA2KCNJJ1tkYwF/+mKK6Ygw0NGe170Xu592euJv2wYUtBlV8z+qnlcNQSnIYVTkLWntUO1F8j8rQ==', shouldFlag: true}
+      - {name: too_short, input: 'AccountKey=lJzRc1YdHaAA2KCNJJ1tkYwF/+mKK6Ygw0NGe170Xu592euJv2wYUtBlV8z+qnlcNQSnIYVTkLWntUO1F8j8rQ=', shouldFlag: false}
+      - {name: wrong_key_prefix, input: 'StorageKey=lJzRc1YdHaAA2KCNJJ1tkYwF/+mKK6Ygw0NGe170Xu592euJv2wYUtBlV8z+qnlcNQSnIYVTkLWntUO1F8j8rQ==', shouldFlag: false}
+      - {name: lowercase_prefix, input: 'accountkey=lJzRc1YdHaAA2KCNJJ1tkYwF/+mKK6Ygw0NGe170Xu592euJv2wYUtBlV8z+qnlcNQSnIYVTkLWntUO1F8j8rQ==', shouldFlag: false}
+      - {name: missing_prefix, input: 'lJzRc1YdHaAA2KCNJJ1tkYwF/+mKK6Ygw0NGe170Xu592euJv2wYUtBlV8z+qnlcNQSnIYVTkLWntUO1F8j8rQ==', shouldFlag: false}
+
+  - ruleId: discord_bot_token
+    cases:
+      - {name: token_24_6_27, input: 'MTk4NjIyNDgzNDcxOTI1MjQ4.Cl2FMQ.ZnCjm1XVW7vRze4b7Cq4se7kKWs', shouldFlag: true}
+      - {name: token_24_6_27_alt, input: 'Nzk5MjgxNDk0NDc2NDU1OTg3.YABS5g.2lmzECVlZv3vv6miVnUaKPQi2wI', shouldFlag: true}
+      - {name: token_mixed_case, input: 'MZ1yGvKTjE0rY0cV8i47CjAa.uRHQPq.Xb1Mk2nEhe-4iUcrGOuegj57zMC', shouldFlag: true}
+      - {name: token_other_prefix, input: 'OTUyNED5MDk2MTMxNzc2MkEz.YjESug.UNf-1GhsIG8zWT409q2C7Bh_zWQ', shouldFlag: true}
+      - {name: longer_last_segment, input: 'OTUyNED5MDk2MTMxNzc2MkEz.GSroKE.g2MTwve8OnUAAByz8KV_ZTV1Ipzg4o_NmQWUMs', shouldFlag: true}
+      - {name: first_segment_max_body, input: 'MTAyOTQ4MTN5OTU5MTDwMEcxNg.GSwJyi.sbaw8msOR3Wi6vPUzeIWy_P0vJbB0UuRVjH8l8', shouldFlag: true}
+      - {name: all_segments_short, input: 'MZ1yGvKTj0rY0cV8i47CjAa.uHQPq.Xb1Mk2nEhe-4icrGOuegj57zMC', shouldFlag: false}
+      - {name: first_segment_short, input: 'MZ1yGvKTj0rY0cV8i47CjAa.uRHQPq.Xb1Mk2nEhe-4icrGOuegj57zMC', shouldFlag: false}
+      - {name: middle_segment_short, input: 'MZ1yGvKTjE0rY0cV8i47CjAa.uHQPq.Xb1Mk2nEhe-4iUcrGOuegj57zMC', shouldFlag: false}
+      - {name: last_segment_short, input: 'MZ1yGvKTjE0rY0cV8i47CjAa.uRHQPq.Xb1Mk2nEhe-4iUcrGOuegj57zM', shouldFlag: false}
+      - {name: invalid_last_segment_character, input: 'MZ1yGvKTjE0rY0cV8i47CjAa.uRHQPq.Xb1Mk2nEhe,4iUcrGOuegj57zMC', shouldFlag: false}
+      - {name: wrong_first_character, input: 'PZ1yGvKTjE0rY0cV8i47CjAa.uRHQPq.Xb1Mk2nEhe-4iUcrGOuegj57zMC', shouldFlag: false}
+
+  - ruleId: gitlab_pat
+    cases:
+      - {name: glpat_trailing_space, input: 'glpat-hellOworld380_testin ', shouldFlag: true}
+      - {name: glpat_newline, input: "glpat-hellOworld380_testin\n", shouldFlag: true}
+      - {name: gldt_prefix, input: 'gldt-HwllOuhfw-wu0rlD_yepXXXX ', shouldFlag: true}
+      - {name: glft_prefix, input: 'glft-HwllOuhfw-wu0rlD_yepXXXX ', shouldFlag: true}
+      - {name: glsoat_prefix, input: 'glsoat-PREfix_helloworld380_testin_pretty_long_token_ ', shouldFlag: true}
+      - {name: glrt_prefix, input: 'glrt-HwllOuhfw-wu0rlD_yepXXXX ', shouldFlag: true}
+      - {name: end_of_string, input: 'glpat-hellOworld380_testin', shouldFlag: true}
+      - {name: too_short, input: 'gldt-seems_too000Sshor', shouldFlag: false}
+      - {name: too_long, input: 'glsoat-PREfix_helloworld380_testin_pretty_long_token_long_x', shouldFlag: false}
+      - {name: wrong_separator, input: 'glpat_hellOworld380_testin', shouldFlag: false}
+      - {name: invalid_prefix, input: 'foo-hello-world80_testin_abcdefghij ', shouldFlag: false}
+      - {name: github_token, input: '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', shouldFlag: false}
+      - {name: space_in_token, input: 'glpat-hellOWorld380 testin', shouldFlag: false}
+
+  - ruleId: gitlab_runner_registration
+    cases:
+      - {name: valid_token, input: 'GR1348941PREfix_helloworld380 ', shouldFlag: true}
+      - {name: long_valid_token, input: 'GR1348941PREfix_helloworld380_testin_pretty_long_token_lon ', shouldFlag: true}
+      - {name: end_of_string, input: 'GR1348941PREfix_helloworld380', shouldFlag: true}
+      - {name: too_short, input: 'GR1348941helloWord0', shouldFlag: false}
+      - {name: too_long, input: 'GR1348941PREfix_helloworld380_testin_pretty_long_token_long_x', shouldFlag: false}
+      - {name: wrong_prefix, input: 'GR1238941PREfix_helloworld380', shouldFlag: false}
+
+  - ruleId: gitlab_cicd
+    cases:
+      - {name: without_partition, input: 'glcbt-PREfix_helloworld380_test ', shouldFlag: true}
+      - {name: lowercase_partition, input: 'glcbt-ab_PREfix_helloworld380_te ', shouldFlag: true}
+      - {name: uppercase_partition, input: 'glcbt-FF_PREfix_helloworld380_te ', shouldFlag: true}
+      - {name: end_of_string, input: 'glcbt-PREfix_helloworld380_test', shouldFlag: true}
+      - {name: too_short, input: 'glcbt-short_12345678 ', shouldFlag: false}
+      - {name: too_long, input: 'glcbt-PREfix_helloworld380_testin_pretty_long_token_long_x', shouldFlag: false}
+      - {name: wrong_prefix, input: 'glact-PREfix_helloworld380_test ', shouldFlag: false}
+
+  - ruleId: gitlab_incoming_mail
+    cases:
+      - {name: exact_length_trailing_space, input: 'glimt-abcdefghij1234567890abcde ', shouldFlag: true}
+      - {name: exact_length_end_of_string, input: 'glimt-abcdefghij1234567890abcde', shouldFlag: true}
+      - {name: uppercase_token, input: 'glimt-ABCDEFGHIJ1234567890ABCDE ', shouldFlag: true}
+      - {name: too_short, input: 'glimt-abcdefghij1234567890abcd ', shouldFlag: false}
+      - {name: too_long, input: 'glimt-abcdefghij1234567890abcdef', shouldFlag: false}
+      - {name: wrong_prefix, input: 'glimb-abcdefghij1234567890abcde ', shouldFlag: false}
+
+  - ruleId: gitlab_trigger
+    cases:
+      - {name: exact_length_trailing_space, input: 'glptt-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ', shouldFlag: true}
+      - {name: exact_length_end_of_string, input: 'glptt-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', shouldFlag: true}
+      - {name: too_short, input: 'glptt-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ', shouldFlag: false}
+      - {name: too_long, input: 'glptt-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', shouldFlag: false}
+      - {name: wrong_prefix, input: 'glptx-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ', shouldFlag: false}
+
+  - ruleId: gitlab_agent
+    cases:
+      - {name: minimum_length_trailing_space, input: 'glagent-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ', shouldFlag: true}
+      - {name: minimum_length_end_of_string, input: 'glagent-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', shouldFlag: true}
+      - {name: longer_token, input: 'glagent-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabcde ', shouldFlag: true}
+      - {name: too_short, input: 'glagent-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ', shouldFlag: false}
+      - {name: wrong_prefix, input: 'glagenn-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ', shouldFlag: false}
+
+  - ruleId: gitlab_oauth_secret
+    cases:
+      - {name: exact_length_trailing_space, input: 'gloas-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ', shouldFlag: true}
+      - {name: exact_length_end_of_string, input: 'gloas-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', shouldFlag: true}
+      - {name: too_short, input: 'gloas-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ', shouldFlag: false}
+      - {name: too_long, input: 'gloas-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', shouldFlag: false}
+      - {name: wrong_prefix, input: 'gloat-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ', shouldFlag: false}
+
+  - ruleId: mailchimp_api_key
+    cases:
+      - {name: us30, input: '343ea45721923ed956e2b38c31db76aa-us30', shouldFlag: true}
+      - {name: us2, input: 'a2937653ed38c31a43ea46e2b19257db-us2', shouldFlag: true}
+      - {name: us1_trailing_space, input: '343ea45721923ed956e2b38c31db76aa-us1 ', shouldFlag: true}
+      - {name: missing_us_prefix, input: '3ea4572956e2b381923ed34c31db76aa-2', shouldFlag: false}
+      - {name: wrong_datacenter, input: 'aea462953eb192d38c31a433e76257db-al32', shouldFlag: false}
+      - {name: uppercase_hex, input: '9276a43e2951aa46e2b1c33ED38357DB-us2', shouldFlag: false}
+      - {name: too_short, input: '3a5633e829d3c71-us2', shouldFlag: false}
+
+  - ruleId: npm_auth_token
+    cases:
+      - {name: uuid_token, input: '//registry.npmjs.org/:_authToken=743b294a-cd03-11ec-9d64-0242ac120002', shouldFlag: true}
+      - {name: uuid_v4_token, input: '//registry.npmjs.org/:_authToken=346a14f2-a672-4668-a892-956a462ab56e', shouldFlag: true}
+      - {name: uuid_with_space, input: '//registry.npmjs.org/:_authToken= 743b294a-cd03-11ec-9d64-0242ac120002', shouldFlag: true}
+      - {name: npm_prefix_token, input: '//registry.npmjs.org/:_authToken=npm_xxxxxxxxxxx', shouldFlag: true}
+      - {name: missing_slash_colon, input: '//registry.npmjs.org:_authToken=743b294a-cd03-11ec-9d64-0242ac120002', shouldFlag: false}
+      - {name: missing_double_slash, input: 'registry.npmjs.org/:_authToken=743b294a-cd03-11ec-9d64-0242ac120002', shouldFlag: false}
+      - {name: empty_registry, input: '///:_authToken=743b294a-cd03-11ec-9d64-0242ac120002', shouldFlag: false}
+      - {name: missing_registry_prefix, input: '_authToken=743b294a-cd03-11ec-9d64-0242ac120002', shouldFlag: false}
+      - {name: env_placeholder, input: '//registry.npmjs.org/:_authToken=${NPM_TOKEN}', shouldFlag: false}
+      - {name: unrelated, input: 'foo', shouldFlag: false}
+
+  - ruleId: pypi_api_token
+    cases:
+      - {name: valid_token, input: 'pypi-AgEIcHlwaS5vcmcCJDU3OTM1MjliLWIyYTYtNDEwOC05NzRkLTM0MjNiNmEwNWIzYgACF1sxLFsibWluaW1hbC1wcm9qZWN0Il1dAAIsWzIsWyJjYWY4OTAwZi0xNDMwLTRiYQstYmFmMi1mMDE3OGIyNWZhNTkiXV0AAAYgh2UINPjWBDwT0r3tQ1o5oZyswcjN0-IluP6z34SX3KM', shouldFlag: true}
+      - {name: too_short_fixture, input: 'pypi-AgEIcHlwaS5vcmcCJDU3OTM1MjliLWIyYTYtNDEwOC05NzRkLTM0MjNiNmEwNWIzYgACF1sxLFsibWluaW1h', shouldFlag: false}
+      - {name: clearly_too_short, input: 'pypi-AgEIcHlwaS5vcmcABCDEFGHIJ', shouldFlag: false}
+      - {name: test_instance_prefix, input: 'pypi-AgENdGVzdC5weXBpLm9yZwIkN2YxOWZhOWEt', shouldFlag: false}
+      - {name: unrelated, input: 'sk-ant-api03-test', shouldFlag: false}
+
+  - ruleId: pypi_test_token
+    cases:
+      - {name: valid_token, input: 'pypi-AgENdGVzdC5weXBpLm9yZwIkN2YxOWZhOWEtY2FjYS00MGZhLTj2MGEtODFjMnE2MjdmMzY0AAIqWzMsImJlM2FiOWI5LTRmYUTnNEg4ZS04Mjk0LWFlY2Y2NWYzNGYzNyJdAAAGIMb5Hb8nVvhcAizcVVzA-bKKnwN7Pe0RmgPRCvrPwyJf', shouldFlag: true}
+      - {name: too_short, input: 'pypi-AgENdGVzdC5weXBpLm9yZwABCDEFGHIJ', shouldFlag: false}
+      - {name: production_prefix, input: 'pypi-AgEIcHlwaS5vcmcABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwx', shouldFlag: false}
+      - {name: unrelated, input: 'sk-ant-api03-test', shouldFlag: false}
+
+  - ruleId: square_oauth_secret
+    cases:
+      - {name: token_with_context, input: 'square_oauth = sq0csp-ABCDEFGHIJK_LMNOPQRSTUVWXYZ-0123456789\abcd', shouldFlag: true}
+      - {name: token_without_context, input: 'sq0csp-ABCDEFGHIJK_LMNOPQRSTUVWXYZ-0123456789\abcd', shouldFlag: true}
+      - {name: too_short_by_two, input: 'sq0csp-ABCDEFGHIJK_LMNOPQRSTUVWXYZ-0123456789\ab', shouldFlag: false}
+      - {name: too_short_by_many, input: 'sq0csp-ABCDEFGHIJK_LMNOPQRSTUVWXYZ-012345', shouldFlag: false}
+      - {name: wrong_prefix, input: 'sq0ctp-ABCDEFGHIJK_LMNOPQRSTUVWXYZ-0123456789\ab', shouldFlag: false}
+      - {name: wrong_separator, input: 'sq0csp_ABCDEFGHIJK_LMNOPQRSTUVWXYZ-0123456789\ab', shouldFlag: false}
+
+  - ruleId: telegram_bot_token
+    cases:
+      - {name: nine_digit_id, input: '110201543:AAHdqTcvCH1vGWJxfSe1ofSAs0K5PALDsaw', shouldFlag: true}
+      - {name: ten_digit_id, input: '7213808860:AAH1bjqpKKW3maRSPAxzIU-0v6xNuq2-NjM', shouldFlag: true}
+      - {name: leading_space, input: ' 110201543:AAHdqTcvCH1vGWJxfSe1ofSAs0K5PALDsaw', shouldFlag: true}
+      - {name: bot_prefix, input: 'bot110201543:AAHdqTcvCH1vGWJxfSe1ofSAs0K5PALDsaw', shouldFlag: false}
+      - {name: non_numeric_id, input: 'foo:AAH1bjqpKKW3maRSPAxzIU-0v6xNuq2-NjM', shouldFlag: false}
+      - {name: unrelated, input: 'foo', shouldFlag: false}
+      - {name: aws_arn_false_positive, input: 'arn:aws:sns:aaa:111122223333:aaaaaaaaaaaaaaaaaaassssssddddddddddddd', shouldFlag: false}
+      - {name: too_short_id, input: '1234567:AAHdqTcvCH1vGWJxfSe1ofSAs0K5PALDsaw', shouldFlag: false}
+      - {name: too_short_token, input: '110201543:AAHdqTcvCH1vGWJxfSe1ofSAs0K5PALDs', shouldFlag: false}
+
+  - ruleId: access_code
+    cases:
+      - {name: access_code, input: 'Access code: ABCD-1234', shouldFlag: true}
+      - {name: verification_code, input: 'verification code is 8K3P2Q', shouldFlag: true}
+      - {name: otp_code, input: 'otp code 123456', shouldFlag: true}
+      - {name: device_code, input: 'device code=Z9X8-C7V6', shouldFlag: true}
+      - {name: status_code, input: 'status code: 403', shouldFlag: false}
+      - {name: exit_code, input: 'exit code 1', shouldFlag: false}
+      - {name: short_verification_code, input: 'verification code: short', shouldFlag: false}
+
+residues:
+  - {name: artifactory_api_token, ruleId: residue_artifactory_api_token, input: 'header: AKCshort1234567890'}
+  - {name: artifactory_password, ruleId: residue_artifactory_password, input: 'pass: AP6short12345'}
+  - {name: azure_storage_key, ruleId: residue_azure_storage_key, input: 'AccountKey=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ01234567'}
+  - {name: discord_bot_token, ruleId: residue_discord_bot_token, input: 'MTk4NjIyNDgzNDcxOTI1MjQ4.Cl2FMQ.ZnCjm1XVW7vRze4b7Cq4se7kKWs'}
+  - {name: gitlab_pat, ruleId: residue_gitlab_pat, input: 'glpat-short1234567890short'}
+  - {name: gitlab_runner_registration, ruleId: residue_gitlab_runner_registration, input: 'GR1348941short1234567890'}
+  - {name: gitlab_cicd, ruleId: residue_gitlab_cicd, input: 'glcbt-shorttoken1234567890shortX'}
+  - {name: gitlab_incoming_mail, ruleId: residue_gitlab_incoming_mail, input: 'glimt-shorttoken12345678901234'}
+  - {name: gitlab_trigger, ruleId: residue_gitlab_trigger, input: 'glptt-shorttoken12345678901234567890123456789012'}
+  - {name: gitlab_agent, ruleId: residue_gitlab_agent, input: 'glagent-shortagenttoken123456789012345678901234567890X'}
+  - {name: gitlab_oauth_secret, ruleId: residue_gitlab_oauth_secret, input: 'gloas-shortoauthsecrettoken123456789012345678901234567890ABCDE'}
+  - {name: mailchimp_api_key, ruleId: residue_mailchimp_api_key, input: '343ea4572192ed956e2b38c31234-us2'}
+  - {name: npm_auth_token, ruleId: residue_npm_auth_token, input: '/:_authToken=npm_shorttoken'}
+  - {name: pypi_token, ruleId: residue_pypi_token, input: 'pypi-AgEIshortprefixtoken1234567890123456789012345678901234567890'}
+  - {name: pypi_test_token, ruleId: residue_pypi_test_token, input: 'pypi-AgENshortprefixtoken1234567890123456789012345678901234567890'}
+  - {name: square_oauth_secret, ruleId: residue_square_oauth_secret, input: 'sq0csp-ABCDEFGHIJK_LMNOPQRSTUVWXYZ123'}
+  - {name: telegram_bot_token, ruleId: residue_telegram_bot_token, input: '1102015:AAHdqTcvCH1vGWJxfSe1ofSAs0K5PA'}
+
+awsFilters:
+  - {name: file_path_no_context, input: 'nttea/codebases/dayvidpham/bestiary/main.', wantDetect: false}
+  - {name: real_key_with_context, input: 'aws_secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"', wantDetect: true}
+  - {name: akia_nearby, input: 'AKIAIOSFODNN7EXAMPLE1234 wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY', wantDetect: true}
+  - {name: sequential_string, input: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcd', wantDetect: false}
+  - {name: bare_base64, input: '5Y9syZ8W5sLJHHGM7EqzeVBf37Sq/f4k1p0YAQAA', wantDetect: false}
+  - {name: key_at_end, input: 'aws_secret_key=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY', wantDetect: true}
+  - {name: keyword_inside_window, input: 'aws_secret xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx5Y9syZ8W5sLJHHGM7EqzeVBf37Sq0f4k1p0YAQAA', wantDetect: true}
+  - {name: keyword_outside_window, input: 'aws_secret xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx5Y9syZ8W5sLJHHGM7EqzeVBf37Sq0f4k1p0YAQAA', wantDetect: false}
+
+extractBase64:
+  - {name: trailing_space, matched: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY ', want: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'}
+  - {name: trailing_newline, matched: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\n", want: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'}
+  - {name: trailing_colon, matched: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY:', want: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'}
+  - {name: base64_padding, matched: '5Y9syZ8W5sLJHHGM7EqzeVBf37Sq/f4k1p0YAQ==', want: '5Y9syZ8W5sLJHHGM7EqzeVBf37Sq/f4k1p0YAQ=='}
+  - {name: end_of_string, matched: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY', want: 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'}
+  - {name: empty, matched: '', want: ''}
+
+homePaths:
+  - {name: dual_path_keeps_alice, input: 'Loaded config from /home/alice and /home/bob/x', offset: 19, matched: '/home/alice', want: true}
+  - {name: spaced_username_rejects_prefix, input: '/home/SFU CLASSES/project/file.go', offset: 0, matched: '/home/SFU', want: false}
+
+coveredRuleIds:
+  - anthropic_key
+  - openai_key
+  - github_pat
+  - aws_access_key
+  - aws_secret_key
+  - stripe_key
+  - twilio_key
+  - twilio_auth_token
+  - sendgrid_key
+  - slack_token
+  - slack_webhook_url
+  - jwt_token
+  - private_key_block
+  - generic_api_key
+  - bearer_token
+  - basic_auth
+  - basic_auth_uri
+  - access_code
+  - email
+  - phone_us
+  - ssn
+  - credit_card
+  - ip_address
+  - unix_home_path
+  - unix_home_path_spaced
+  - windows_home_path
+  - windows_home_path_spaced
+  - claude_project_slug
+  - peasant_host_slug
+  - artifactory_api_token
+  - artifactory_password
+  - azure_storage_key
+  - discord_bot_token
+  - gitlab_pat
+  - gitlab_runner_registration
+  - gitlab_cicd
+  - gitlab_incoming_mail
+  - gitlab_trigger
+  - gitlab_agent
+  - gitlab_oauth_secret
+  - mailchimp_api_key
+  - npm_auth_token
+  - pypi_api_token
+  - pypi_test_token
+  - square_oauth_secret
+  - telegram_bot_token

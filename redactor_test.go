@@ -46,111 +46,12 @@ func TestIsActiveRule_InvalidMetadataFailsClosed(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestRedactText_SecretsRules(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    string
-		contains string
-	}{
-		{
-			"anthropic_key",
-			"sk-ant-api03-abc123def456abc123def456abc123def456abc123",
-			"<ANTHROPIC_KEY>",
-		},
-		{
-			// Real-format OpenAI key: 20 chars + T3BlbkFJ marker + 20 chars.
-			// Synthetic body with the documented format anchors.
-			"openai_key",
-			"sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789",
-			"<OPENAI_KEY>",
-		},
-		{
-			// Real-format GitHub PAT from detect-secrets/tests/plugins/github_token_test.py.
-			"github_pat",
-			"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",
-			"<GITHUB_PAT>",
-		},
-		{
-			"aws_access_key",
-			"AKIAIOSFODNN7EXAMPLE",
-			"<AWS_ACCESS_KEY>",
-		},
-		{
-			// Trailing space is a sentinel delimiter — must be preserved in output.
-			// AWS context keyword ("aws_secret_access_key") is required by FilterFn.
-			"aws_secret_key",
-			`aws_secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" next`,
-			"<AWS_SECRET_KEY>",
-		},
-		{
-			// Real-format Stripe key: sk_live_ + exactly 24 alphanumeric chars.
-			"stripe_key",
-			"sk_live_abcdefghijklmnopqrstuvwx",
-			"<STRIPE_KEY>",
-		},
-		{
-			// Twilio Account SID: AC + exactly 32 lowercase hex chars.
-			"twilio_key",
-			"ACabc123def456abc123def456abc123de",
-			"<TWILIO_KEY>",
-		},
-		{
-			// Twilio Auth Token: SK + exactly 32 lowercase hex chars.
-			"twilio_auth_token",
-			"SKabc123def456abc123def456abc123de",
-			"<TWILIO_AUTH_TOKEN>",
-		},
-		{
-			// Real-format SendGrid key from detect-secrets/tests/plugins/sendgrid_test.py:
-			// SG. + exactly 22 chars + . + exactly 43 chars.
-			"sendgrid_key",
-			"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",
-			"<SENDGRID_KEY>",
-		},
-		{
-			// Real-shape Slack token from detect-secrets/tests/plugins/slack_test.py:
-			// xoxb- + numeric segments + alphanumeric token.
-			"slack_token",
-			"xoxb-34532454-e039d02840a0b9379c",
-			"<SLACK_TOKEN>",
-		},
-		{
-			"jwt_token",
-			"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ0ZXN0In0.abc123def456",
-			"<JWT_TOKEN>",
-		},
-		{
-			"private_key_block",
-			"-----BEGIN RSA PRIVATE KEY-----",
-			"<PRIVATE_KEY>",
-		},
-		{
-			"generic_api_key",
-			"api_key=abc123def456abc123def456abc123def456",
-			"<API_KEY>",
-		},
-		{
-			"bearer_token",
-			"Bearer abc123def456abc123def456",
-			"<BEARER_TOKEN>",
-		},
-		{
-			"basic_auth",
-			"Authorization: Basic dXNlcjpwYXNz",
-			"<BASIC_AUTH>",
-		},
-		{
-			"access_code",
-			"Please enter verification code: ABCD-1234",
-			"<ACCESS_CODE>",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := mustNewRedactor(t, Minimal, nil)
-			got := r.RedactText(tt.input)
-			if !strings.Contains(got, tt.contains) {
-				t.Errorf("RedactText(%q) = %q, want output containing %q", tt.input, got, tt.contains)
+	for _, tt := range loadRedactorBehaviorFixtures(t).Secrets {
+		t.Run(tt.ID, func(t *testing.T) {
+			r := mustNewRedactor(t, tt.Level, nil)
+			got := r.RedactText(tt.Input)
+			if !strings.Contains(got, tt.Contains) {
+				t.Errorf("RedactText(%q) = %q, want output containing %q", tt.Input, got, tt.Contains)
 			}
 		})
 	}
@@ -181,60 +82,15 @@ func TestRedactText_AWSSecretKeyTrailingSentinel(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestRedactText_PIIRules(t *testing.T) {
-	tests := []struct {
-		name     string
-		level    RedactionLevel
-		input    string
-		contains string
-		absent   string
-	}{
-		{
-			name:     "email_standard",
-			level:    Standard,
-			input:    "user@example.com",
-			contains: "<EMAIL>",
-		},
-		{
-			name:   "email_minimal_unchanged",
-			level:  Minimal,
-			input:  "user@example.com",
-			absent: "<EMAIL>",
-		},
-		{
-			name:     "phone_us_standard",
-			level:    Standard,
-			input:    "+1-555-123-4567",
-			contains: "<PHONE>",
-		},
-		{
-			name:     "ssn_standard",
-			level:    Standard,
-			input:    "123-45-6789",
-			contains: "<SSN>",
-		},
-		{
-			name:     "credit_card_standard",
-			level:    Standard,
-			input:    "4111 1111 1111 1111",
-			contains: "<CREDIT_CARD>",
-		},
-		{
-			name:     "ip_address_standard",
-			level:    Standard,
-			input:    "192.168.1.100",
-			contains: "<IP_ADDRESS>",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := mustNewRedactor(t, tt.level, nil)
-			got := r.RedactText(tt.input)
-			if tt.contains != "" && !strings.Contains(got, tt.contains) {
-				t.Errorf("level=%s: RedactText(%q) = %q, want output containing %q", tt.level, tt.input, got, tt.contains)
+	for _, tt := range loadRedactorBehaviorFixtures(t).PII {
+		t.Run(tt.ID, func(t *testing.T) {
+			r := mustNewRedactor(t, tt.Level, nil)
+			got := r.RedactText(tt.Input)
+			if tt.Contains != "" && !strings.Contains(got, tt.Contains) {
+				t.Errorf("level=%s: RedactText(%q) = %q, want output containing %q", tt.Level, tt.Input, got, tt.Contains)
 			}
-			if tt.absent != "" && strings.Contains(got, tt.absent) {
-				t.Errorf("level=%s: RedactText(%q) = %q, want output NOT containing %q", tt.level, tt.input, got, tt.absent)
+			if tt.Absent != "" && strings.Contains(got, tt.Absent) {
+				t.Errorf("level=%s: RedactText(%q) = %q, want output NOT containing %q", tt.Level, tt.Input, got, tt.Absent)
 			}
 		})
 	}
@@ -245,128 +101,12 @@ func TestRedactText_PIIRules(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestRedactText_PathRules(t *testing.T) {
-	tests := []struct {
-		name     string
-		level    RedactionLevel
-		input    string
-		contains string
-	}{
-		{
-			name:     "unix_home_standard",
-			level:    Standard,
-			input:    "/Users/alice/projects/foo",
-			contains: "/Users/<USER>/projects/foo",
-		},
-		{
-			name:     "windows_home_standard",
-			level:    Standard,
-			input:    `C:\Users\alice\projects\foo`,
-			contains: `C:\Users\<USER>\projects\foo`,
-		},
-		{
-			name:     "unix_home_space_in_segment",
-			level:    Standard,
-			input:    "/home/SFU CLASSES/project/file.go",
-			contains: "/home/<USER>/project/file.go",
-		},
-		{
-			name:     "windows_home_space_in_segment",
-			level:    Standard,
-			input:    `C:\Users\John Doe\Documents\file.txt`,
-			contains: `C:\Users\<USER>\Documents\file.txt`,
-		},
-		{
-			name:     "unix_home_dual_path_on_line",
-			level:    Standard,
-			input:    "Loaded config from /home/alice and /home/bob/x",
-			contains: "Loaded config from /home/<USER> and /home/<USER>/x",
-		},
-		// Slug path rules — unconditional (all levels).
-		// The \W anchor requires a non-word character before the slug prefix.
-		// In real data, this is typically "/" from file paths or whitespace.
-		{
-			name:     "claude_project_slug_minimal",
-			level:    Minimal,
-			input:    "/home/<USER>/.claude/projects/-home-alice-dev-project/uuid.jsonl",
-			contains: "-home-<USER>-",
-		},
-		{
-			name:     "claude_project_slug_users_variant",
-			level:    Standard,
-			input:    " -Users-johndoe-dev-project",
-			contains: "-Users-<USER>-",
-		},
-		{
-			name:     "peasant_host_slug_minimal",
-			level:    Minimal,
-			input:    " --home--alice--dev--project",
-			contains: "--home--<USER>--",
-		},
-		{
-			name:     "peasant_host_slug_users_variant",
-			level:    Standard,
-			input:    " --Users--johndoe--dev--project",
-			contains: "--Users--<USER>--",
-		},
-		// False-positive protection: natural English text should NOT trigger slug rules.
-		// The \W anchor prevents matching when a word character precedes the -home- segment.
-		{
-			name:     "false_positive_go_home_early",
-			level:    Standard,
-			input:    "go-home-early",
-			contains: "go-home-early", // must be preserved unchanged
-		},
-		{
-			name:     "false_positive_home_assistant",
-			level:    Standard,
-			input:    "home-assistant",
-			contains: "home-assistant", // must be preserved unchanged
-		},
-		{
-			name:     "false_positive_home_automation",
-			level:    Standard,
-			input:    "home-automation-system",
-			contains: "home-automation-system", // must be preserved unchanged
-		},
-		{
-			name:     "false_positive_go_home_early_feature",
-			level:    Standard,
-			input:    "the-go-home-early-feature",
-			contains: "the-go-home-early-feature", // word char 'o' before -home- prevents match
-		},
-		{
-			name:     "false_positive_some_home_page_widget",
-			level:    Standard,
-			input:    "some-home-page-widget",
-			contains: "some-home-page-widget", // word char 'e' before -home- prevents match
-		},
-		{
-			name:     "slug_after_space",
-			level:    Standard,
-			input:    " -home-alice-dev-project",
-			contains: "-home-<USER>-", // space is \W, match fires
-		},
-		{
-			name:     "slug_after_slash",
-			level:    Standard,
-			input:    "/-home-alice-dev-project",
-			contains: "-home-<USER>-", // slash is \W, match fires
-		},
-		// Path rules fire at Minimal (unconditional).
-		{
-			name:     "unix_path_at_minimal",
-			level:    Minimal,
-			input:    "/home/alice/dev/project",
-			contains: "/home/<USER>/dev/project",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := mustNewRedactor(t, tt.level, nil)
-			got := r.RedactText(tt.input)
-			if !strings.Contains(got, tt.contains) {
-				t.Errorf("level=%s: RedactText(%q) = %q, want output containing %q", tt.level, tt.input, got, tt.contains)
+	for _, tt := range loadRedactorBehaviorFixtures(t).Paths {
+		t.Run(tt.ID, func(t *testing.T) {
+			r := mustNewRedactor(t, tt.Level, nil)
+			got := r.RedactText(tt.Input)
+			if !strings.Contains(got, tt.Contains) {
+				t.Errorf("level=%s: RedactText(%q) = %q, want output containing %q", tt.Level, tt.Input, got, tt.Contains)
 			}
 		})
 	}
@@ -734,38 +474,11 @@ func TestRedactMetadata_NilGitFields(t *testing.T) {
 // The function is package-internal but tested here because it is a
 // meaningful behaviour with known edge cases.
 func TestMaskCodeBlocks(t *testing.T) {
-	tests := []struct {
-		name  string
-		input string
-		want  string
-	}{
-		{
-			name:  "standard_fences",
-			input: "before\n```\nsome secret code\n```\nafter",
-			want:  "before<CODE_BLOCK>after",
-		},
-		{
-			name:  "indented_fences",
-			input: "before\n    ```\n    indented code\n    ```\nafter",
-			want:  "before<CODE_BLOCK>after",
-		},
-		{
-			name:  "no_fences",
-			input: "just normal text with no code blocks",
-			want:  "just normal text with no code blocks",
-		},
-		{
-			name:  "fences_with_lang",
-			input: "text\n```go\npackage main\n```\nmore",
-			want:  "text<CODE_BLOCK>more",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := maskCodeBlocks(tt.input)
-			if got != tt.want {
-				t.Errorf("maskCodeBlocks(%q) =\n  %q\nwant\n  %q", tt.input, got, tt.want)
+	for _, tt := range loadRedactorBehaviorFixtures(t).CodeBlocks {
+		t.Run(tt.ID, func(t *testing.T) {
+			got := maskCodeBlocks(tt.Input)
+			if got != tt.Want {
+				t.Errorf("maskCodeBlocks(%q) =\n  %q\nwant\n  %q", tt.Input, got, tt.Want)
 			}
 		})
 	}
@@ -1105,56 +818,17 @@ func TestRedactText_Concurrency(t *testing.T) {
 // This test verifies that RedactText's internal Detect-then-Redact path preserves
 // bit-for-bit parity with the explicit Detect-then-Redact call sequence.
 func TestRedactText_ParityWithDetectRedact_FilterCases(t *testing.T) {
-	cases := []struct {
-		name  string
-		level RedactionLevel
-		input string
-	}{
-		{
-			// File path false positive: aws_secret_key regex fires but FilterFn rejects it
-			// (no AWS context). RedactText must leave the string unchanged.
-			name:  "file_path_false_positive",
-			level: Minimal,
-			input: "nttea/codebases/dayvidpham/bestiary/main.",
-		},
-		{
-			// Bare base64, no context: regex fires but FilterFn rejects.
-			name:  "bare_base64_no_context",
-			level: Minimal,
-			input: "5Y9syZ8W5sLJHHGM7EqzeVBf37Sq/f4k1p0YAQAA",
-		},
-		{
-			// Real AWS key with context: FilterFn accepts.
-			name:  "real_aws_key_with_context",
-			level: Minimal,
-			input: `aws_secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"`,
-		},
-		{
-			// Back-reference rule: unix_home_path uses "${1}<USER>" replacement.
-			name:  "back_reference_unix_home_path",
-			level: Minimal,
-			input: "/home/alice/dev/project",
-		},
-		{
-			// Back-reference rule: claude_project_slug uses "${1}${2}<USER>${4}".
-			name:  "back_reference_claude_project_slug",
-			level: Minimal,
-			input: "/home/<USER>/.claude/projects/-home-alice-dev-project/uuid.jsonl",
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Two independent redactors to avoid shared lastMatches state.
-			r1 := mustNewRedactor(t, tc.level, nil)
-			r2 := mustNewRedactor(t, tc.level, nil)
-
-			redactTextOut := r1.RedactText(tc.input)
-			detectRedactOut := r2.Redact(tc.input, r2.Detect(tc.input))
-
+	for _, tc := range loadRedactorBehaviorFixtures(t).Parity {
+		t.Run(tc.ID, func(t *testing.T) {
+			r1 := mustNewRedactor(t, tc.Level, nil)
+			r2 := mustNewRedactor(t, tc.Level, nil)
+			redactTextOut := r1.RedactText(tc.Input)
+			detectRedactOut := r2.Redact(tc.Input, r2.Detect(tc.Input))
 			if redactTextOut != detectRedactOut {
-				t.Errorf("Parity violation for %q (level=%s):\n  RedactText:    %q\n  Detect+Redact: %q",
-					tc.input, tc.level, redactTextOut, detectRedactOut)
+				t.Errorf("Parity violation for %q (level=%s):\n  RedactText:    %q\n  Detect+Redact: %q", tc.Input, tc.Level, redactTextOut, detectRedactOut)
+			}
+			if redactTextOut != tc.Want {
+				t.Errorf("RedactText(%q) = %q, want %q", tc.Input, redactTextOut, tc.Want)
 			}
 		})
 	}

@@ -4,18 +4,8 @@ name: Tests
 # Runs on PRs and pushes to main.
 on:
   pull_request:
-    paths:
-      - "**.go"
-      - "go.mod"
-      - "go.sum"
-      - "Makefile"
-      - ".github/workflows/tests.yml"
   push:
     branches: [main]
-    paths:
-      - "**.go"
-      - "go.mod"
-      - "go.sum"
 
 concurrency:
   group: tests-${{ github.ref }}
@@ -39,8 +29,8 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
-      - name: Run tests
-        run: go test -race ./...
+      - name: Run module quality gate
+        run: make release-check
 
   lint:
     name: lint

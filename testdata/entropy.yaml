@@ -1,0 +1,97 @@
+behavior:
+  - id: high-entropy-at-maximum
+    level: maximum
+    input: aB3xQ9mZ7kL2pR8nT4vY6wU1sE5jC0dF
+    redacted: true
+  - id: short-high-variety-token
+    level: maximum
+    input: aB3xQ9mZ7k
+    redacted: false
+  - id: ordinary-prose
+    level: maximum
+    input: hello world this is normal text
+    redacted: false
+  - id: high-entropy-at-standard
+    level: standard
+    input: aB3xQ9mZ7kL2pR8nT4vY6wU1sE5jC0dF
+    redacted: false
+
+prefilters:
+  - id: uuid-v1
+    family: uuid
+    input: 6ba7b810-9dad-11d1-80b4-00c04fd430c8
+    matched: true
+    detect_unchanged: true
+  - id: uuid-v4
+    family: uuid
+    input: 550e8400-e29b-41d4-a716-446655440000
+    matched: true
+    detect_unchanged: true
+  - id: embedded-uuid
+    family: uuid
+    input: prefix-550e8400-e29b-41d4-a716-446655440000-suffix
+    matched: true
+    detect_unchanged: true
+  - id: uppercase-alpha-sequence
+    family: sequential
+    input: ABCDEF
+    matched: true
+    detect_unchanged: false
+  - id: digit-sequence
+    family: sequential
+    input: "0123456"
+    matched: true
+    detect_unchanged: false
+  - id: rotated-hex-sequence
+    family: sequential
+    input: cdef0123456789ab
+    matched: true
+    detect_unchanged: false
+  - id: repeated-hex-subset
+    family: sequential
+    input: BEEF1234
+    matched: false
+    detect_unchanged: false
+  - id: shell-variable-reference
+    family: dollar_prefix
+    input: $MY_SECRET_TOKEN_VARIABLE_HERE
+    matched: true
+    detect_unchanged: true
+
+charset_entropy:
+  - id: base64-below-threshold
+    family: base64
+    input: ababababababababababababababab
+    threshold_relation: below
+    detect_redacted: false
+  - id: base64-above-threshold
+    family: base64
+    input: GHIJKLMNOPQRSTUVWXYZghijklmnopqrstuvwxyz
+    threshold_relation: above
+    detect_redacted: true
+  - id: hex-below-threshold
+    family: hex
+    input: aaaaaaaaaaaaaaaaaaaaaaaa
+    threshold_relation: below
+    detect_redacted: false
+  - id: hex-above-threshold
+    family: hex
+    input: deadbeef0123456789abcdef
+    threshold_relation: above
+    detect_redacted: true
+
+paths:
+  - id: npm-lockfile
+    path: package-lock.json
+  - id: go-checksums
+    path: go.sum
+  - id: yarn-lockfile
+    path: yarn.lock
+  - id: generated-api-document
+    path: swagger.json
+  - id: source-file
+    path: src/main.go
+  - id: empty-path
+    path: ""
+  - id: absolute-source-path
+    path: /absolute/path/to/file.ts

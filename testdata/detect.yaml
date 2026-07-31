@@ -1,0 +1,8 @@
+parity:
+  - {id: anthropic_key_minimal, level: minimal, input: "token: sk-ant-api03-abc123def456abc123def456"}
+  - {id: email_standard, level: standard, input: "contact user@example.com for support"}
+  - {id: key_and_email_standard, level: standard, input: "sk-ant-api03-abc123def456abc123def456 user@example.com path=/home/alice/config"}
+  - {id: no_match_minimal, level: minimal, input: "hello world no secrets here"}
+  - {id: empty_string, level: standard, input: ""}
+  - {id: github_pat_minimal, level: minimal, input: "ghp_abc123def456abc123def456abc12345"}
+  - {id: aws_access_key_minimal, level: minimal, input: "AKIAIOSFODNN7EXAMPLE config value"}

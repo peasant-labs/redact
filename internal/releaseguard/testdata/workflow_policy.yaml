@@ -1,0 +1,88 @@
+- name: release_pr_exact_merge_checkout
+  kind: literal
+  file: .github/workflows/release-pr.yml
+  contains: "ref: ${{ env.MERGE_SHA }}"
+- name: release_pr_gate
+  kind: release_check
+  file: .github/workflows/release-pr.yml
+  job: validate
+  step: Run release quality gate
+  want: true
+- name: release_pr_tag_gate
+  kind: release_check
+  file: .github/workflows/release-pr.yml
+  job: tag
+  step: Run release quality gate on merge commit
+  want: true
+- name: release_tag_exact_checkout
+  kind: literal
+  file: .github/workflows/release.yml
+  contains: "ref: ${{ github.sha }}"
+- name: release_tag_gate
+  kind: release_check
+  file: .github/workflows/release.yml
+  job: release
+  step: Verify tag commit and run release quality gate
+  want: true
+- name: final_rc_ancestry
+  kind: literal
+  file: .github/workflows/release.yml
+  contains: "same-version release-candidate ancestor"
+- name: final_rc_green_evidence
+  kind: literal
+  file: .github/workflows/release.yml
+  contains: "--status success"
+- name: normal_pr_quality_gate
+  kind: release_check
+  file: .github/workflows/tests.yml
+  job: test
+  step: Run module quality gate
+  want: true
+- name: tag_commit_identity
+  kind: literal
+  file: .github/workflows/release.yml
+  contains: 'test "$(git rev-parse HEAD)" = "$GITHUB_SHA"'
+- name: tag_ref_identity
+  kind: literal
+  file: .github/workflows/release.yml
+  contains: 'test "$(git rev-list -n 1 "$TAG")" = "$GITHUB_SHA"'
+- name: echo_only_release_check
+  kind: release_check
+  job: gate
+  step: Echo only
+  workflow: |
+    name: inert echo gate
+    jobs:
+      gate:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Echo only
+            run: echo make release-check
+  want: false
+- name: comment_only_release_check
+  kind: release_check
+  job: gate
+  step: Comment only
+  workflow: |
+    name: inert comment gate
+    jobs:
+      gate:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Comment only
+            run: |
+              # make release-check
+  want: false
+- name: missing_release_check
+  kind: release_check
+  job: gate
+  step: Missing command
+  workflow: |
+    name: missing gate
+    jobs:
+      gate:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Checkout only
+            uses: actions/checkout@v5
+  want: false
