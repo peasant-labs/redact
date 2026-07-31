@@ -1,0 +1,139 @@
+name: Release PR
+
+# PR-title-driven release ceremony for the redact module.
+# Mirrors schema's release-pr.yml but simplified for a standalone library.
+#
+# Trigger A — while a release PR is OPEN: validate the title grammar and
+#   assert the author is a maintainer.
+#
+# Trigger B — when a release PR MERGES: push an annotated tag using a
+#   GitHub App token (the default GITHUB_TOKEN cannot push a tag that
+#   re-triggers release.yml).
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, closed]
+    branches: [main]
+
+concurrency:
+  group: release-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # Trigger A: validate an OPEN release PR (title grammar + maintainer author).
+  validate:
+    name: validate release PR
+    if: >-
+      github.event.action != 'closed' &&
+      startsWith(github.event.pull_request.title, 'release(')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Validate release PR title grammar
+        run: |
+          # Simple regex validation: release(vX.Y.Z[-rcN]): <summary>
+          if ! echo "$PR_TITLE" | grep -qE '^release\(v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?\): .+'; then
+            echo "::error::Invalid release PR title format. Expected: release(vX.Y.Z[-rcN]): <summary>"
+            echo "  Got: $PR_TITLE"
+            exit 1
+          fi
+          echo "Release PR title is valid: $PR_TITLE"
+
+      - name: Assert author is a maintainer
+        run: |
+          # Check if author has admin or maintain permission
+          ROLE=$(gh api "repos/peasant-labs/redact/collaborators/$PR_AUTHOR/permission" --jq '.permission' 2>/dev/null || echo "none")
+          if [ "$ROLE" != "admin" ] && [ "$ROLE" != "maintain" ]; then
+            echo "::error::PR author $PR_AUTHOR is not a maintainer (role: $ROLE)"
+            echo "Only maintainers can create release PRs."
+            exit 1
+          fi
+          echo "Author $PR_AUTHOR is a maintainer (role: $ROLE)"
+
+  # Trigger B: a release PR MERGED — tag the merge commit.
+  tag:
+    name: tag merged release
+    if: >-
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.title, 'release(')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+    steps:
+      - name: Mint App token (Contents:write to push the tag)
+        id: tok
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.PEASANT_RELEASER_APP_ID }}
+          private-key: ${{ secrets.PEASANT_RELEASER_APP_PRIVATE_KEY }}
+          owner: peasant-labs
+          repositories: redact
+
+      - name: Checkout repository (full history + tags)
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ steps.tok.outputs.token }}
+
+      - name: Extract version from PR title
+        id: version
+        run: |
+          # Extract version from release(vX.Y.Z[-rcN]): <summary>
+          VERSION=$(echo "$PR_TITLE" | sed -n 's/^release(\(v[^)]+\)).*/\1/p')
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not extract version from PR title: $PR_TITLE"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Detected version: ${VERSION}"
+
+      - name: Validate tag does not exist
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+            echo "::error::Tag ${VERSION} already exists locally; refusing to move a published tag."
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1; then
+            echo "::error::Tag ${VERSION} already exists on origin; refusing to overwrite."
+            exit 1
+          fi
+          echo "Tag ${VERSION} is available"
+
+      - name: Push annotated tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG_SHA: ${{ env.MERGE_SHA }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TAG_SHA}" ]; then
+            echo "::error::merge_commit_sha is empty; cannot tag."
+            exit 1
+          fi
+          git config user.name "peasant-release-bot"
+          git config user.email "bots@peasant-labs.invalid"
+          git tag -a "${VERSION}" "${TAG_SHA}" -m "${PR_TITLE}"
+          git push origin "refs/tags/${VERSION}"
+          echo "::notice::pushed annotated tag ${VERSION} on ${TAG_SHA}"

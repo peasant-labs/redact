@@ -1,0 +1,53 @@
+name: Release
+
+# Tag-triggered release pipeline for the redact module.
+# Creates a GitHub Release when a version tag is pushed.
+#
+# Simplified vs schema: no OpenAPI assets, no contract gates, no Nix.
+# Just create the release with release notes.
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: create GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Create the GitHub Release
+        run: |
+          set -euo pipefail
+
+          # Determine if this is a prerelease
+          prerelease_flag=""
+          if echo "$TAG" | grep -qE '-rc[0-9]+$'; then
+            prerelease_flag="--prerelease"
+            echo "Creating prerelease for ${TAG}"
+          else
+            echo "Creating full release for ${TAG}"
+          fi
+
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --generate-notes \
+            $prerelease_flag
+
+          echo "::notice::published GitHub Release ${TAG}"
