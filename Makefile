@@ -6,6 +6,7 @@ check: fmt vet test
 release-check: check
 	CGO_ENABLED=0 go test ./...
 	@test "$$(go list -m)" = "github.com/peasant-labs/redact"
+	@test "$$(go list -m -f '{{.Version}}' github.com/peasant-labs/schema)" = "v0.1.0-rc10"
 	@! go list -deps ./... | grep -E '^github.com/peasant-labs/peasant($$|/)' >/dev/null
 	$(MAKE) verify-tidy
 
