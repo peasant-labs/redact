@@ -20,15 +20,17 @@ vet:
 
 # Check formatting
 fmt:
-	@if [ -n "$$(gofmt -l .)" ]; then \
+	@set -e; \
+	files="$$(git ls-files -z -- '*.go' | xargs -0 gofmt -l --)"; \
+	if [ -n "$$files" ]; then \
 		echo "Files not formatted:"; \
-		gofmt -l .; \
+		printf '%s\n' "$$files"; \
 		exit 1; \
 	fi
 
 # Auto-format all files
 fmt-fix:
-	gofmt -w .
+	git ls-files -z -- '*.go' | xargs -0 gofmt -w --
 
 # Build (verify compilation)
 build:
