@@ -5,6 +5,8 @@
 // anonymization and entropy detection.
 package redact
 
+import "slices"
+
 // RedactionLevel controls the aggressiveness of transcript redaction.
 type RedactionLevel string
 
@@ -17,30 +19,25 @@ const (
 	Maximum RedactionLevel = "maximum"
 )
 
+var redactionLevels = [...]RedactionLevel{Minimal, Standard, Maximum}
+
+// AllRedactionLevels returns every engine level, ordered from weakest to strongest.
+// The returned slice is an independent copy and may be modified by the caller.
+func AllRedactionLevels() []RedactionLevel {
+	return slices.Clone(redactionLevels[:])
+}
+
 func (l RedactionLevel) String() string { return string(l) }
 
 // IsValid returns true if the level is one of the known variants.
 func (l RedactionLevel) IsValid() bool {
-	switch l {
-	case Minimal, Standard, Maximum:
-		return true
-	}
-	return false
+	return slices.Contains(redactionLevels[:], l)
 }
 
 // Ord returns the ordinal for this level: Minimal=0, Standard=1, Maximum=2.
 // Unknown levels return -1.
 func (l RedactionLevel) Ord() int {
-	switch l {
-	case Minimal:
-		return 0
-	case Standard:
-		return 1
-	case Maximum:
-		return 2
-	default:
-		return -1
-	}
+	return slices.Index(redactionLevels[:], l)
 }
 
 // Max returns whichever of a or b has the higher Ord (i.e. stricter redaction).

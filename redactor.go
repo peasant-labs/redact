@@ -96,8 +96,8 @@ type XDGPaths struct {
 // dependency, Maximum is available ONLY in cgo builds: in a !cgo binary
 // (redact.MaximumAvailable == false) NewRedactor(Maximum) returns an actionable
 // error rather than silently degrading. At Standard/Minimal levels, the
-// ASTAnonymizer is not used (v1 code block masking applies instead), but is
-// initialized to RegexAnonymizer for forward compatibility.
+// ASTAnonymizer is not used at Standard/Minimal; fenced code remains intact and
+// the level-gated rules scan it like any other text.
 func NewRedactor(level RedactionLevel, userPatterns []UserPattern, xdg XDGPaths, opts ...Option) (Redactor, error) {
 	cfg := defaultScannerConfig()
 	for i, opt := range opts {
@@ -445,7 +445,8 @@ func applyRule(rule Rule, s string) string {
 	return rule.Pattern.ReplaceAllLiteralString(s, rule.Replacement)
 }
 
-// maskCodeBlocks replaces fenced code blocks with <CODE_BLOCK>.
+// maskCodeBlocks replaces fenced code blocks with <CODE_BLOCK> as a last-resort
+// panic-recovery measure. Normal Standard and Minimal processing never masks code.
 // The pattern handles:
 //   - Standard fences (```)
 //   - Indented fences (leading spaces or tabs before backticks)
@@ -467,7 +468,7 @@ func maskCodeBlocks(s string) string {
 }
 
 // RedactText applies the redaction pipeline to plain text:
-//  1. Code block masking (v1; replaced by AST anonymization at Maximum in v2)
+//  1. AST anonymization at Maximum; lower levels preserve code for rule scanning
 //  2. Level-gated regex rules: built-ins use category defaults plus optional
 //     per-rule minimums; user-defined rules inherit their category default
 //  3. Entropy detection (Maximum only)
@@ -496,12 +497,12 @@ func (r *DefaultRedactor) RedactText(input string) (output string) {
 
 	// Step 1: Code block handling.
 	// At Maximum: AST anonymization (replaces identifiers, preserves structure).
-	// At Standard/Minimal: v1 code block masking (replaces entire block with <CODE_BLOCK>).
+	// At Standard/Minimal, leave code intact so rules can redact recognized values.
 	var out string
 	if r.level == Maximum && r.astAnonymizer != nil {
 		out = anonymizeCodeBlocks(r.astAnonymizer, input)
 	} else {
-		out = maskCodeBlocks(input)
+		out = input
 	}
 
 	// Step 2: Level-gated regex rules with post-match filtering.

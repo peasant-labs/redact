@@ -515,18 +515,21 @@ func TestDefaultRedactor_ASTAtMaximum(t *testing.T) {
 	}
 }
 
-func TestDefaultRedactor_ASTNotAtStandard(t *testing.T) {
-	r := mustNewRedactor(t, Standard, nil)
-	input := "Here is code:\n```go\nfunc processUser(db *sql.DB) error { return nil }\n```\nEnd."
-	got := r.RedactText(input)
-
-	// At Standard: v1 code block masking applies, not AST anonymization.
-	// The code block should be replaced with <CODE_BLOCK>.
-	if strings.Contains(got, "processUser") {
-		// processUser should be gone (masked by <CODE_BLOCK>)
-		t.Errorf("ASTNotAtStandard: identifier 'processUser' visible at Standard level: %q", got)
-	}
-	if !strings.Contains(got, "<CODE_BLOCK>") {
-		t.Errorf("ASTNotAtStandard: expected <CODE_BLOCK> masking at Standard level: %q", got)
+func TestDefaultRedactor_CodePipelineByLevel(t *testing.T) {
+	for _, fixture := range loadRedactorBehaviorFixtures(t).CodePipeline {
+		t.Run(fixture.ID, func(t *testing.T) {
+			r := mustNewRedactor(t, fixture.Level, nil)
+			got := r.RedactText(fixture.Input)
+			for _, expected := range fixture.Contains {
+				if !strings.Contains(got, expected) {
+					t.Errorf("required redaction outcome is missing")
+				}
+			}
+			for _, forbidden := range fixture.Absent {
+				if strings.Contains(got, forbidden) {
+					t.Errorf("forbidden redaction outcome remains")
+				}
+			}
+		})
 	}
 }
