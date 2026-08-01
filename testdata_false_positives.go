@@ -54,10 +54,10 @@ func loadFalsePositiveFixtures(data []byte) ([]FalsePositiveCase, error) {
 		return nil, &actionableError{
 			what:  "the false-positive fixture YAML could not be parsed",
 			why:   err.Error(),
-			where: "pkg/redact/testdata/false_positives.yaml via LoadFalsePositiveFixtures",
+			where: "testdata/false_positives.yaml via redact.LoadFalsePositiveFixtures",
 			when:  "loading embedded redaction fixtures before running the false-positive corpus",
 			means: "the corpus cannot run, so rule false-positive coverage is unavailable",
-			fix:   "fix the YAML syntax in pkg/redact/testdata/false_positives.yaml",
+			fix:   "fix the YAML syntax in testdata/false_positives.yaml",
 			cause: err,
 		}
 	}
@@ -66,7 +66,7 @@ func loadFalsePositiveFixtures(data []byte) ([]FalsePositiveCase, error) {
 			return nil, &actionableError{
 				what:  fmt.Sprintf("fixture case %q at cases[%d] has invalid redaction level %q", fixture.Name, i, fixture.Level),
 				why:   "fixture levels must be minimal, standard, maximum, or empty for the Standard default",
-				where: "pkg/redact/testdata/false_positives.yaml via LoadFalsePositiveFixtures",
+				where: "testdata/false_positives.yaml via redact.LoadFalsePositiveFixtures",
 				when:  "validating embedded fixtures before selecting a redactor level",
 				means: "the test cannot safely choose a level and the false-positive corpus cannot run",
 				fix:   "set the fixture level to minimal, standard, maximum, or remove it to use Standard",

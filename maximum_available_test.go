@@ -9,7 +9,7 @@ import (
 // level. It is UNTAGGED on purpose: it compiles and runs in BOTH the cgo and
 // !cgo test legs, branching on the build-tag-set redact.MaximumAvailable constant
 // rather than silently skipping. This is the negative gate the CGO=0 CI leg
-// relies on (go test ./pkg/redact/), and it doubles as a positive assertion
+// relies on (go test ./...), and it doubles as a positive assertion
 // under cgo.
 //
 //   - !cgo (MaximumAvailable == false): NewRedactor(Maximum) MUST fail at

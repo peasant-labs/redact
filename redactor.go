@@ -113,7 +113,7 @@ func NewRedactor(level RedactionLevel, userPatterns []UserPattern, xdg XDGPaths,
 		return nil, &actionableError{
 			what:  fmt.Sprintf("redaction level %q is invalid", level),
 			why:   "NewRedactor accepts only minimal, standard, or maximum",
-			where: "pkg/redact NewRedactor",
+			where: "redact.NewRedactor",
 			when:  "constructing a redactor before any content was scanned",
 			means: "no redactor was created, so the caller cannot safely scan or redact content",
 			fix:   "pass redact.Minimal, redact.Standard, or redact.Maximum",
@@ -163,7 +163,7 @@ func compileUserPatterns(userPatterns []UserPattern) ([]Rule, error) {
 			return nil, &actionableError{
 				what:  fmt.Sprintf("user redaction pattern at index %d has an empty ID", i),
 				why:   "every configured pattern needs a stable non-empty identifier",
-				where: "pkg/redact compileUserPatterns",
+				where: "redact.compileUserPatterns",
 				when:  "NewRedactor compiled configured user patterns before scanning content",
 				means: "the pattern cannot be reported or audited safely, so no redactor was created",
 				fix:   "set a unique non-empty id for the configured pattern",
@@ -173,7 +173,7 @@ func compileUserPatterns(userPatterns []UserPattern) ([]Rule, error) {
 			return nil, &actionableError{
 				what:  fmt.Sprintf("user redaction pattern %q has invalid category %q", p.ID, p.Category),
 				why:   "user patterns must use one of the canonical semantic categories",
-				where: "pkg/redact compileUserPatterns",
+				where: "redact.compileUserPatterns",
 				when:  "NewRedactor compiled configured user patterns before scanning content",
 				means: "the pattern's default activation level cannot be determined, so no redactor was created",
 				fix:   "set category to secrets, pii, paths, or project",
@@ -184,7 +184,7 @@ func compileUserPatterns(userPatterns []UserPattern) ([]Rule, error) {
 			return nil, &actionableError{
 				what:  fmt.Sprintf("user redaction pattern %q has an invalid regular expression", p.ID),
 				why:   "the pattern is not a valid Go regular expression",
-				where: "pkg/redact compileUserPatterns",
+				where: "redact.compileUserPatterns",
 				when:  "NewRedactor compiled configured user patterns before scanning content",
 				means: "the pattern cannot be matched safely, so no redactor was created",
 				fix:   fmt.Sprintf("correct the regular expression for configured pattern %q", p.ID),
@@ -213,7 +213,7 @@ func validateMaximumAvailability(level RedactionLevel, maximumAvailable bool) er
 		return &actionableError{
 			what:  "maximum redaction is unavailable in this binary",
 			why:   "maximum redaction requires code-aware tree-sitter anonymization, but this binary was built without cgo",
-			where: "pkg/redact validateMaximumAvailability",
+			where: "redact.validateMaximumAvailability",
 			when:  "NewRedactor checked runtime capabilities before constructing a maximum-level redactor",
 			means: "no redactor was created because silently falling back could leak code identifiers",
 			fix:   "use standard redaction in a cgo-free build, or rebuild with cgo using nix develop or make build",
@@ -339,7 +339,7 @@ func validateRuleActivationMetadata(rules []Rule) error {
 			return &actionableError{
 				what:  fmt.Sprintf("built-in redaction rule %q has invalid category %q", rule.ID, rule.Category),
 				why:   "rule activation requires one of the canonical semantic categories",
-				where: "pkg/redact validateRuleActivationMetadata",
+				where: "redact.validateRuleActivationMetadata",
 				when:  "NewRedactor validated built-in rule metadata before scanning content",
 				means: "the rule cannot be classified safely, so no redactor was created",
 				fix:   "assign the rule to secrets, pii, paths, or project",
@@ -352,7 +352,7 @@ func validateRuleActivationMetadata(rules []Rule) error {
 			return &actionableError{
 				what:  fmt.Sprintf("built-in redaction rule %q has invalid minimum level %q", rule.ID, rule.MinimumLevel),
 				why:   "MinimumLevel accepts only minimal, standard, maximum, or empty inheritance",
-				where: "pkg/redact validateRuleActivationMetadata",
+				where: "redact.validateRuleActivationMetadata",
 				when:  "NewRedactor validated built-in rule metadata before scanning content",
 				means: "the rule might otherwise be silently disabled, so no redactor was created",
 				fix:   fmt.Sprintf("set MinimumLevel to a valid RedactionLevel or leave it empty to inherit %q", categoryMinimum),
@@ -362,7 +362,7 @@ func validateRuleActivationMetadata(rules []Rule) error {
 			return &actionableError{
 				what:  fmt.Sprintf("built-in redaction rule %q sets minimum level %q below its %q category default %q", rule.ID, rule.MinimumLevel, rule.Category, categoryMinimum),
 				why:   "a per-rule override may make activation stricter, but may not weaken the category default",
-				where: "pkg/redact validateRuleActivationMetadata",
+				where: "redact.validateRuleActivationMetadata",
 				when:  "NewRedactor validated built-in rule metadata before scanning content",
 				means: "the override would weaken the category's privacy policy, so no redactor was created",
 				fix:   fmt.Sprintf("remove MinimumLevel to inherit %q or choose a stricter level", categoryMinimum),

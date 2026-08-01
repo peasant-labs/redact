@@ -36,13 +36,13 @@ type projectRuleFixtures struct {
 func loadProjectRuleFixtures() (projectRuleFixtures, error) {
 	var fixtures projectRuleFixtures
 	if err := yaml.Unmarshal(projectRuleFixtureData, &fixtures); err != nil {
-		return projectRuleFixtures{}, fmt.Errorf("redact: could not parse pkg/redact/testdata/project_rules.yaml while loading project-rule boundary and residue cases: %w; the project-rule corpus cannot run; fix the YAML syntax", err)
+		return projectRuleFixtures{}, fmt.Errorf("redact: could not parse testdata/project_rules.yaml while loading project-rule boundary and residue cases: %w; the project-rule corpus cannot run; fix the YAML syntax", err)
 	}
 	if len(fixtures.Rules) != len(projectRules) {
-		return projectRuleFixtures{}, fmt.Errorf("redact: pkg/redact/testdata/project_rules.yaml defines %d rule groups, want %d compiled project rules; boundary coverage is incomplete or duplicated; define exactly one group per compiled project rule", len(fixtures.Rules), len(projectRules))
+		return projectRuleFixtures{}, fmt.Errorf("redact: testdata/project_rules.yaml defines %d rule groups, want %d compiled project rules; boundary coverage is incomplete or duplicated; define exactly one group per compiled project rule", len(fixtures.Rules), len(projectRules))
 	}
 	if len(fixtures.Residues) != len(projectRules) {
-		return projectRuleFixtures{}, fmt.Errorf("redact: pkg/redact/testdata/project_rules.yaml defines %d residue cases, want %d compiled project rules; residue coverage is incomplete or duplicated; define exactly one residue case per compiled project rule", len(fixtures.Residues), len(projectRules))
+		return projectRuleFixtures{}, fmt.Errorf("redact: testdata/project_rules.yaml defines %d residue cases, want %d compiled project rules; residue coverage is incomplete or duplicated; define exactly one residue case per compiled project rule", len(fixtures.Residues), len(projectRules))
 	}
 
 	compiled := make(map[string]struct{}, len(projectRules))
@@ -57,7 +57,7 @@ func loadProjectRuleFixtures() (projectRuleFixtures, error) {
 	seenCaseNames := make(map[string]struct{})
 	for i, rule := range fixtures.Rules {
 		if rule.RuleID == "" || len(rule.Cases) == 0 {
-			return projectRuleFixtures{}, fmt.Errorf("redact: rule group rules[%d] in pkg/redact/testdata/project_rules.yaml is incomplete; ruleId and at least one case are required; the corpus cannot identify or exercise the rule; fill in the missing values", i)
+			return projectRuleFixtures{}, fmt.Errorf("redact: rule group rules[%d] in testdata/project_rules.yaml is incomplete; ruleId and at least one case are required; the corpus cannot identify or exercise the rule; fill in the missing values", i)
 		}
 		if _, ok := compiled[rule.RuleID]; !ok {
 			return projectRuleFixtures{}, fmt.Errorf("redact: fixture ruleId %q has no compiled project rule; the boundary corpus and production registry disagree; fix the fixture or restore the rule", rule.RuleID)
@@ -90,7 +90,7 @@ func loadProjectRuleFixtures() (projectRuleFixtures, error) {
 	seenResidueNames := make(map[string]struct{}, len(fixtures.Residues))
 	for i, residue := range fixtures.Residues {
 		if residue.Name == "" || residue.RuleID == "" || residue.Input == "" {
-			return projectRuleFixtures{}, fmt.Errorf("redact: residues[%d] in pkg/redact/testdata/project_rules.yaml is incomplete; name, ruleId, and input are required; the residue case cannot run; fill in the missing values", i)
+			return projectRuleFixtures{}, fmt.Errorf("redact: residues[%d] in testdata/project_rules.yaml is incomplete; name, ruleId, and input are required; the residue case cannot run; fill in the missing values", i)
 		}
 		if _, duplicate := seenResidueNames[residue.Name]; duplicate {
 			return projectRuleFixtures{}, fmt.Errorf("redact: residue case name %q is duplicated; subtest identity is ambiguous; give every residue case a unique name", residue.Name)
@@ -104,7 +104,7 @@ func loadProjectRuleFixtures() (projectRuleFixtures, error) {
 	for ruleID := range compiled {
 		residueID := "residue_" + ruleID
 		if _, ok := seenResidues[residueID]; !ok {
-			return projectRuleFixtures{}, fmt.Errorf("redact: pkg/redact/testdata/project_rules.yaml is missing residue case %q; project-rule residue coverage is incomplete; add one load-bearing case", residueID)
+			return projectRuleFixtures{}, fmt.Errorf("redact: testdata/project_rules.yaml is missing residue case %q; project-rule residue coverage is incomplete; add one load-bearing case", residueID)
 		}
 	}
 

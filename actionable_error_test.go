@@ -73,10 +73,10 @@ type actionableErrorFixtures struct {
 func loadActionableErrorFixtures() ([]actionableErrorFixture, error) {
 	var fixtures actionableErrorFixtures
 	if err := yaml.Unmarshal(actionableErrorFixtureData, &fixtures); err != nil {
-		return nil, fmt.Errorf("redact: could not parse pkg/redact/testdata/actionable_errors.yaml while loading constructor-error cases: %w; actionable-error coverage cannot run; fix the YAML syntax", err)
+		return nil, fmt.Errorf("redact: could not parse testdata/actionable_errors.yaml while loading constructor-error cases: %w; actionable-error coverage cannot run; fix the YAML syntax", err)
 	}
 	if len(fixtures.Cases) != 11 {
-		return nil, fmt.Errorf("redact: pkg/redact/testdata/actionable_errors.yaml defines %d cases, want 11 constructor, loader, and rendering branches; exact actionable-error coverage is incomplete or duplicated; restore one case per supported kind", len(fixtures.Cases))
+		return nil, fmt.Errorf("redact: testdata/actionable_errors.yaml defines %d cases, want 11 constructor, loader, and rendering branches; exact actionable-error coverage is incomplete or duplicated; restore one case per supported kind", len(fixtures.Cases))
 	}
 	seenNames := make(map[string]struct{}, len(fixtures.Cases))
 	seenKinds := make(map[actionableErrorCaseKind]struct{}, len(fixtures.Cases))

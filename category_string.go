@@ -43,9 +43,9 @@ func (c Category) Validate() error {
 	return &actionableError{
 		what:  fmt.Sprintf("redaction category %q has no canonical category string", c),
 		why:   "every semantic redaction category must map to exactly one canonical rendered category",
-		where: "pkg/redact Category.Validate",
+		where: "redact.Category.Validate",
 		when:  "validating a redaction category before rendering it for a consumer",
 		means: "the caller must stop rather than silently mislabel sensitive content",
-		fix:   "add the Category.String mapping and matching consumer category member, then update pkg/redact/testdata/category_strings.yaml",
+		fix:   "add the Category.String mapping and matching consumer category member, then update testdata/category_strings.yaml",
 	}
 }

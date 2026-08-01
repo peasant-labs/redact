@@ -32,10 +32,10 @@ type userPatternActivationFixtures struct {
 func loadUserPatternActivationFixtures() ([]userPatternActivationFixture, error) {
 	var fixtures userPatternActivationFixtures
 	if err := yaml.Unmarshal(userPatternActivationData, &fixtures); err != nil {
-		return nil, fmt.Errorf("redact: could not parse pkg/redact/testdata/user_pattern_activation.yaml while loading user-pattern level cases: %w; activation coverage cannot run; fix the YAML syntax", err)
+		return nil, fmt.Errorf("redact: could not parse testdata/user_pattern_activation.yaml while loading user-pattern level cases: %w; activation coverage cannot run; fix the YAML syntax", err)
 	}
 	if len(fixtures.Cases) != 1 {
-		return nil, fmt.Errorf("redact: pkg/redact/testdata/user_pattern_activation.yaml defines %d cases, want one load-bearing CategoryProject case; the Standard-default configuration limitation must remain explicit; restore exactly one case", len(fixtures.Cases))
+		return nil, fmt.Errorf("redact: testdata/user_pattern_activation.yaml defines %d cases, want one load-bearing CategoryProject case; the Standard-default configuration limitation must remain explicit; restore exactly one case", len(fixtures.Cases))
 	}
 	fixture := fixtures.Cases[0]
 	if fixture.Name == "" || fixture.Pattern.ID == "" || fixture.Pattern.Pattern == "" || fixture.Pattern.Replacement == "" || fixture.Input == "" ||

@@ -26,7 +26,7 @@ type categoryStringFixtures struct {
 func loadCategoryStringFixtures() (categoryStringFixtures, error) {
 	var fixtures categoryStringFixtures
 	if err := yaml.Unmarshal(categoryStringData, &fixtures); err != nil {
-		return categoryStringFixtures{}, fmt.Errorf("redact: could not parse pkg/redact/testdata/category_strings.yaml while loading canonical category renderings: %w; exact rendering coverage cannot run; fix the YAML syntax", err)
+		return categoryStringFixtures{}, fmt.Errorf("redact: could not parse testdata/category_strings.yaml while loading canonical category renderings: %w; exact rendering coverage cannot run; fix the YAML syntax", err)
 	}
 	canonical := AllCategories()
 	if len(fixtures.Mappings) != len(canonical) || fixtures.Unknown == "" || fixtures.UnknownError == "" {
