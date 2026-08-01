@@ -51,3 +51,24 @@ parity:
   - {id: real_aws_key_with_context, level: minimal, input: 'aws_secret_access_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"', want: 'aws_secret_access_key = "<AWS_SECRET_KEY>"'}
   - {id: back_reference_unix_home_path, level: minimal, input: "/home/alice/dev/project", want: "/home/<USER>/dev/project"}
   - {id: back_reference_claude_project_slug, level: minimal, input: "/home/<USER>/.claude/projects/-home-alice-dev-project/uuid.jsonl", want: "/home/<USER>/.claude/projects/-home-<USER>-dev-project/uuid.jsonl"}
+
+code_pipeline:
+  - id: standard_preserves_code_and_redacts_secret
+    level: standard
+    input: |-
+      outside api_key=abc123def456abc123def456abc123def456
+      ```go
+      func preserveIdentifier() {
+        key := "api_key=def456abc123def456abc123def456abc123"
+      }
+      ```
+    contains: ["```go", "func preserveIdentifier()", "<API_KEY>"]
+    absent: ["<CODE_BLOCK>", "abc123def456abc123def456abc123def456", "def456abc123def456abc123def456abc123"]
+  - id: maximum_anonymizes_identifier
+    level: maximum
+    input: |-
+      ```go
+      func anonymizeIdentifier() error { return nil }
+      ```
+    contains: ["```go"]
+    absent: ["anonymizeIdentifier", "<CODE_BLOCK>"]

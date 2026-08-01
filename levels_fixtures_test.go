@@ -60,9 +60,10 @@ type levelValidFixture struct {
 }
 
 type levelFixtures struct {
-	Ord   []levelOrdFixture   `yaml:"ord"`
-	Max   []levelMaxFixture   `yaml:"max"`
-	Valid []levelValidFixture `yaml:"valid"`
+	Ord       []levelOrdFixture   `yaml:"ord"`
+	Max       []levelMaxFixture   `yaml:"max"`
+	Valid     []levelValidFixture `yaml:"valid"`
+	ClosedSet []RedactionLevel    `yaml:"closed_set"`
 }
 
 func loadLevelFixtures() (levelFixtures, error) {
@@ -79,6 +80,9 @@ func loadLevelFixtures() (levelFixtures, error) {
 func validateLevelFixtures(fixtures levelFixtures) error {
 	if len(fixtures.Ord) != wantLevelOrdFixtureRows || len(fixtures.Max) != wantLevelMaxFixtureRows || len(fixtures.Valid) != wantLevelValidFixtureRows {
 		return fmt.Errorf("validate level fixtures: unexpected family row counts ord=%d max=%d valid=%d; want ord=%d max=%d valid=%d; update guards deliberately when changing testdata/levels.yaml", len(fixtures.Ord), len(fixtures.Max), len(fixtures.Valid), wantLevelOrdFixtureRows, wantLevelMaxFixtureRows, wantLevelValidFixtureRows)
+	}
+	if len(fixtures.ClosedSet) != 3 {
+		return fmt.Errorf("validate level fixtures: closed_set has %d rows, want 3", len(fixtures.ClosedSet))
 	}
 
 	seen := make(map[string]string, wantLevelOrdFixtureRows+wantLevelMaxFixtureRows+wantLevelValidFixtureRows)

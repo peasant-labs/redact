@@ -8,22 +8,24 @@ import (
 )
 
 const (
-	wantSecretsFixtureRows   = 16
-	wantPIIFixtureRows       = 6
-	wantPathFixtureRows      = 17
-	wantCodeBlockFixtureRows = 4
-	wantParityFixtureRows    = 5
+	wantSecretsFixtureRows      = 16
+	wantPIIFixtureRows          = 6
+	wantPathFixtureRows         = 17
+	wantCodeBlockFixtureRows    = 4
+	wantParityFixtureRows       = 5
+	wantCodePipelineFixtureRows = 2
 )
 
 //go:embed testdata/redactor_behavior.yaml
 var redactorBehaviorFixtureData []byte
 
 type redactorBehaviorFixtures struct {
-	Secrets    []textRedactionFixture `yaml:"secrets"`
-	PII        []textRedactionFixture `yaml:"pii"`
-	Paths      []textRedactionFixture `yaml:"paths"`
-	CodeBlocks []codeBlockFixture     `yaml:"code_blocks"`
-	Parity     []parityFixture        `yaml:"parity"`
+	Secrets      []textRedactionFixture `yaml:"secrets"`
+	PII          []textRedactionFixture `yaml:"pii"`
+	Paths        []textRedactionFixture `yaml:"paths"`
+	CodeBlocks   []codeBlockFixture     `yaml:"code_blocks"`
+	Parity       []parityFixture        `yaml:"parity"`
+	CodePipeline []codePipelineFixture  `yaml:"code_pipeline"`
 }
 
 type textRedactionFixture struct {
@@ -45,6 +47,13 @@ type parityFixture struct {
 	Input string         `yaml:"input"`
 	Want  string         `yaml:"want"`
 }
+type codePipelineFixture struct {
+	ID       string         `yaml:"id"`
+	Level    RedactionLevel `yaml:"level"`
+	Input    string         `yaml:"input"`
+	Contains []string       `yaml:"contains"`
+	Absent   []string       `yaml:"absent"`
+}
 
 func loadRedactorBehaviorFixtures(t *testing.T) redactorBehaviorFixtures {
 	t.Helper()
@@ -57,6 +66,11 @@ func loadRedactorBehaviorFixtures(t *testing.T) redactorBehaviorFixtures {
 	checkFixtureFamily(t, "paths", len(fixtures.Paths), wantPathFixtureRows, textFixtureIDs(fixtures.Paths))
 	checkFixtureFamily(t, "code_blocks", len(fixtures.CodeBlocks), wantCodeBlockFixtureRows, codeBlockFixtureIDs(fixtures.CodeBlocks))
 	checkFixtureFamily(t, "parity", len(fixtures.Parity), wantParityFixtureRows, parityFixtureIDs(fixtures.Parity))
+	ids := make([]string, len(fixtures.CodePipeline))
+	for i, row := range fixtures.CodePipeline {
+		ids[i] = row.ID
+	}
+	checkFixtureFamily(t, "code_pipeline", len(fixtures.CodePipeline), wantCodePipelineFixtureRows, ids)
 	for _, family := range [][]textRedactionFixture{fixtures.Secrets, fixtures.PII, fixtures.Paths} {
 		for _, row := range family {
 			checkFixtureLevel(t, row.ID, row.Level)
@@ -66,6 +80,9 @@ func loadRedactorBehaviorFixtures(t *testing.T) redactorBehaviorFixtures {
 		}
 	}
 	for _, row := range fixtures.Parity {
+		checkFixtureLevel(t, row.ID, row.Level)
+	}
+	for _, row := range fixtures.CodePipeline {
 		checkFixtureLevel(t, row.ID, row.Level)
 	}
 	return fixtures

@@ -73,3 +73,8 @@ valid:
   - id: invalid-capitalized
     level: Minimal
     want: false
+
+closed_set:
+  - minimal
+  - standard
+  - maximum
