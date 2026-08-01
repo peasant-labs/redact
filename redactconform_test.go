@@ -11,7 +11,7 @@ import (
 // session-detail redaction fixture that ships in the schema module. The fixture
 // (testdata/session-detail/redactions.yaml, exported as schema.RedactionsYAML)
 // STORES the engine-applied output verbatim; the engine itself lives ONLY here in
-// pkg/redact. This test runs the REAL engine over each case's OriginalText at the
+// redact package. This test runs the REAL engine over each case's OriginalText at the
 // case's firing Level and asserts:
 //
 //  1. RedactText(OriginalText) == RedactedReplacement — binds the applied OUTPUT,
@@ -19,7 +19,7 @@ import (
 //  2. the firing rule's engine Category == the fixture's Category, and a match for
 //     the fixture's RuleID is present — binds the category vocabulary + rule id.
 //
-// It FAILS the moment any pkg/redact Pattern, Replacement, Category, or level
+// It FAILS the moment any redact package Pattern, Replacement, Category, or level
 // behaviour drifts from the fixture, surfacing the drift as a reviewed change to
 // the leaf data. This is the guarantee the leaf's shape-only freshness gate
 // cannot provide (the leaf has no engine).
@@ -56,9 +56,9 @@ func TestRedactionFixtureConformance(t *testing.T) {
 					"case %q: engine output drifted from the fixture.\n"+
 						"  level:   %s\n"+
 						"  in:      %q\n"+
-						"  got:     %q  (real pkg/redact output)\n"+
+						"  got:     %q  (real redact package output)\n"+
 						"  want:    %q  (fixture redactedReplacement)\n"+
-						"  fix:     pkg/redact changed its Pattern/Replacement/level for this case — update the\n"+
+						"  fix:     the redact package changed its Pattern/Replacement/level for this case — update the\n"+
 						"           case in schema RedactionExamples (run `go run ./cmd/schema-gen` in the schema repo),\n"+
 						"           OR revert the unintended engine change.",
 					c.Name, level, c.OriginalText, got, c.RedactedReplacement)

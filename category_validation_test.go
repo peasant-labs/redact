@@ -48,10 +48,10 @@ type categoryValidationFixtures struct {
 func loadCategoryValidationFixtures() ([]invalidCategoryFixture, error) {
 	var fixtures categoryValidationFixtures
 	if err := yaml.Unmarshal(categoryValidationFixtureData, &fixtures); err != nil {
-		return nil, fmt.Errorf("redact: could not parse pkg/redact/testdata/category_validation.yaml while loading invalid-category cases: %w; category validation coverage cannot run; fix the YAML syntax", err)
+		return nil, fmt.Errorf("redact: could not parse testdata/category_validation.yaml while loading invalid-category cases: %w; category validation coverage cannot run; fix the YAML syntax", err)
 	}
 	if len(fixtures.Invalid) != len(allInvalidCategoryCaseKinds) {
-		return nil, fmt.Errorf("redact: pkg/redact/testdata/category_validation.yaml defines %d invalid-category cases, want %d; exact empty, unknown, and capitalized coverage is incomplete or duplicated; restore one case per supported kind", len(fixtures.Invalid), len(allInvalidCategoryCaseKinds))
+		return nil, fmt.Errorf("redact: testdata/category_validation.yaml defines %d invalid-category cases, want %d; exact empty, unknown, and capitalized coverage is incomplete or duplicated; restore one case per supported kind", len(fixtures.Invalid), len(allInvalidCategoryCaseKinds))
 	}
 
 	seenNames := make(map[string]struct{}, len(fixtures.Invalid))
