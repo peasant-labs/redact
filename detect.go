@@ -35,54 +35,18 @@ func (r *DefaultRedactor) Detect(input string) []Match {
 		return nil
 	}
 
-	var matches []Match
-
-	// Scan built-in rules.
+	activeRules := make([]Rule, 0, len(Rules)+len(r.userRules))
 	for _, rule := range Rules {
-		if !r.isActiveRule(rule) {
-			continue
-		}
-		if rule.Pattern == nil {
-			continue
-		}
-		locs := rule.Pattern.FindAllStringIndex(input, -1)
-		for _, loc := range locs {
-			start, end := loc[0], loc[1]
-			m := Match{
-				Rule:        rule.ID,
-				Offset:      start,
-				Length:      end - start,
-				Category:    rule.Category,
-				MatchedText: input[start:end],
-			}
-			// Apply optional post-match filter. A false return suppresses the match.
-			if rule.FilterFn != nil && !rule.FilterFn(m.MatchedText, input, m.Offset) {
-				continue
-			}
-			matches = append(matches, m)
+		if r.isActiveRule(rule) {
+			activeRules = append(activeRules, rule)
 		}
 	}
-
-	// Scan user-defined rules (read-only after construction — no mutex needed).
 	for _, rule := range r.userRules {
-		if !r.isActiveRule(rule) {
-			continue
-		}
-		if rule.Pattern == nil {
-			continue
-		}
-		locs := rule.Pattern.FindAllStringIndex(input, -1)
-		for _, loc := range locs {
-			start, end := loc[0], loc[1]
-			matches = append(matches, Match{
-				Rule:        rule.ID,
-				Offset:      start,
-				Length:      end - start,
-				Category:    rule.Category,
-				MatchedText: input[start:end],
-			})
+		if r.isActiveRule(rule) {
+			activeRules = append(activeRules, rule)
 		}
 	}
+	matches := detectWithRules(input, activeRules)
 
 	if len(matches) == 0 {
 		// Record nil as the last detect result (last-call-only semantics).
@@ -92,16 +56,33 @@ func (r *DefaultRedactor) Detect(input string) []Match {
 		return nil
 	}
 
-	// Sort by offset ascending so callers can process matches left-to-right.
-	sort.Slice(matches, func(i, j int) bool {
-		return matches[i].Offset < matches[j].Offset
-	})
-
 	// Store as last-detect result (last-call-only, not accumulated).
 	r.mu.Lock()
 	r.lastMatches = matches
 	r.mu.Unlock()
 
+	return matches
+}
+
+// detectWithRules is the pure canonical regex detector. Reporting and
+// last-call state remain the responsibility of DefaultRedactor.Detect.
+func detectWithRules(input string, rules []Rule) []Match {
+	var matches []Match
+	for _, rule := range rules {
+		if rule.Pattern == nil {
+			continue
+		}
+		for _, loc := range rule.Pattern.FindAllStringIndex(input, -1) {
+			match := Match{Rule: rule.ID, Offset: loc[0], Length: loc[1] - loc[0], Category: rule.Category, MatchedText: input[loc[0]:loc[1]]}
+			if rule.FilterFn == nil || rule.FilterFn(match.MatchedText, input, match.Offset) {
+				matches = append(matches, match)
+			}
+		}
+	}
+	if len(matches) == 0 {
+		return nil
+	}
+	sort.Slice(matches, func(i, j int) bool { return matches[i].Offset < matches[j].Offset })
 	return matches
 }
 
@@ -115,22 +96,27 @@ func (r *DefaultRedactor) Detect(input string) []Match {
 //
 // The output string is built in a single pass from left to right.
 func (r *DefaultRedactor) Redact(input string, matches []Match) string {
-	if len(matches) == 0 {
-		return input
-	}
+	rules := make([]Rule, 0, len(Rules)+len(r.userRules))
+	rules = append(rules, Rules...)
+	rules = append(rules, r.userRules...)
+	output, _ := redactWithRules(input, matches, rules)
+	return output
+}
 
-	// Build a lookup from rule ID to replacement string for O(1) access.
-	// Populate from built-in rules and user rules.
-	replacements := make(map[string]string, len(Rules)+len(r.userRules))
-	for _, rule := range Rules {
-		replacements[rule.ID] = rule.Replacement
+// redactWithRules is the pure canonical overlap and replacement engine. The
+// returned matches are exactly those whose non-overlapping spans were applied.
+func redactWithRules(input string, matches []Match, rules []Rule) (string, []Match) {
+	if len(matches) == 0 {
+		return input, nil
 	}
-	for _, rule := range r.userRules {
-		replacements[rule.ID] = rule.Replacement
+	replacements := make(map[string]Rule, len(rules))
+	for _, rule := range rules {
+		replacements[rule.ID] = rule
 	}
 
 	var out []byte
 	cursor := 0
+	var applied []Match
 
 	for _, m := range matches {
 		// Skip matches that start before cursor (overlapping or out-of-order spans).
@@ -148,44 +134,24 @@ func (r *DefaultRedactor) Redact(input string, matches []Match) string {
 
 		// Append the replacement for this rule, falling back to a generic placeholder
 		// if the rule ID is not found (e.g., caller supplied synthetic Match values).
-		replacement, ok := replacements[m.Rule]
+		rule, ok := replacements[m.Rule]
+		replacement := rule.Replacement
 		if !ok {
 			replacement = "<REDACTED>"
 		}
 
-		// Handle back-reference syntax: rules using "${1}", "${2}" etc. need
-		// ReplaceAllString. We detect this by looking for "$" in the replacement.
-		// For simple literal replacements, write directly to avoid regex overhead.
+		appliedReplacement := replacement
 		if replacement != "" && containsBackref(replacement) {
-			// Find the compiled rule to use its Pattern for back-reference expansion.
-			matched := false
-			for _, rule := range Rules {
-				if rule.ID == m.Rule && rule.Pattern != nil {
-					expanded := rule.Pattern.ReplaceAllString(input[m.Offset:end], replacement)
-					out = append(out, expanded...)
-					matched = true
-					break
-				}
+			if ok && rule.Pattern != nil {
+				appliedReplacement = rule.Pattern.ReplaceAllString(input[m.Offset:end], replacement)
 			}
-			if !matched {
-				for _, rule := range r.userRules {
-					if rule.ID == m.Rule && rule.Pattern != nil {
-						expanded := rule.Pattern.ReplaceAllString(input[m.Offset:end], replacement)
-						out = append(out, expanded...)
-						matched = true
-						break
-					}
-				}
-			}
-			if !matched {
-				// Fallback: write literal replacement.
-				out = append(out, replacement...)
-			}
-		} else {
-			out = append(out, replacement...)
 		}
+		out = append(out, appliedReplacement...)
 
 		cursor = end
+		if appliedReplacement != input[m.Offset:end] {
+			applied = append(applied, m)
+		}
 	}
 
 	// Append any remaining text after the last match.
@@ -193,7 +159,7 @@ func (r *DefaultRedactor) Redact(input string, matches []Match) string {
 		out = append(out, input[cursor:]...)
 	}
 
-	return string(out)
+	return string(out), applied
 }
 
 // containsBackref reports whether a replacement string contains a back-reference
