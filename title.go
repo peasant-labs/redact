@@ -83,6 +83,25 @@ func (p *TitlePipeline) Sanitize(title string, context TitleContext) (TitleResul
 	return result, nil
 }
 
+// SimpleTitle cleans harness-owned markup and caps length WITHOUT redaction.
+// It does NOT remove secrets, PII, paths, or user identifiers. Its output is
+// for local, trusted display only (e.g. a first-time-setup selection list) and
+// MUST NOT be stored or published as a transcript title. Use Generate for any
+// published title.
+func (p *TitlePipeline) SimpleTitle(firstTurn string, harness schema.Harness) (string, error) {
+	if p == nil {
+		return "", nilTitlePipelineError("SimpleTitle", "cleaning a first user turn for local trusted display without redaction")
+	}
+	if firstTurn == "" {
+		return "", nil
+	}
+	cleaned, err := cleanHarnessTitle(firstTurn, harness)
+	if err != nil {
+		return "", err
+	}
+	return capTitle(cleaned), nil
+}
+
 func nilTitlePipelineError(method, operation string) error {
 	return &actionableError{what: "the transcript title pipeline receiver is nil", why: "the title method was called before NewTitlePipeline returned a usable pipeline", where: "redact.(*TitlePipeline)." + method, when: operation, means: "the title was not processed and must not be stored as safe", fix: "construct one pipeline with redact.NewTitlePipeline and inject that non-nil value before processing titles"}
 }

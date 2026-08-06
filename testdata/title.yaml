@@ -39,6 +39,12 @@ cases:
   - {name: mixed_concurrent_credential, operation: sanitize, harness: claude-code, input: 'ghp_abcdefghijklmnopqrstuvwxyz0123456789', output: '<GITHUB_PAT>', categories: [CREDENTIAL], concurrentGroup: mixed_categories}
   - {name: mixed_concurrent_pii, operation: sanitize, harness: claude-code, input: 'alice@example.com', output: '<EMAIL>', categories: [PII], concurrentGroup: mixed_categories}
   - {name: mixed_concurrent_path, operation: sanitize, harness: claude-code, projectPath: '/Users/alice/app', input: '/Users/alice/app/main.go', output: '/Users/<USER>/<PATH>/app/main.go', categories: [PATH], concurrentGroup: mixed_categories}
+simpleTitleCases:
+  - {name: claude_strips_markup, harness: claude-code, input: '<system-reminder>internal setup notes</system-reminder><user_query>Fix the broken auth flow</user_query>', output: 'Fix the broken auth flow'}
+  - {name: over_length_cap_code_point_safe, harness: claude-code, input: '界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界', output: '界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界'}
+  - {name: filesystem_path_stays_literal, harness: claude-code, input: 'Fix /Users/alice/work/app/src/auth.go', output: 'Fix /Users/alice/work/app/src/auth.go', literalContains: ['/Users/alice/work/app/src/auth.go']}
+  - {name: home_path_stays_literal, harness: claude-code, input: 'Edit /home/alice/work/app/main.go', output: 'Edit /home/alice/work/app/main.go', literalContains: ['/home/alice']}
+  - {name: unbalanced_wrapper_errors, harness: claude-code, input: '<system-reminder>partial secret', errorContains: 'recognized transcript wrapper "system-reminder" is unbalanced'}
 decoderMutations:
   - name: unknown_field
     input: "cases:\n  - name: invalid\n    operation: sanitize\n    harness: claude-code\n    input: safe\n    output: safe\n    surprise: true\n"
