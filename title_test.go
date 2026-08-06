@@ -44,7 +44,17 @@ type titleFixture struct {
 }
 type titleFixtures struct {
 	Cases            []titleFixture         `yaml:"cases"`
+	SimpleTitleCases []simpleTitleFixture   `yaml:"simpleTitleCases"`
 	DecoderMutations []titleDecoderMutation `yaml:"decoderMutations"`
+}
+
+type simpleTitleFixture struct {
+	Name            string         `yaml:"name"`
+	Harness         schema.Harness `yaml:"harness"`
+	Input           string         `yaml:"input"`
+	Output          string         `yaml:"output"`
+	ErrorContains   string         `yaml:"errorContains"`
+	LiteralContains []string       `yaml:"literalContains"`
 }
 
 type titleDecoderMutation struct {
@@ -272,6 +282,94 @@ func assertConcurrentTitleCalls(t *testing.T, p *TitlePipeline, f titleFixture) 
 	}
 	for r := range results {
 		assertTitleFixtureResult(t, f, r)
+	}
+}
+
+func TestTitlePipelineSimpleTitleFixtures(t *testing.T) {
+	fixtures, err := loadTitleFixtures()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fixtures.SimpleTitleCases) != 5 {
+		t.Fatalf("simpleTitleCases has %d rows, want exactly 5; restore the reviewed SimpleTitle behavior matrix", len(fixtures.SimpleTitleCases))
+	}
+	knownHarnesses := make(map[schema.Harness]struct{})
+	for _, harness := range schema.Harnesses() {
+		knownHarnesses[harness] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(fixtures.SimpleTitleCases))
+	for i, fixture := range fixtures.SimpleTitleCases {
+		if fixture.Name == "" {
+			t.Fatalf("simple title fixture row %d needs a unique name", i)
+		}
+		if _, ok := knownHarnesses[fixture.Harness]; !ok {
+			t.Fatalf("simple title fixture %q uses unknown harness %q", fixture.Name, fixture.Harness)
+		}
+		if _, dup := seen[fixture.Name]; dup {
+			t.Fatalf("simple title fixture name %q is duplicated", fixture.Name)
+		}
+		seen[fixture.Name] = struct{}{}
+		if fixture.ErrorContains == "" && fixture.Output == "" {
+			t.Fatalf("simple title fixture %q has no observable output or error; make the row non-vacuous", fixture.Name)
+		}
+		for _, literal := range fixture.LiteralContains {
+			if literal == "" || !strings.Contains(fixture.Input, literal) {
+				t.Fatalf("simple title fixture %q has a vacuous literalContains fragment %q; each fragment must be non-empty and occur in the input", fixture.Name, literal)
+			}
+		}
+	}
+
+	pipeline, err := NewTitlePipeline()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A nil receiver fails closed with the shared actionable diagnostic.
+	if _, nilErr := (*TitlePipeline)(nil).SimpleTitle("safe", schema.HarnessClaudeCode); nilErr == nil || !strings.Contains(nilErr.Error(), "title pipeline receiver is nil") {
+		t.Fatalf("nil receiver SimpleTitle error = %v, want nil-receiver diagnostic", nilErr)
+	}
+	// An empty first turn yields an empty title without error.
+	if empty, emptyErr := pipeline.SimpleTitle("", schema.HarnessClaudeCode); empty != "" || emptyErr != nil {
+		t.Fatalf("empty SimpleTitle = %q, %v; want empty string and no error", empty, emptyErr)
+	}
+
+	for _, fixture := range fixtures.SimpleTitleCases {
+		fixture := fixture
+		t.Run(fixture.Name, func(t *testing.T) {
+			got, callErr := pipeline.SimpleTitle(fixture.Input, fixture.Harness)
+			if fixture.ErrorContains != "" {
+				if callErr == nil || !strings.Contains(callErr.Error(), fixture.ErrorContains) {
+					t.Fatalf("error = %v, want diagnostic containing %q", callErr, fixture.ErrorContains)
+				}
+				if got != "" {
+					t.Fatalf("errored SimpleTitle returned %q, want empty string", got)
+				}
+				return
+			}
+			if callErr != nil {
+				t.Fatal(callErr)
+			}
+			if got != fixture.Output {
+				t.Fatalf("SimpleTitle = %q, want %q", got, fixture.Output)
+			}
+			if !utf8.ValidString(got) || len([]rune(got)) > titleCodePointLimit {
+				t.Fatalf("invalid or overlong SimpleTitle %q", got)
+			}
+			// SimpleTitle must NOT redact: declared literal fragments survive verbatim,
+			// whereas the redacting Generate path would rewrite them.
+			for _, literal := range fixture.LiteralContains {
+				if !strings.Contains(got, literal) {
+					t.Fatalf("SimpleTitle dropped literal fragment %q from %q; it must not redact", literal, got)
+				}
+				generated, genErr := pipeline.Generate(fixture.Input, TitleContext{Harness: fixture.Harness})
+				if genErr != nil {
+					t.Fatal(genErr)
+				}
+				if strings.Contains(generated.Text, literal) {
+					t.Fatalf("literalContains fragment %q is vacuous: Generate preserved it too", literal)
+				}
+			}
+		})
 	}
 }
 
