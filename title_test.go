@@ -48,7 +48,23 @@ type titleFixtures struct {
 	SimpleTitleCases       []simpleTitleFixture       `yaml:"simpleTitleCases"`
 	GenerateFromTurnsCases []generateFromTurnsFixture `yaml:"generateFromTurnsCases"`
 	WrapperTables          []wrapperTableFixture      `yaml:"wrapperTables"`
+	PolicyCompilationCases []policyCompilationFixture `yaml:"policyCompilationCases"`
 	DecoderMutations       []titleDecoderMutation     `yaml:"decoderMutations"`
+}
+
+// policyCompilationFixture pins which harness rule tables compile into a
+// recognized cleanup policy, and how that policy cleans one turn. A harness
+// declared only by whole-turn prefixes must still be cleaned, so the rows use
+// synthetic tables the production table does not yet contain.
+type policyCompilationFixture struct {
+	Name              string                     `yaml:"name"`
+	Harness           schema.Harness             `yaml:"harness"`
+	Wrappers          []wrapperTableEntryFixture `yaml:"wrappers"`
+	WholeTurnPrefixes []string                   `yaml:"wholeTurnPrefixes"`
+	Input             string                     `yaml:"input"`
+	WantRecognized    bool                       `yaml:"wantRecognized"`
+	Output            string                     `yaml:"output"`
+	ExpectEmpty       bool                       `yaml:"expectEmpty"`
 }
 
 // generateFromTurnsFixture pins the turn-selection contract: which turn index
@@ -105,8 +121,8 @@ func loadTitleFixtures() (titleFixtures, error) {
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml has trailing YAML content; exact fixture ownership is ambiguous; keep exactly one YAML document")
 	}
-	if len(fixtures.Cases) != 84 {
-		return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml defines %d rows, want exactly 84 title behavior rows; restore the reviewed behavior matrix", len(fixtures.Cases))
+	if len(fixtures.Cases) != 86 {
+		return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml defines %d rows, want exactly 86 title behavior rows; restore the reviewed behavior matrix", len(fixtures.Cases))
 	}
 	knownHarnesses := make(map[schema.Harness]struct{})
 	for _, harness := range schema.Harnesses() {
@@ -154,13 +170,16 @@ func loadTitleFixtures() (titleFixtures, error) {
 			seenForbidden[forbidden] = struct{}{}
 		}
 	}
-	if arms[titleGenerate] != 57 || arms[titleSanitize] != 27 {
-		return titleFixtures{}, fmt.Errorf("redact: title fixture operation arms are generate=%d sanitize=%d, want 57 and 27; restore exact production-path coverage", arms[titleGenerate], arms[titleSanitize])
+	if arms[titleGenerate] != 59 || arms[titleSanitize] != 27 {
+		return titleFixtures{}, fmt.Errorf("redact: title fixture operation arms are generate=%d sanitize=%d, want 59 and 27; restore exact production-path coverage", arms[titleGenerate], arms[titleSanitize])
 	}
 	if err := validateGenerateFromTurnsFixtures(fixtures.GenerateFromTurnsCases); err != nil {
 		return titleFixtures{}, err
 	}
 	if err := validateWrapperTableFixtures(fixtures.WrapperTables); err != nil {
+		return titleFixtures{}, err
+	}
+	if err := validatePolicyCompilationFixtures(fixtures.PolicyCompilationCases); err != nil {
 		return titleFixtures{}, err
 	}
 	if len(fixtures.DecoderMutations) != 2 || fixtures.DecoderMutations[0].Name == "" || fixtures.DecoderMutations[1].Name == "" || fixtures.DecoderMutations[0].Input == "" || fixtures.DecoderMutations[1].Input == "" {
@@ -514,6 +533,53 @@ func validateWrapperTableFixtures(tables []wrapperTableFixture) error {
 	return nil
 }
 
+func validatePolicyCompilationFixtures(cases []policyCompilationFixture) error {
+	if len(cases) != 5 {
+		return fmt.Errorf("redact: testdata/title.yaml defines %d policyCompilation rows, want exactly 5; restore the reviewed policy-compilation matrix", len(cases))
+	}
+	knownHarnesses := make(map[schema.Harness]struct{})
+	for _, harness := range schema.Harnesses() {
+		knownHarnesses[harness] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(cases))
+	for i, fixture := range cases {
+		if fixture.Name == "" {
+			return fmt.Errorf("redact: policyCompilation fixture row %d needs a unique name; name every policy-compilation row", i)
+		}
+		if _, duplicate := seen[fixture.Name]; duplicate {
+			return fmt.Errorf("redact: policyCompilation fixture name %q is duplicated; give every policy-compilation row a unique name", fixture.Name)
+		}
+		seen[fixture.Name] = struct{}{}
+		if _, ok := knownHarnesses[fixture.Harness]; !ok {
+			return fmt.Errorf("redact: policyCompilation fixture %q uses unknown harness %q; use a schema Harnesses value", fixture.Name, fixture.Harness)
+		}
+		if fixture.Input == "" {
+			return fmt.Errorf("redact: policyCompilation fixture %q has an empty input; a row without a turn proves nothing about cleanup", fixture.Name)
+		}
+		for _, entry := range fixture.Wrappers {
+			if entry.Name == "" {
+				return fmt.Errorf("redact: policyCompilation fixture %q declares an unnamed wrapper; name every wrapper the synthetic table recognizes", fixture.Name)
+			}
+			if _, err := titleWrapperActionFromFixture(entry.Action); err != nil {
+				return fmt.Errorf("redact: policyCompilation fixture %q wrapper %q: %w", fixture.Name, entry.Name, err)
+			}
+		}
+		if fixture.ExpectEmpty && fixture.Output != "" {
+			return fmt.Errorf("redact: policyCompilation fixture %q declares expectEmpty together with output %q; declare exactly one observable outcome", fixture.Name, fixture.Output)
+		}
+		if !fixture.ExpectEmpty && fixture.Output == "" {
+			return fmt.Errorf("redact: policyCompilation fixture %q has no observable outcome; declare the cleaned output, or set expectEmpty when the turn cleans to nothing", fixture.Name)
+		}
+		if fixture.WantRecognized == (len(fixture.Wrappers) == 0 && len(fixture.WholeTurnPrefixes) == 0) {
+			return fmt.Errorf("redact: policyCompilation fixture %q wants recognized=%t with %d wrappers and %d whole-turn prefixes; a harness is recognized exactly when either rule table names it", fixture.Name, fixture.WantRecognized, len(fixture.Wrappers), len(fixture.WholeTurnPrefixes))
+		}
+		if !fixture.WantRecognized && fixture.Output != fixture.Input {
+			return fmt.Errorf("redact: policyCompilation fixture %q expects no compiled policy but a changed output; an unrecognized harness keeps its turn verbatim", fixture.Name)
+		}
+	}
+	return nil
+}
+
 func titleWrapperActionFromFixture(action string) (titleWrapperAction, error) {
 	switch action {
 	case "drop":
@@ -561,11 +627,56 @@ func TestTitleWrapperTableMatchesFixture(t *testing.T) {
 		if !slices.Equal(titleWholeTurnPrefixes(harness), table.WholeTurnPrefixes) {
 			t.Fatalf("harness %q whole-turn prefixes %v differ from the fixture %v; reconcile the reviewed table", harness, titleWholeTurnPrefixes(harness), table.WholeTurnPrefixes)
 		}
-		if len(names) == 0 {
-			if _, compiled := titleCleanPolicies[harness]; compiled {
-				t.Fatalf("harness %q declares no wrappers but has a compiled cleanup policy; a harness without wrappers must keep its first turn verbatim", harness)
-			}
+		_, compiled := titleCleanPolicies[harness]
+		if len(names) == 0 && len(table.WholeTurnPrefixes) == 0 && compiled {
+			t.Fatalf("harness %q declares no wrappers and no whole-turn prefixes but has a compiled cleanup policy; a harness named by neither rule table must keep its first turn verbatim", harness)
 		}
+		if len(table.WholeTurnPrefixes) != 0 && !compiled {
+			t.Fatalf("harness %q declares whole-turn prefixes %v but has no compiled cleanup policy, so its prefix rule can never fire; compile a policy for every harness named by either rule table", harness, table.WholeTurnPrefixes)
+		}
+	}
+}
+
+// TestTitleCleanPolicyCompilationFixtures pins which harness rule tables compile
+// into a recognized cleanup policy. A harness named ONLY by the whole-turn
+// prefix table must still be cleaned: compiling over the wrapper table alone
+// would silently keep an injected turn verbatim.
+func TestTitleCleanPolicyCompilationFixtures(t *testing.T) {
+	fixtures, err := loadTitleFixtures()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fixture := range fixtures.PolicyCompilationCases {
+		fixture := fixture
+		t.Run(fixture.Name, func(t *testing.T) {
+			wrapperRules := make(map[schema.Harness][]titleWrapperRule)
+			for _, entry := range fixture.Wrappers {
+				action, actionErr := titleWrapperActionFromFixture(entry.Action)
+				if actionErr != nil {
+					t.Fatal(actionErr)
+				}
+				wrapperRules[fixture.Harness] = append(wrapperRules[fixture.Harness], titleWrapperRule{name: entry.Name, action: action})
+			}
+			prefixRules := make(map[schema.Harness][]string)
+			if len(fixture.WholeTurnPrefixes) != 0 {
+				prefixRules[fixture.Harness] = fixture.WholeTurnPrefixes
+			}
+			policies := compileTitleCleanPolicies(wrapperRules, prefixRules)
+			policy, recognized := policies[fixture.Harness]
+			if recognized != fixture.WantRecognized {
+				t.Fatalf("harness %q compiled policy present = %t, want %t", fixture.Harness, recognized, fixture.WantRecognized)
+			}
+			if !recognized {
+				return
+			}
+			got, cleanErr := policy.clean(fixture.Input)
+			if cleanErr != nil {
+				t.Fatal(cleanErr)
+			}
+			if got != fixture.Output {
+				t.Fatalf("clean = %q, want %q", got, fixture.Output)
+			}
+		})
 	}
 }
 

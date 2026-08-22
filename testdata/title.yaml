@@ -82,6 +82,8 @@ cases:
   - {name: opencode_preserves_command_markup, operation: generate, harness: opencode, input: '<command-name>/effort</command-name>', output: '<command-name>/effort</command-name>'}
   - {name: cursor_preserves_command_markup, operation: generate, harness: cursor, input: '<command-args>literal user text</command-args>', output: '<command-args>literal user text</command-args>'}
   - {name: claude_preserves_unlisted_tag, operation: generate, harness: claude-code, input: '<bash-stdout>listing output</bash-stdout>', output: '<bash-stdout>listing output</bash-stdout>'}
+  - {name: claude_preserves_longer_unlisted_tag_name, operation: generate, harness: claude-code, input: '<command-names>listed prefix only</command-names>', output: '<command-names>listed prefix only</command-names>'}
+  - {name: claude_preserves_longer_unlisted_underscore_tag_name, operation: generate, harness: claude-code, input: '<environment_contexts>listed prefix only</environment_contexts>', output: '<environment_contexts>listed prefix only</environment_contexts>'}
   - {name: sanitize_does_not_clean_command_markup, operation: sanitize, harness: claude-code, input: '<command-name>/effort</command-name>', output: '<command-name>/effort</command-name>'}
 simpleTitleCases:
   - {name: claude_strips_markup, harness: claude-code, input: '<system-reminder>internal setup notes</system-reminder><user_query>Fix the broken auth flow</user_query>', output: 'Fix the broken auth flow'}
@@ -128,3 +130,9 @@ wrapperTables:
   - {harness: gemini-cli, wrappers: []}
   - {harness: antigravity, wrappers: []}
   - {harness: strike, wrappers: []}
+policyCompilationCases:
+  - {name: prefix_only_harness_cleans_injected_turn, harness: cursor, wholeTurnPrefixes: ['Base directory for this skill:'], input: "Base directory for this skill: /opt/skills/demo\nUse the bundled reference files.", wantRecognized: true, expectEmpty: true}
+  - {name: prefix_only_harness_keeps_user_prose, harness: cursor, wholeTurnPrefixes: ['Base directory for this skill:'], input: 'Fix the broken auth flow', wantRecognized: true, output: 'Fix the broken auth flow'}
+  - {name: prefix_only_harness_keeps_unrecognized_markup, harness: cursor, wholeTurnPrefixes: ['Base directory for this skill:'], input: '<command-name>/effort</command-name>', wantRecognized: true, output: '<command-name>/effort</command-name>'}
+  - {name: wrapper_only_harness_cleans_recognized_block, harness: cursor, wrappers: [{name: command-name, action: drop}], input: '<command-name>/effort</command-name>Fix the broken auth flow', wantRecognized: true, output: 'Fix the broken auth flow'}
+  - {name: harness_without_rules_keeps_turn_verbatim, harness: cursor, input: 'Fix the broken auth flow', wantRecognized: false, output: 'Fix the broken auth flow'}

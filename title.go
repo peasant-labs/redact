@@ -204,9 +204,9 @@ type titleWrapperRule struct {
 }
 
 // titleWrapperRules is the closed, per-harness table of wrappers the title
-// pipeline cleans, in cleanup order. A harness absent from this table keeps its
-// first turn verbatim, and a wrapper absent from a listed harness stays literal
-// in that harness's titles.
+// pipeline cleans, in cleanup order. A wrapper absent from a listed harness
+// stays literal in that harness's titles. A harness absent from BOTH this table
+// and titleWholeTurnPrefixRules keeps its first turn verbatim.
 var titleWrapperRules = map[schema.Harness][]titleWrapperRule{
 	schema.HarnessClaudeCode: {
 		{name: WrapperSystemReminder, action: titleWrapperDrop},
@@ -231,7 +231,8 @@ var titleWrapperRules = map[schema.Harness][]titleWrapperRule{
 
 // titleWholeTurnPrefixRules is the closed, per-harness table of prefixes that
 // mark a whole injected turn. A turn whose trimmed text starts with one of them
-// cleans to the empty string, whatever else the turn contains.
+// cleans to the empty string, whatever else the turn contains. A harness listed
+// here is cleaned even when it recognizes no wrappers at all.
 var titleWholeTurnPrefixRules = map[schema.Harness][]string{
 	schema.HarnessClaudeCode: {SkillBodyPrefix},
 }
@@ -273,20 +274,34 @@ type titleWrapper struct {
 // titleCleanPolicy is the compiled cleanup policy for one harness. The
 // structural token pattern is derived from the same names as the wrappers, so
 // the table is the single source of truth for what the validator recognizes.
+// tokens is nil when the harness recognizes no wrappers; such a policy still
+// applies its whole-turn prefixes.
 type titleCleanPolicy struct {
 	wrappers []titleWrapper
 	tokens   *regexp.Regexp
 	prefixes []string
 }
 
-var titleCleanPolicies = compileTitleCleanPolicies()
+var titleCleanPolicies = compileTitleCleanPolicies(titleWrapperRules, titleWholeTurnPrefixRules)
 
-func compileTitleCleanPolicies() map[schema.Harness]titleCleanPolicy {
-	policies := make(map[schema.Harness]titleCleanPolicy, len(titleWrapperRules))
-	for harness, rules := range titleWrapperRules {
+// compileTitleCleanPolicies compiles one cleanup policy per harness named by
+// EITHER rule table. A harness declared only by whole-turn prefixes still gets a
+// policy, so its prefix rule fires; a harness named by neither table gets no
+// policy and keeps its first turn verbatim. It takes both tables as arguments so
+// a test can compile any table shape without mutating the production policy.
+func compileTitleCleanPolicies(wrapperRules map[schema.Harness][]titleWrapperRule, prefixRules map[schema.Harness][]string) map[schema.Harness]titleCleanPolicy {
+	policies := make(map[schema.Harness]titleCleanPolicy, len(wrapperRules)+len(prefixRules))
+	compile := func(harness schema.Harness) {
+		if _, done := policies[harness]; done {
+			return
+		}
+		rules, prefixes := wrapperRules[harness], prefixRules[harness]
+		if len(rules) == 0 && len(prefixes) == 0 {
+			return
+		}
 		policy := titleCleanPolicy{
 			wrappers: make([]titleWrapper, 0, len(rules)),
-			prefixes: titleWholeTurnPrefixes(harness),
+			prefixes: append([]string(nil), prefixes...),
 		}
 		names := make([]string, 0, len(rules))
 		for _, rule := range rules {
@@ -300,8 +315,16 @@ func compileTitleCleanPolicies() map[schema.Harness]titleCleanPolicy {
 			})
 			names = append(names, quoted)
 		}
-		policy.tokens = regexp.MustCompile(`</?(?:` + strings.Join(names, "|") + `)` + titleTagTail)
+		if len(names) != 0 {
+			policy.tokens = regexp.MustCompile(`</?(?:` + strings.Join(names, "|") + `)` + titleTagTail)
+		}
 		policies[harness] = policy
+	}
+	for harness := range wrapperRules {
+		compile(harness)
+	}
+	for harness := range prefixRules {
+		compile(harness)
 	}
 	return policies
 }
@@ -311,14 +334,23 @@ func cleanHarnessTitle(input string, harness schema.Harness) (string, error) {
 	if !recognized {
 		return input, nil
 	}
+	return policy.clean(input)
+}
+
+// clean removes the harness-owned markup this policy recognizes. It reports the
+// whole-turn prefix rule first, so an injected turn cleans to the empty string
+// even when its later markup is unbalanced.
+func (policy titleCleanPolicy) clean(input string) (string, error) {
 	trimmed := strings.TrimSpace(input)
 	for _, prefix := range policy.prefixes {
 		if strings.HasPrefix(trimmed, prefix) {
 			return "", nil
 		}
 	}
-	if err := validateTitleWrapperStructure(input, policy.tokens); err != nil {
-		return "", err
+	if policy.tokens != nil {
+		if err := validateTitleWrapperStructure(input, policy.tokens); err != nil {
+			return "", err
+		}
 	}
 	out := input
 	for _, wrapper := range policy.wrappers {
