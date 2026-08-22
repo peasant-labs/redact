@@ -35,6 +35,7 @@ type titleFixture struct {
 	Categories       []CategoryString      `yaml:"categories"`
 	ErrorContains    string                `yaml:"errorContains"`
 	NoEchoContains   []string              `yaml:"noEchoContains"`
+	ExpectEmpty      bool                  `yaml:"expectEmpty"`
 	Idempotent       bool                  `yaml:"idempotent"`
 	RuntimeIsolation bool                  `yaml:"runtimeIsolation"`
 	Concurrent       bool                  `yaml:"concurrent"`
@@ -43,9 +44,39 @@ type titleFixture struct {
 	NilReceiver      bool                  `yaml:"nilReceiver"`
 }
 type titleFixtures struct {
-	Cases            []titleFixture         `yaml:"cases"`
-	SimpleTitleCases []simpleTitleFixture   `yaml:"simpleTitleCases"`
-	DecoderMutations []titleDecoderMutation `yaml:"decoderMutations"`
+	Cases                  []titleFixture             `yaml:"cases"`
+	SimpleTitleCases       []simpleTitleFixture       `yaml:"simpleTitleCases"`
+	GenerateFromTurnsCases []generateFromTurnsFixture `yaml:"generateFromTurnsCases"`
+	WrapperTables          []wrapperTableFixture      `yaml:"wrapperTables"`
+	DecoderMutations       []titleDecoderMutation     `yaml:"decoderMutations"`
+}
+
+// generateFromTurnsFixture pins the turn-selection contract: which turn index
+// supplies the title, and which turns are skipped as injected or unusable.
+type generateFromTurnsFixture struct {
+	Name                 string           `yaml:"name"`
+	Harness              schema.Harness   `yaml:"harness"`
+	ProjectPath          string           `yaml:"projectPath"`
+	Turns                []string         `yaml:"turns"`
+	WantIndex            int              `yaml:"wantIndex"`
+	WantText             string           `yaml:"wantText"`
+	WantCategories       []CategoryString `yaml:"wantCategories"`
+	SkippedErrorContains []string         `yaml:"skippedErrorContains"`
+	NoEchoContains       []string         `yaml:"noEchoContains"`
+	NilReceiver          bool             `yaml:"nilReceiver"`
+}
+
+// wrapperTableFixture pins the closed per-harness wrapper table itself, so
+// adding, removing, or re-actioning a wrapper is a reviewed fixture change.
+type wrapperTableFixture struct {
+	Harness           schema.Harness             `yaml:"harness"`
+	Wrappers          []wrapperTableEntryFixture `yaml:"wrappers"`
+	WholeTurnPrefixes []string                   `yaml:"wholeTurnPrefixes"`
+}
+
+type wrapperTableEntryFixture struct {
+	Name   string `yaml:"name"`
+	Action string `yaml:"action"`
 }
 
 type simpleTitleFixture struct {
@@ -53,6 +84,7 @@ type simpleTitleFixture struct {
 	Harness         schema.Harness `yaml:"harness"`
 	Input           string         `yaml:"input"`
 	Output          string         `yaml:"output"`
+	ExpectEmpty     bool           `yaml:"expectEmpty"`
 	ErrorContains   string         `yaml:"errorContains"`
 	LiteralContains []string       `yaml:"literalContains"`
 }
@@ -73,8 +105,8 @@ func loadTitleFixtures() (titleFixtures, error) {
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml has trailing YAML content; exact fixture ownership is ambiguous; keep exactly one YAML document")
 	}
-	if len(fixtures.Cases) != 40 {
-		return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml defines %d rows, want exactly 40 title behavior rows; restore the reviewed behavior matrix", len(fixtures.Cases))
+	if len(fixtures.Cases) != 84 {
+		return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml defines %d rows, want exactly 84 title behavior rows; restore the reviewed behavior matrix", len(fixtures.Cases))
 	}
 	knownHarnesses := make(map[schema.Harness]struct{})
 	for _, harness := range schema.Harnesses() {
@@ -100,11 +132,14 @@ func loadTitleFixtures() (titleFixtures, error) {
 				return titleFixtures{}, fmt.Errorf("redact: title fixture %q uses unknown category %q; use a canonical CategoryString", fixture.Name, category)
 			}
 		}
-		if fixture.ErrorContains == "" && fixture.Input != "" && fixture.Output == "" {
-			return titleFixtures{}, fmt.Errorf("redact: title fixture %q has no observable output or error; make the row non-vacuous", fixture.Name)
+		if fixture.ExpectEmpty && (fixture.Output != "" || fixture.ErrorContains != "") {
+			return titleFixtures{}, fmt.Errorf("redact: title fixture %q declares expectEmpty together with an output or an expected error; declare exactly one observable outcome", fixture.Name)
+		}
+		if fixture.ErrorContains == "" && fixture.Input != "" && fixture.Output == "" && !fixture.ExpectEmpty {
+			return titleFixtures{}, fmt.Errorf("redact: title fixture %q has no observable output or error; make the row non-vacuous, or set expectEmpty when the row proves injected markup cleans to nothing", fixture.Name)
 		}
 		wrapperError := fixture.Operation == titleGenerate && fixture.ErrorContains != "" &&
-			(strings.Contains(fixture.Input, "<system-reminder>") || strings.Contains(fixture.Input, "<user_query>"))
+			inputContainsRecognizedWrapper(fixture.Input, fixture.Harness)
 		if wrapperError && len(fixture.NoEchoContains) == 0 {
 			return titleFixtures{}, fmt.Errorf("redact: wrapper error fixture %q has no noEchoContains fragments; payload no-echo coverage would be vacuous; declare every sensitive payload fragment", fixture.Name)
 		}
@@ -119,8 +154,14 @@ func loadTitleFixtures() (titleFixtures, error) {
 			seenForbidden[forbidden] = struct{}{}
 		}
 	}
-	if arms[titleGenerate] != 14 || arms[titleSanitize] != 26 {
-		return titleFixtures{}, fmt.Errorf("redact: title fixture operation arms are generate=%d sanitize=%d, want 14 and 26; restore exact production-path coverage", arms[titleGenerate], arms[titleSanitize])
+	if arms[titleGenerate] != 57 || arms[titleSanitize] != 27 {
+		return titleFixtures{}, fmt.Errorf("redact: title fixture operation arms are generate=%d sanitize=%d, want 57 and 27; restore exact production-path coverage", arms[titleGenerate], arms[titleSanitize])
+	}
+	if err := validateGenerateFromTurnsFixtures(fixtures.GenerateFromTurnsCases); err != nil {
+		return titleFixtures{}, err
+	}
+	if err := validateWrapperTableFixtures(fixtures.WrapperTables); err != nil {
+		return titleFixtures{}, err
 	}
 	if len(fixtures.DecoderMutations) != 2 || fixtures.DecoderMutations[0].Name == "" || fixtures.DecoderMutations[1].Name == "" || fixtures.DecoderMutations[0].Input == "" || fixtures.DecoderMutations[1].Input == "" {
 		return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml must define exactly two named non-empty strict-decoder mutations; restore unknown-field and trailing-document guards")
@@ -290,8 +331,8 @@ func TestTitlePipelineSimpleTitleFixtures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fixtures.SimpleTitleCases) != 5 {
-		t.Fatalf("simpleTitleCases has %d rows, want exactly 5; restore the reviewed SimpleTitle behavior matrix", len(fixtures.SimpleTitleCases))
+	if len(fixtures.SimpleTitleCases) != 11 {
+		t.Fatalf("simpleTitleCases has %d rows, want exactly 11; restore the reviewed SimpleTitle behavior matrix", len(fixtures.SimpleTitleCases))
 	}
 	knownHarnesses := make(map[schema.Harness]struct{})
 	for _, harness := range schema.Harnesses() {
@@ -309,8 +350,11 @@ func TestTitlePipelineSimpleTitleFixtures(t *testing.T) {
 			t.Fatalf("simple title fixture name %q is duplicated", fixture.Name)
 		}
 		seen[fixture.Name] = struct{}{}
-		if fixture.ErrorContains == "" && fixture.Output == "" {
-			t.Fatalf("simple title fixture %q has no observable output or error; make the row non-vacuous", fixture.Name)
+		if fixture.ExpectEmpty && (fixture.Output != "" || fixture.ErrorContains != "") {
+			t.Fatalf("simple title fixture %q declares expectEmpty together with an output or an expected error; declare exactly one observable outcome", fixture.Name)
+		}
+		if fixture.ErrorContains == "" && fixture.Output == "" && !fixture.ExpectEmpty {
+			t.Fatalf("simple title fixture %q has no observable output or error; make the row non-vacuous, or set expectEmpty when the row proves injected markup cleans to nothing", fixture.Name)
 		}
 		for _, literal := range fixture.LiteralContains {
 			if literal == "" || !strings.Contains(fixture.Input, literal) {
@@ -388,5 +432,189 @@ func TestTitleFixtureStrictDecoderRejectsUnknownFieldsAndTrailingDocuments(t *te
 		if firstErr == nil && secondErr == io.EOF {
 			t.Fatalf("strict-decoder mutation %q unexpectedly succeeded", mutation.Name)
 		}
+	}
+}
+
+// inputContainsRecognizedWrapper reports whether a fixture input opens a wrapper
+// the harness's production table recognizes. The fixture loader derives the
+// no-echo requirement from that table, so a newly added wrapper cannot ship an
+// error row without declaring its payload fragments.
+func inputContainsRecognizedWrapper(input string, harness schema.Harness) bool {
+	for _, name := range titleWrapperNames(harness) {
+		if strings.Contains(input, "<"+name) {
+			return true
+		}
+	}
+	return false
+}
+
+func validateGenerateFromTurnsFixtures(cases []generateFromTurnsFixture) error {
+	if len(cases) != 6 {
+		return fmt.Errorf("redact: testdata/title.yaml defines %d generateFromTurns rows, want exactly 6; restore the reviewed turn-selection matrix", len(cases))
+	}
+	knownHarnesses := make(map[schema.Harness]struct{})
+	for _, harness := range schema.Harnesses() {
+		knownHarnesses[harness] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(cases))
+	for i, fixture := range cases {
+		if fixture.Name == "" {
+			return fmt.Errorf("redact: generateFromTurns fixture row %d needs a unique name; name every turn-selection row", i)
+		}
+		if _, duplicate := seen[fixture.Name]; duplicate {
+			return fmt.Errorf("redact: generateFromTurns fixture name %q is duplicated; give every turn-selection row a unique name", fixture.Name)
+		}
+		seen[fixture.Name] = struct{}{}
+		if _, ok := knownHarnesses[fixture.Harness]; !ok {
+			return fmt.Errorf("redact: generateFromTurns fixture %q uses unknown harness %q; use a schema Harnesses value", fixture.Name, fixture.Harness)
+		}
+		if fixture.WantIndex < -1 || fixture.WantIndex >= len(fixture.Turns) {
+			return fmt.Errorf("redact: generateFromTurns fixture %q wants index %d for %d turns; declare -1 for no usable turn or a real turn index", fixture.Name, fixture.WantIndex, len(fixture.Turns))
+		}
+		if fixture.WantIndex == -1 && fixture.WantText != "" {
+			return fmt.Errorf("redact: generateFromTurns fixture %q wants index -1 with title text %q; no usable turn means no text", fixture.Name, fixture.WantText)
+		}
+		if fixture.WantIndex >= 0 && fixture.WantText == "" {
+			return fmt.Errorf("redact: generateFromTurns fixture %q selects turn %d without expected text; a selected turn always yields non-empty text", fixture.Name, fixture.WantIndex)
+		}
+		for _, expected := range fixture.SkippedErrorContains {
+			if expected == "" {
+				return fmt.Errorf("redact: generateFromTurns fixture %q declares an empty skipped-error fragment; an empty fragment matches everything", fixture.Name)
+			}
+		}
+		for _, forbidden := range fixture.NoEchoContains {
+			if forbidden == "" || strings.ContainsAny(forbidden, "<>") || !slices.ContainsFunc(fixture.Turns, func(turn string) bool { return strings.Contains(turn, forbidden) }) {
+				return fmt.Errorf("redact: generateFromTurns fixture %q has a vacuous noEchoContains fragment %q; each fragment must be non-empty, occur inside a turn, and identify payload rather than wrapper markup", fixture.Name, forbidden)
+			}
+		}
+	}
+	return nil
+}
+
+func validateWrapperTableFixtures(tables []wrapperTableFixture) error {
+	harnesses := schema.Harnesses()
+	if len(tables) != len(harnesses) {
+		return fmt.Errorf("redact: testdata/title.yaml declares %d wrapperTables rows, want exactly %d (one per known harness); declare the recognized wrappers of every harness, including the empty ones", len(tables), len(harnesses))
+	}
+	seen := make(map[schema.Harness]struct{}, len(tables))
+	for _, table := range tables {
+		if _, duplicate := seen[table.Harness]; duplicate {
+			return fmt.Errorf("redact: wrapperTables declares harness %q twice; keep exactly one reviewed row per harness", table.Harness)
+		}
+		seen[table.Harness] = struct{}{}
+		for i, entry := range table.Wrappers {
+			if entry.Name == "" {
+				return fmt.Errorf("redact: wrapperTables row %q entry %d has no wrapper name; name every recognized wrapper", table.Harness, i)
+			}
+			if _, err := titleWrapperActionFromFixture(entry.Action); err != nil {
+				return fmt.Errorf("redact: wrapperTables row %q entry %q: %w", table.Harness, entry.Name, err)
+			}
+		}
+	}
+	return nil
+}
+
+func titleWrapperActionFromFixture(action string) (titleWrapperAction, error) {
+	switch action {
+	case "drop":
+		return titleWrapperDrop, nil
+	case "unwrap":
+		return titleWrapperUnwrap, nil
+	}
+	return 0, fmt.Errorf("unknown wrapper action %q; use drop or unwrap", action)
+}
+
+// TestTitleWrapperTableMatchesFixture pins the compiled per-harness cleanup
+// policy to the reviewed fixture table. Adding, removing, renaming, or
+// re-actioning a wrapper fails here until the fixture records the change.
+func TestTitleWrapperTableMatchesFixture(t *testing.T) {
+	fixtures, err := loadTitleFixtures()
+	if err != nil {
+		t.Fatal(err)
+	}
+	declared := make(map[schema.Harness]wrapperTableFixture, len(fixtures.WrapperTables))
+	for _, table := range fixtures.WrapperTables {
+		declared[table.Harness] = table
+	}
+	for _, harness := range schema.Harnesses() {
+		table, ok := declared[harness]
+		if !ok {
+			t.Fatalf("wrapperTables declares no row for harness %q; every known harness needs a reviewed row", harness)
+		}
+		names := titleWrapperNames(harness)
+		if len(names) != len(table.Wrappers) {
+			t.Fatalf("harness %q recognizes %d wrappers %v, fixture declares %d; reconcile the reviewed table", harness, len(names), names, len(table.Wrappers))
+		}
+		policy := titleCleanPolicies[harness]
+		for i, entry := range table.Wrappers {
+			if names[i] != entry.Name {
+				t.Fatalf("harness %q wrapper %d is %q, fixture declares %q; reconcile the reviewed table", harness, i, names[i], entry.Name)
+			}
+			wantAction, actionErr := titleWrapperActionFromFixture(entry.Action)
+			if actionErr != nil {
+				t.Fatal(actionErr)
+			}
+			if policy.wrappers[i].action != wantAction {
+				t.Fatalf("harness %q wrapper %q has action %d, fixture declares %q; reconcile the reviewed table", harness, entry.Name, policy.wrappers[i].action, entry.Action)
+			}
+		}
+		if !slices.Equal(titleWholeTurnPrefixes(harness), table.WholeTurnPrefixes) {
+			t.Fatalf("harness %q whole-turn prefixes %v differ from the fixture %v; reconcile the reviewed table", harness, titleWholeTurnPrefixes(harness), table.WholeTurnPrefixes)
+		}
+		if len(names) == 0 {
+			if _, compiled := titleCleanPolicies[harness]; compiled {
+				t.Fatalf("harness %q declares no wrappers but has a compiled cleanup policy; a harness without wrappers must keep its first turn verbatim", harness)
+			}
+		}
+	}
+}
+
+// TestTitlePipelineGenerateFromTurnsFixtures pins the turn-selection contract:
+// injected turns and unusable turns are skipped, the first turn with real user
+// prose supplies the title, and no skipped error echoes raw turn text.
+func TestTitlePipelineGenerateFromTurnsFixtures(t *testing.T) {
+	fixtures, err := loadTitleFixtures()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pipeline, err := NewTitlePipeline()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fixture := range fixtures.GenerateFromTurnsCases {
+		fixture := fixture
+		t.Run(fixture.Name, func(t *testing.T) {
+			active := pipeline
+			if fixture.NilReceiver {
+				active = nil
+			}
+			result, index, skipped := active.GenerateFromTurns(fixture.Turns, TitleContext{Harness: fixture.Harness, ProjectPath: fixture.ProjectPath})
+			if index != fixture.WantIndex {
+				t.Fatalf("selected turn index = %d, want %d", index, fixture.WantIndex)
+			}
+			if result.Text != fixture.WantText || !slices.Equal(result.Categories, fixture.WantCategories) {
+				t.Fatalf("result = %#v, want text %q categories %v", result, fixture.WantText, fixture.WantCategories)
+			}
+			if len(skipped) != len(fixture.SkippedErrorContains) {
+				t.Fatalf("skipped = %v, want exactly %d skipped turn errors", skipped, len(fixture.SkippedErrorContains))
+			}
+			for i, expected := range fixture.SkippedErrorContains {
+				if !strings.Contains(skipped[i].Error(), expected) {
+					t.Fatalf("skipped error %d = %v, want safe diagnostic containing %q", i, skipped[i], expected)
+				}
+			}
+			for _, callErr := range skipped {
+				for _, forbidden := range fixture.NoEchoContains {
+					if strings.Contains(callErr.Error(), forbidden) {
+						t.Fatalf("skipped error disclosed forbidden payload fragment %q", forbidden)
+					}
+				}
+				for _, turn := range fixture.Turns {
+					if turn != "" && strings.Contains(callErr.Error(), turn) {
+						t.Fatal("skipped error disclosed a raw turn")
+					}
+				}
+			}
+		})
 	}
 }
