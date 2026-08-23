@@ -52,6 +52,18 @@ func NewTitlePipeline() (*TitlePipeline, error) {
 
 // Generate cleans markup owned by the supplied harness, sanitizes the result,
 // and always applies generated-title whitespace trimming and length capping.
+//
+// Two results tell the caller to move on to the next user turn:
+//
+//   - An empty Text means the turn held no user prose once harness-owned markup
+//     was removed. The caller must not store an empty title; it tries the next
+//     user turn.
+//   - An error means the turn is unusable because its recognized markup is
+//     unbalanced, crossed, or nested, so cleaning cannot be proven complete. The
+//     caller must not expose the raw turn text; it tries the next user turn, or
+//     falls back to a generic title.
+//
+// GenerateFromTurns applies both rules for the caller.
 func (p *TitlePipeline) Generate(firstTurn string, context TitleContext) (TitleResult, error) {
 	if p == nil {
 		return TitleResult{}, nilTitlePipelineError("Generate", "generating a title from the first user turn")
@@ -88,6 +100,11 @@ func (p *TitlePipeline) Sanitize(title string, context TitleContext) (TitleResul
 // for local, trusted display only (e.g. a first-time-setup selection list) and
 // MUST NOT be stored or published as a transcript title. Use Generate for any
 // published title.
+//
+// It reports the same two "try the next user turn" outcomes as Generate: an
+// empty string means the turn held no user prose once harness-owned markup was
+// removed, and an error means the turn is unusable and its raw text must not be
+// exposed.
 func (p *TitlePipeline) SimpleTitle(firstTurn string, harness schema.Harness) (string, error) {
 	if p == nil {
 		return "", nilTitlePipelineError("SimpleTitle", "cleaning a first user turn for local trusted display without redaction")
@@ -100,6 +117,36 @@ func (p *TitlePipeline) SimpleTitle(firstTurn string, harness schema.Harness) (s
 		return "", err
 	}
 	return capTitle(cleaned), nil
+}
+
+// GenerateFromTurns returns the first usable generated title in turn order.
+//
+// It defines the turn-selection contract once, so every caller skips the same
+// turns: a turn that cleans to empty text carries no user prose, and a turn that
+// fails to clean is unusable. Both are skipped, and each per-turn error is
+// collected in skipped so a caller can log or count it. The errors never contain
+// raw turn text.
+//
+// It returns the first usable result with the index of the turn that produced
+// it, or an empty result and index -1 when no turn is usable. A nil receiver
+// returns index -1 and the shared nil-receiver diagnostic in skipped.
+func (p *TitlePipeline) GenerateFromTurns(turns []string, context TitleContext) (TitleResult, int, []error) {
+	if p == nil {
+		return TitleResult{}, -1, []error{nilTitlePipelineError("GenerateFromTurns", "selecting the first usable title from the ordered user turns")}
+	}
+	var skipped []error
+	for index, turn := range turns {
+		result, err := p.Generate(turn, context)
+		if err != nil {
+			skipped = append(skipped, err)
+			continue
+		}
+		if result.Text == "" {
+			continue
+		}
+		return result, index, skipped
+	}
+	return TitleResult{}, -1, skipped
 }
 
 func nilTitlePipelineError(method, operation string) error {
@@ -115,54 +162,222 @@ func (p *TitlePipeline) process(input string, context TitleContext) TitleResult 
 	return TitleResult{Text: capTitle(text), Categories: orderedTitleCategories(detected)}
 }
 
-type titleWrapper struct {
-	name string
-	drop bool
-	open *regexp.Regexp
-}
-
-var (
-	claudeTitleWrappers = [...]titleWrapper{
-		{name: "system-reminder", drop: true, open: regexp.MustCompile(`(?s)<system-reminder>(.*?)</system-reminder>`)},
-		{name: "user_query", drop: false, open: regexp.MustCompile(`(?s)<user_query>(.*?)</user_query>`)},
-	}
-	titleWrapperTokenPattern = regexp.MustCompile(`</?(?:system-reminder|user_query)>`)
+// Harness-owned markup wrapper names. A harness injects these blocks into a
+// recorded user turn: they carry command scaffolding, tool output, or system
+// context, never user prose. They are exported so every consumer of a recorded
+// transcript names the same markup as this package instead of repeating string
+// literals.
+const (
+	WrapperSystemReminder     = "system-reminder"
+	WrapperUserQuery          = "user_query"
+	WrapperCommandName        = "command-name"
+	WrapperCommandMessage     = "command-message"
+	WrapperCommandArgs        = "command-args"
+	WrapperLocalCommandCaveat = "local-command-caveat"
+	WrapperLocalCommandStdout = "local-command-stdout"
+	WrapperLocalCommandStderr = "local-command-stderr"
+	WrapperTaskNotification   = "task-notification"
+	WrapperTeammateMessage    = "teammate-message"
+	WrapperEnvironmentContext = "environment_context"
+	WrapperSystemContext      = "system-context"
 )
 
+// SkillBodyPrefix opens a skill body that a harness injects as a complete user
+// turn. A turn whose trimmed text starts with this prefix carries no user prose.
+const SkillBodyPrefix = "Base directory for this skill:"
+
+// titleWrapperAction is the closed set of cleanup actions for one recognized
+// wrapper.
+type titleWrapperAction uint8
+
+const (
+	// titleWrapperDrop removes the wrapper and everything inside it.
+	titleWrapperDrop titleWrapperAction = iota
+	// titleWrapperUnwrap removes the wrapper tags and keeps the inner text.
+	titleWrapperUnwrap
+)
+
+// titleWrapperRule pairs one recognized wrapper name with its cleanup action.
+type titleWrapperRule struct {
+	name   string
+	action titleWrapperAction
+}
+
+// titleWrapperRules is the closed, per-harness table of wrappers the title
+// pipeline cleans, in cleanup order. A wrapper absent from a listed harness
+// stays literal in that harness's titles. A harness absent from BOTH this table
+// and titleWholeTurnPrefixRules keeps its first turn verbatim.
+var titleWrapperRules = map[schema.Harness][]titleWrapperRule{
+	schema.HarnessClaudeCode: {
+		{name: WrapperSystemReminder, action: titleWrapperDrop},
+		{name: WrapperLocalCommandCaveat, action: titleWrapperDrop},
+		{name: WrapperLocalCommandStdout, action: titleWrapperDrop},
+		{name: WrapperLocalCommandStderr, action: titleWrapperDrop},
+		{name: WrapperCommandName, action: titleWrapperDrop},
+		{name: WrapperCommandMessage, action: titleWrapperDrop},
+		{name: WrapperTaskNotification, action: titleWrapperDrop},
+		{name: WrapperTeammateMessage, action: titleWrapperDrop},
+		{name: WrapperEnvironmentContext, action: titleWrapperDrop},
+		{name: WrapperUserQuery, action: titleWrapperUnwrap},
+		{name: WrapperCommandArgs, action: titleWrapperUnwrap},
+	},
+	schema.HarnessCodex: {
+		{name: WrapperEnvironmentContext, action: titleWrapperDrop},
+	},
+	schema.HarnessOpenCode: {
+		{name: WrapperSystemContext, action: titleWrapperDrop},
+	},
+}
+
+// titleWholeTurnPrefixRules is the closed, per-harness table of prefixes that
+// mark a whole injected turn. A turn whose trimmed text starts with one of them
+// cleans to the empty string, whatever else the turn contains. A harness listed
+// here is cleaned even when it recognizes no wrappers at all.
+var titleWholeTurnPrefixRules = map[schema.Harness][]string{
+	schema.HarnessClaudeCode: {SkillBodyPrefix},
+}
+
+// titleWrapperNames returns the recognized wrapper names for one harness, in
+// cleanup order. The returned slice is a copy, so a caller cannot widen or
+// narrow the compiled policy.
+func titleWrapperNames(harness schema.Harness) []string {
+	rules := titleWrapperRules[harness]
+	names := make([]string, 0, len(rules))
+	for _, rule := range rules {
+		names = append(names, rule.name)
+	}
+	return names
+}
+
+// titleWholeTurnPrefixes returns the whole-turn injection prefixes for one
+// harness. The returned slice is a copy.
+func titleWholeTurnPrefixes(harness schema.Harness) []string {
+	return append([]string(nil), titleWholeTurnPrefixRules[harness]...)
+}
+
+// titleTagTail matches the end of an opening or closing wrapper tag. It accepts
+// attributes (real data carries them, for example
+// <system-context source="bd-prime.md">) but requires whitespace before them, so
+// a longer unlisted tag name can never match a listed one.
+const titleTagTail = `(?:\s[^>]*)?>`
+
+// titleWrapper is one compiled wrapper: the whole block, plus its opening and
+// closing tags for the balance and residue fail-safes.
+type titleWrapper struct {
+	name   string
+	action titleWrapperAction
+	block  *regexp.Regexp
+	open   *regexp.Regexp
+	closes *regexp.Regexp
+}
+
+// titleCleanPolicy is the compiled cleanup policy for one harness. The
+// structural token pattern is derived from the same names as the wrappers, so
+// the table is the single source of truth for what the validator recognizes.
+// tokens is nil when the harness recognizes no wrappers; such a policy still
+// applies its whole-turn prefixes.
+type titleCleanPolicy struct {
+	wrappers []titleWrapper
+	tokens   *regexp.Regexp
+	prefixes []string
+}
+
+var titleCleanPolicies = compileTitleCleanPolicies(titleWrapperRules, titleWholeTurnPrefixRules)
+
+// compileTitleCleanPolicies compiles one cleanup policy per harness named by
+// EITHER rule table. A harness declared only by whole-turn prefixes still gets a
+// policy, so its prefix rule fires; a harness named by neither table gets no
+// policy and keeps its first turn verbatim. It takes both tables as arguments so
+// a test can compile any table shape without mutating the production policy.
+func compileTitleCleanPolicies(wrapperRules map[schema.Harness][]titleWrapperRule, prefixRules map[schema.Harness][]string) map[schema.Harness]titleCleanPolicy {
+	policies := make(map[schema.Harness]titleCleanPolicy, len(wrapperRules)+len(prefixRules))
+	compile := func(harness schema.Harness) {
+		if _, done := policies[harness]; done {
+			return
+		}
+		rules, prefixes := wrapperRules[harness], prefixRules[harness]
+		if len(rules) == 0 && len(prefixes) == 0 {
+			return
+		}
+		policy := titleCleanPolicy{
+			wrappers: make([]titleWrapper, 0, len(rules)),
+			prefixes: append([]string(nil), prefixes...),
+		}
+		names := make([]string, 0, len(rules))
+		for _, rule := range rules {
+			quoted := regexp.QuoteMeta(rule.name)
+			policy.wrappers = append(policy.wrappers, titleWrapper{
+				name:   rule.name,
+				action: rule.action,
+				block:  regexp.MustCompile(`(?s)<` + quoted + titleTagTail + `(.*?)</` + quoted + titleTagTail),
+				open:   regexp.MustCompile(`<` + quoted + titleTagTail),
+				closes: regexp.MustCompile(`</` + quoted + titleTagTail),
+			})
+			names = append(names, quoted)
+		}
+		if len(names) != 0 {
+			policy.tokens = regexp.MustCompile(`</?(?:` + strings.Join(names, "|") + `)` + titleTagTail)
+		}
+		policies[harness] = policy
+	}
+	for harness := range wrapperRules {
+		compile(harness)
+	}
+	for harness := range prefixRules {
+		compile(harness)
+	}
+	return policies
+}
+
 func cleanHarnessTitle(input string, harness schema.Harness) (string, error) {
-	if harness != schema.HarnessClaudeCode {
+	policy, recognized := titleCleanPolicies[harness]
+	if !recognized {
 		return input, nil
 	}
-	if err := validateTitleWrapperStructure(input); err != nil {
-		return "", err
+	return policy.clean(input)
+}
+
+// clean removes the harness-owned markup this policy recognizes. It reports the
+// whole-turn prefix rule first, so an injected turn cleans to the empty string
+// even when its later markup is unbalanced.
+func (policy titleCleanPolicy) clean(input string) (string, error) {
+	trimmed := strings.TrimSpace(input)
+	for _, prefix := range policy.prefixes {
+		if strings.HasPrefix(trimmed, prefix) {
+			return "", nil
+		}
+	}
+	if policy.tokens != nil {
+		if err := validateTitleWrapperStructure(input, policy.tokens); err != nil {
+			return "", err
+		}
 	}
 	out := input
-	for _, wrapper := range claudeTitleWrappers {
-		open, close := "<"+wrapper.name+">", "</"+wrapper.name+">"
-		if strings.Count(out, open) != strings.Count(out, close) {
+	for _, wrapper := range policy.wrappers {
+		if len(wrapper.open.FindAllStringIndex(out, -1)) != len(wrapper.closes.FindAllStringIndex(out, -1)) {
 			return "", &actionableError{what: fmt.Sprintf("recognized transcript wrapper %q is unbalanced", wrapper.name), why: "the indexed first-turn content contains an opening or closing wrapper without its matching pair", where: "redact.(*TitlePipeline).Generate", when: "cleaning harness markup before title redaction", means: "no title was generated because partial wrapper content could contain system-injected text", fix: "supply the complete first user turn or use the caller's safe generic-title fallback"}
 		}
-		for wrapper.open.MatchString(out) {
-			if wrapper.drop {
-				out = wrapper.open.ReplaceAllString(out, "")
+		for wrapper.block.MatchString(out) {
+			if wrapper.action == titleWrapperDrop {
+				out = wrapper.block.ReplaceAllString(out, "")
 			} else {
-				out = wrapper.open.ReplaceAllString(out, "$1")
+				out = wrapper.block.ReplaceAllString(out, "$1")
 			}
 		}
-		if strings.Contains(out, open) || strings.Contains(out, close) {
+		if wrapper.open.MatchString(out) || wrapper.closes.MatchString(out) {
 			return "", &actionableError{what: fmt.Sprintf("recognized transcript wrapper %q is malformed", wrapper.name), why: "the wrapper boundaries are crossed or nested in a form that cannot be cleaned deterministically", where: "redact.(*TitlePipeline).Generate", when: "cleaning harness markup before title redaction", means: "no title was generated because unchecked wrapper content could contain system-injected text", fix: "supply a complete non-nested first user turn or use the caller's safe generic-title fallback"}
 		}
 	}
 	return strings.TrimSpace(out), nil
 }
 
-func validateTitleWrapperStructure(input string) error {
+func validateTitleWrapperStructure(input string, tokens *regexp.Regexp) error {
 	var stack []string
 	nested := ""
-	for _, location := range titleWrapperTokenPattern.FindAllStringIndex(input, -1) {
+	for _, location := range tokens.FindAllStringIndex(input, -1) {
 		token := input[location[0]:location[1]]
 		closing := strings.HasPrefix(token, "</")
-		name := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(token, "</"), "<"), ">")
+		name := titleWrapperTokenName(token)
 		if !closing {
 			if len(stack) != 0 && nested == "" {
 				nested = name
@@ -182,6 +397,16 @@ func validateTitleWrapperStructure(input string) error {
 		return malformedTitleWrapperError(nested, "nested")
 	}
 	return nil
+}
+
+// titleWrapperTokenName returns the wrapper name inside one opening or closing
+// tag, discarding any attributes.
+func titleWrapperTokenName(token string) string {
+	name := strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(token, "</"), "<"), ">")
+	if cut := strings.IndexFunc(name, unicode.IsSpace); cut >= 0 {
+		name = name[:cut]
+	}
+	return name
 }
 
 func malformedTitleWrapperError(name, shape string) error {
