@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- The title pipeline now removes three more harness-injected wrappers, each grounded against a recorded session: Codex `recommended_plugins` (the plugin catalog) and `user_action` (the review-action envelope), and Claude Code `agent-message` (attributed inter-session mail). All three drop the whole block. OpenCode `<constraints>` and a user prompt that opens with `<h1>` are user prose and stay verbatim; both are pinned by fixture rows.
+
+### Changed
+- `testdata/title.yaml` now carries a `requiredCaseNames` manifest; the fixture loader asserts exact membership in both directions instead of a bare row count.
+
 ## v0.1.2
 
 Promotes v0.1.2-rc1 (no code change since the candidate).

@@ -180,6 +180,9 @@ const (
 	WrapperTeammateMessage    = "teammate-message"
 	WrapperEnvironmentContext = "environment_context"
 	WrapperSystemContext      = "system-context"
+	WrapperAgentMessage       = "agent-message"
+	WrapperRecommendedPlugins = "recommended_plugins"
+	WrapperUserAction         = "user_action"
 )
 
 // SkillBodyPrefix opens a skill body that a harness injects as a complete user
@@ -218,11 +221,14 @@ var titleWrapperRules = map[schema.Harness][]titleWrapperRule{
 		{name: WrapperTaskNotification, action: titleWrapperDrop},
 		{name: WrapperTeammateMessage, action: titleWrapperDrop},
 		{name: WrapperEnvironmentContext, action: titleWrapperDrop},
+		{name: WrapperAgentMessage, action: titleWrapperDrop},
 		{name: WrapperUserQuery, action: titleWrapperUnwrap},
 		{name: WrapperCommandArgs, action: titleWrapperUnwrap},
 	},
 	schema.HarnessCodex: {
 		{name: WrapperEnvironmentContext, action: titleWrapperDrop},
+		{name: WrapperRecommendedPlugins, action: titleWrapperDrop},
+		{name: WrapperUserAction, action: titleWrapperDrop},
 	},
 	schema.HarnessOpenCode: {
 		{name: WrapperSystemContext, action: titleWrapperDrop},
