@@ -82,8 +82,8 @@ requiredCaseNames:
   - codex_drops_recommended_plugins_then_prose
   - codex_drops_user_action_alone
   - codex_drops_user_action_then_prose
-  - unbalanced_recommended_plugins_codex
-  - unbalanced_user_action_codex
+  - unbalanced_recommended_plugins
+  - unbalanced_user_action
   - claude_drops_attributed_agent_message_alone
   - claude_drops_attributed_agent_message_then_prose
   - unbalanced_agent_message
@@ -182,8 +182,8 @@ cases:
   - {name: codex_drops_recommended_plugins_then_prose, operation: generate, harness: codex, input: "<recommended_plugins>\n- GitHub (github@curated-remote)\n</recommended_plugins>\nFix the failing build", output: 'Fix the failing build'}
   - {name: codex_drops_user_action_alone, operation: generate, harness: codex, input: "<user_action>\n  <context>User initiated a review task.</context>\n  <action>review</action>\n  <results>\n  The lockfile still points at local sibling packages.\n  </results>\n</user_action>", output: '', expectEmpty: true}
   - {name: codex_drops_user_action_then_prose, operation: generate, harness: codex, input: "<user_action><action>review</action><results>lockfile drift</results></user_action>\nResolve the P1 comments", output: 'Resolve the P1 comments'}
-  - {name: unbalanced_recommended_plugins_codex, operation: generate, harness: codex, input: '<recommended_plugins>plugin catalog payload', errorContains: 'recognized transcript wrapper "recommended_plugins" is unbalanced', noEchoContains: ['plugin catalog payload']}
-  - {name: unbalanced_user_action_codex, operation: generate, harness: codex, input: '<user_action><results>review payload</results>', errorContains: 'recognized transcript wrapper "user_action" is unbalanced', noEchoContains: ['review payload']}
+  - {name: unbalanced_recommended_plugins, operation: generate, harness: codex, input: '<recommended_plugins>plugin catalog payload', errorContains: 'recognized transcript wrapper "recommended_plugins" is unbalanced', noEchoContains: ['plugin catalog payload']}
+  - {name: unbalanced_user_action, operation: generate, harness: codex, input: '<user_action><results>review payload</results>', errorContains: 'recognized transcript wrapper "user_action" is unbalanced', noEchoContains: ['review payload']}
   - {name: claude_drops_attributed_agent_message_alone, operation: generate, harness: claude-code, input: "<agent-message from=\"reviewer\">\nReview verdict: accept.\n</agent-message>", output: '', expectEmpty: true}
   - {name: claude_drops_attributed_agent_message_then_prose, operation: generate, harness: claude-code, input: "<agent-message from=\"worker-2\">task complete</agent-message>\nMerge the worker branch", output: 'Merge the worker branch'}
   - {name: unbalanced_agent_message, operation: generate, harness: claude-code, input: '<agent-message from="worker-2">worker payload', errorContains: 'recognized transcript wrapper "agent-message" is unbalanced', noEchoContains: ['worker payload']}
