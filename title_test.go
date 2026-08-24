@@ -44,6 +44,10 @@ type titleFixture struct {
 	NilReceiver      bool                  `yaml:"nilReceiver"`
 }
 type titleFixtures struct {
+	// RequiredCaseNames is the reviewed manifest of behavior-row names. The
+	// loader asserts exact membership in both directions, so deleting a row or
+	// adding an unreviewed one fails without a bare row count to bump.
+	RequiredCaseNames      []string                   `yaml:"requiredCaseNames"`
 	Cases                  []titleFixture             `yaml:"cases"`
 	SimpleTitleCases       []simpleTitleFixture       `yaml:"simpleTitleCases"`
 	GenerateFromTurnsCases []generateFromTurnsFixture `yaml:"generateFromTurnsCases"`
@@ -121,8 +125,18 @@ func loadTitleFixtures() (titleFixtures, error) {
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml has trailing YAML content; exact fixture ownership is ambiguous; keep exactly one YAML document")
 	}
-	if len(fixtures.Cases) != 86 {
-		return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml defines %d rows, want exactly 86 title behavior rows; restore the reviewed behavior matrix", len(fixtures.Cases))
+	required := make(map[string]struct{}, len(fixtures.RequiredCaseNames))
+	for i, name := range fixtures.RequiredCaseNames {
+		if name == "" {
+			return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml requiredCaseNames[%d] is empty; name every reviewed behavior row", i)
+		}
+		if _, duplicate := required[name]; duplicate {
+			return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml requiredCaseNames lists %q twice; list every reviewed behavior row exactly once", name)
+		}
+		required[name] = struct{}{}
+	}
+	if len(required) == 0 {
+		return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml has no requiredCaseNames manifest; restore the reviewed behavior-row manifest")
 	}
 	knownHarnesses := make(map[schema.Harness]struct{})
 	for _, harness := range schema.Harnesses() {
@@ -142,6 +156,9 @@ func loadTitleFixtures() (titleFixtures, error) {
 			return titleFixtures{}, fmt.Errorf("redact: title fixture name %q is duplicated; give every behavior row a unique name", fixture.Name)
 		}
 		seen[fixture.Name] = struct{}{}
+		if _, reviewed := required[fixture.Name]; !reviewed {
+			return titleFixtures{}, fmt.Errorf("redact: title fixture %q is not listed in requiredCaseNames; add every new behavior row to the reviewed manifest", fixture.Name)
+		}
 		arms[fixture.Operation]++
 		for _, category := range fixture.Categories {
 			if !slices.Contains(canonical, category) {
@@ -170,8 +187,13 @@ func loadTitleFixtures() (titleFixtures, error) {
 			seenForbidden[forbidden] = struct{}{}
 		}
 	}
-	if arms[titleGenerate] != 59 || arms[titleSanitize] != 27 {
-		return titleFixtures{}, fmt.Errorf("redact: title fixture operation arms are generate=%d sanitize=%d, want 59 and 27; restore exact production-path coverage", arms[titleGenerate], arms[titleSanitize])
+	for name := range required {
+		if _, present := seen[name]; !present {
+			return titleFixtures{}, fmt.Errorf("redact: reviewed title fixture %q is missing from testdata/title.yaml cases; restore the row or remove it from requiredCaseNames in the same reviewed change", name)
+		}
+	}
+	if arms[titleGenerate] == 0 || arms[titleSanitize] == 0 {
+		return titleFixtures{}, fmt.Errorf("redact: title fixture operation arms are generate=%d sanitize=%d; both production paths need at least one behavior row", arms[titleGenerate], arms[titleSanitize])
 	}
 	if err := validateGenerateFromTurnsFixtures(fixtures.GenerateFromTurnsCases); err != nil {
 		return titleFixtures{}, err

@@ -1,3 +1,103 @@
+requiredCaseNames:
+  - shared_project_path_parity
+  - project_directly_under_home
+  - unrelated_home_path
+  - linux_project_path
+  - credential
+  - pii
+  - project_rule
+  - canonical_category_order
+  - redact_before_cap
+  - unicode_cap_at_whitespace
+  - empty_generate
+  - empty_sanitize
+  - malformed_system_wrapper
+  - malformed_user_wrapper
+  - sanitize_does_not_clean_markup
+  - safe_manual_bytes
+  - generated_idempotence
+  - sanitized_idempotence
+  - runtime_configuration_isolation
+  - concurrent_call_isolation
+  - nil_generate
+  - nil_sanitize
+  - opencode_preserves_system_markup
+  - cursor_preserves_user_query_markup
+  - unix_spaced_profile_project
+  - unix_spaced_profile_unrelated
+  - windows_project_root
+  - windows_unrelated_profile
+  - windows_non_c_project_idempotence
+  - windows_spaced_profile_project
+  - windows_spaced_profile_unrelated
+  - nested_recognized_wrapper
+  - crossed_recognized_wrapper
+  - no_whitespace_cap_after_redaction
+  - overlapping_canonical_replacement
+  - backreference_canonical_replacement
+  - filtered_scp_email_parity
+  - mixed_concurrent_credential
+  - mixed_concurrent_pii
+  - mixed_concurrent_path
+  - claude_drops_local_command_caveat_with_prose
+  - claude_drops_local_command_stdout_with_prose
+  - claude_drops_local_command_stderr_with_prose
+  - claude_drops_command_name_with_prose
+  - claude_drops_command_message_with_prose
+  - claude_drops_task_notification_with_prose
+  - claude_drops_teammate_message_with_prose
+  - claude_drops_environment_context_with_prose
+  - claude_drops_local_command_caveat_alone
+  - claude_drops_local_command_stdout_alone
+  - claude_drops_local_command_stderr_alone
+  - claude_drops_command_name_alone
+  - claude_drops_command_message_alone
+  - claude_drops_task_notification_alone
+  - claude_drops_teammate_message_alone
+  - claude_drops_environment_context_alone
+  - claude_unwraps_command_args_alone
+  - claude_unwraps_command_args_with_prose
+  - claude_local_command_clear_block
+  - claude_command_block_keeps_args_prose
+  - claude_caveat_and_stdout_then_prose
+  - claude_multiline_indented_caveat_then_prose
+  - claude_skill_body_prefix_is_empty
+  - claude_skill_body_prefix_beats_later_wrapper
+  - claude_skill_body_prefix_beats_unbalanced_wrapper
+  - unbalanced_local_command_caveat
+  - unbalanced_local_command_stdout
+  - unbalanced_local_command_stderr
+  - unbalanced_command_name
+  - unbalanced_command_message
+  - unbalanced_command_args
+  - unbalanced_task_notification
+  - unbalanced_teammate_message
+  - unbalanced_environment_context
+  - unbalanced_system_context_opencode
+  - codex_drops_environment_context_alone
+  - codex_drops_environment_context_then_prose
+  - codex_preserves_command_markup
+  - opencode_drops_attributed_system_context
+  - codex_drops_recommended_plugins_alone
+  - codex_drops_recommended_plugins_then_prose
+  - codex_drops_user_action_alone
+  - codex_drops_user_action_then_prose
+  - unbalanced_recommended_plugins_codex
+  - unbalanced_user_action_codex
+  - claude_drops_attributed_agent_message_alone
+  - claude_drops_attributed_agent_message_then_prose
+  - unbalanced_agent_message
+  - claude_preserves_recommended_plugins_markup
+  - codex_preserves_agent_message_markup
+  - opencode_preserves_constraints_prose
+  - claude_preserves_h1_user_prose
+  - opencode_drops_attributed_system_context_alone
+  - opencode_preserves_command_markup
+  - cursor_preserves_command_markup
+  - claude_preserves_unlisted_tag
+  - claude_preserves_longer_unlisted_tag_name
+  - claude_preserves_longer_unlisted_underscore_tag_name
+  - sanitize_does_not_clean_command_markup
 cases:
   - {name: shared_project_path_parity, operation: generate, harness: claude-code, projectPath: /Users/alice/work/app, input: '<system-reminder>internal setup</system-reminder><user_query>Fix /Users/alice/work/app/src/auth.go</user_query>', output: 'Fix /Users/<USER>/<PATH>/app/src/auth.go', categories: [PATH]}
   - {name: project_directly_under_home, operation: generate, harness: claude-code, projectPath: /Users/alice/app, input: 'Fix /Users/alice/app/src/auth.go', output: 'Fix /Users/<USER>/<PATH>/app/src/auth.go', categories: [PATH]}
@@ -78,6 +178,19 @@ cases:
   - {name: codex_drops_environment_context_then_prose, operation: generate, harness: codex, input: "<environment_context><cwd>/srv/app</cwd></environment_context>Fix the failing build", output: 'Fix the failing build'}
   - {name: codex_preserves_command_markup, operation: generate, harness: codex, input: '<command-args>literal user text</command-args>', output: '<command-args>literal user text</command-args>'}
   - {name: opencode_drops_attributed_system_context, operation: generate, harness: opencode, input: '<system-context source="bd-prime.md">prime instructions</system-context>Fix the broken auth flow', output: 'Fix the broken auth flow'}
+  - {name: codex_drops_recommended_plugins_alone, operation: generate, harness: codex, input: "<recommended_plugins>\nHere is a list of plugins that are available but not installed.\n\n- GitHub (github@curated-remote)\n- Slack (slack@curated-remote)\n</recommended_plugins>", output: '', expectEmpty: true}
+  - {name: codex_drops_recommended_plugins_then_prose, operation: generate, harness: codex, input: "<recommended_plugins>\n- GitHub (github@curated-remote)\n</recommended_plugins>\nFix the failing build", output: 'Fix the failing build'}
+  - {name: codex_drops_user_action_alone, operation: generate, harness: codex, input: "<user_action>\n  <context>User initiated a review task.</context>\n  <action>review</action>\n  <results>\n  The lockfile still points at local sibling packages.\n  </results>\n</user_action>", output: '', expectEmpty: true}
+  - {name: codex_drops_user_action_then_prose, operation: generate, harness: codex, input: "<user_action><action>review</action><results>lockfile drift</results></user_action>\nResolve the P1 comments", output: 'Resolve the P1 comments'}
+  - {name: unbalanced_recommended_plugins_codex, operation: generate, harness: codex, input: '<recommended_plugins>plugin catalog payload', errorContains: 'recognized transcript wrapper "recommended_plugins" is unbalanced', noEchoContains: ['plugin catalog payload']}
+  - {name: unbalanced_user_action_codex, operation: generate, harness: codex, input: '<user_action><results>review payload</results>', errorContains: 'recognized transcript wrapper "user_action" is unbalanced', noEchoContains: ['review payload']}
+  - {name: claude_drops_attributed_agent_message_alone, operation: generate, harness: claude-code, input: "<agent-message from=\"reviewer\">\nReview verdict: accept.\n</agent-message>", output: '', expectEmpty: true}
+  - {name: claude_drops_attributed_agent_message_then_prose, operation: generate, harness: claude-code, input: "<agent-message from=\"worker-2\">task complete</agent-message>\nMerge the worker branch", output: 'Merge the worker branch'}
+  - {name: unbalanced_agent_message, operation: generate, harness: claude-code, input: '<agent-message from="worker-2">worker payload', errorContains: 'recognized transcript wrapper "agent-message" is unbalanced', noEchoContains: ['worker payload']}
+  - {name: claude_preserves_recommended_plugins_markup, operation: generate, harness: claude-code, input: '<recommended_plugins>literal user text</recommended_plugins>', output: '<recommended_plugins>literal user text</recommended_plugins>'}
+  - {name: codex_preserves_agent_message_markup, operation: generate, harness: codex, input: '<agent-message from="worker-2">literal user text</agent-message>', output: '<agent-message from="worker-2">literal user text</agent-message>'}
+  - {name: opencode_preserves_constraints_prose, operation: generate, harness: opencode, input: "<constraints>\nuse the -opencode.md postfix\n</constraints>\nCompare the plans", output: "<constraints>\nuse the -opencode.md postfix\n</constraints>\nCompare the plans"}
+  - {name: claude_preserves_h1_user_prose, operation: generate, harness: claude-code, input: '<h1>Security review</h1> audit the login flow', output: '<h1>Security review</h1> audit the login flow'}
   - {name: opencode_drops_attributed_system_context_alone, operation: generate, harness: opencode, input: '<system-context source="bd-prime.md">prime instructions</system-context>', output: '', expectEmpty: true}
   - {name: opencode_preserves_command_markup, operation: generate, harness: opencode, input: '<command-name>/effort</command-name>', output: '<command-name>/effort</command-name>'}
   - {name: cursor_preserves_command_markup, operation: generate, harness: cursor, input: '<command-args>literal user text</command-args>', output: '<command-args>literal user text</command-args>'}
@@ -122,9 +235,10 @@ wrapperTables:
       - {name: task-notification, action: drop}
       - {name: teammate-message, action: drop}
       - {name: environment_context, action: drop}
+      - {name: agent-message, action: drop}
       - {name: user_query, action: unwrap}
       - {name: command-args, action: unwrap}
-  - {harness: codex, wrappers: [{name: environment_context, action: drop}]}
+  - {harness: codex, wrappers: [{name: environment_context, action: drop}, {name: recommended_plugins, action: drop}, {name: user_action, action: drop}]}
   - {harness: opencode, wrappers: [{name: system-context, action: drop}]}
   - {harness: cursor, wrappers: []}
   - {harness: gemini-cli, wrappers: []}
