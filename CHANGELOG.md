@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.1.3-rc2
+
+### Fixed
+- A Claude Code turn that opens with `Another Claude session sent a message:` is inter-session mail, not user prose. The title pipeline now treats it as a whole injected turn (exported as `AgentMailPrefix`) and moves on to the next usable turn; a title can no longer read as that prefix line.
+
 ## v0.1.3-rc1
 
 ### Fixed

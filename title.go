@@ -189,6 +189,11 @@ const (
 // turn. A turn whose trimmed text starts with this prefix carries no user prose.
 const SkillBodyPrefix = "Base directory for this skill:"
 
+// AgentMailPrefix opens the turn a harness records when another agent session
+// sends this one a message. The line precedes an agent-message block; the
+// whole turn carries no user prose.
+const AgentMailPrefix = "Another Claude session sent a message:"
+
 // titleWrapperAction is the closed set of cleanup actions for one recognized
 // wrapper.
 type titleWrapperAction uint8
@@ -240,7 +245,7 @@ var titleWrapperRules = map[schema.Harness][]titleWrapperRule{
 // cleans to the empty string, whatever else the turn contains. A harness listed
 // here is cleaned even when it recognizes no wrappers at all.
 var titleWholeTurnPrefixRules = map[schema.Harness][]string{
-	schema.HarnessClaudeCode: {SkillBodyPrefix},
+	schema.HarnessClaudeCode: {SkillBodyPrefix, AgentMailPrefix},
 }
 
 // titleWrapperNames returns the recognized wrapper names for one harness, in
