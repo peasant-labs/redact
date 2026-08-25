@@ -70,7 +70,7 @@ requiredCaseNames:
   - codex_keeps_agent_mail_prefix_as_prose
   - claude_interrupted_request_alone_is_empty
   - claude_interrupted_request_for_tool_use_is_empty
-  - claude_interrupted_request_beats_following_skill_body
+  - claude_interrupted_request_beats_trailing_prose
   - codex_keeps_interrupted_request_as_prose
   - unbalanced_local_command_caveat
   - unbalanced_local_command_stdout
@@ -178,7 +178,7 @@ cases:
   - {name: codex_keeps_agent_mail_prefix_as_prose, operation: generate, harness: codex, input: "Another Claude session sent a message: check the build", output: 'Another Claude session sent a message: check the build'}
   - {name: claude_interrupted_request_alone_is_empty, operation: generate, harness: claude-code, input: "[Request interrupted by user]", output: '', expectEmpty: true}
   - {name: claude_interrupted_request_for_tool_use_is_empty, operation: generate, harness: claude-code, input: "[Request interrupted by user for tool use]", output: '', expectEmpty: true}
-  - {name: claude_interrupted_request_beats_following_skill_body, operation: generate, harness: claude-code, input: "[Request interrupted by user]\n[Request interrupted by user]\n# Orchestrator\n\nYou coordinate the workflow.", output: '', expectEmpty: true}
+  - {name: claude_interrupted_request_beats_trailing_prose, operation: generate, harness: claude-code, input: "[Request interrupted by user]\n[Request interrupted by user]\n# Orchestrator\n\nYou coordinate the workflow.", output: '', expectEmpty: true}
   - {name: codex_keeps_interrupted_request_as_prose, operation: generate, harness: codex, input: "[Request interrupted by user] retry the build", output: '[Request interrupted by user] retry the build'}
   - {name: unbalanced_local_command_caveat, operation: generate, harness: claude-code, input: '<local-command-caveat>caveat payload', errorContains: 'recognized transcript wrapper "local-command-caveat" is unbalanced', noEchoContains: ['caveat payload']}
   - {name: unbalanced_local_command_stdout, operation: generate, harness: claude-code, input: '<local-command-stdout>stdout payload', errorContains: 'recognized transcript wrapper "local-command-stdout" is unbalanced', noEchoContains: ['stdout payload']}

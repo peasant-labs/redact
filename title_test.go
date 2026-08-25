@@ -49,6 +49,8 @@ type titleFixtures struct {
 	// adding an unreviewed one fails without a bare row count to bump.
 	RequiredCaseNames              []string                   `yaml:"requiredCaseNames"`
 	Cases                          []titleFixture             `yaml:"cases"`
+	// The remaining Required*Names fields are the same manifest contract for
+	// their own fixture family; requireFixtureNames checks every one of them.
 	RequiredSimpleTitleNames       []string                   `yaml:"requiredSimpleTitleNames"`
 	SimpleTitleCases               []simpleTitleFixture       `yaml:"simpleTitleCases"`
 	RequiredDecoderMutationNames   []string                   `yaml:"requiredDecoderMutationNames"`
@@ -231,10 +233,10 @@ func loadTitleFixtures() (titleFixtures, error) {
 	if err := validateGenerateFromTurnsFixtures(fixtures.GenerateFromTurnsCases); err != nil {
 		return titleFixtures{}, err
 	}
-	if err := requireFixtureNames("requiredPolicyCompilationNames", fixtures.RequiredPolicyCompilationNames, fixtureNames(fixtures.PolicyCompilationCases, func(f policyCompilationFixture) string { return f.Name })); err != nil {
+	if err := validateWrapperTableFixtures(fixtures.WrapperTables); err != nil {
 		return titleFixtures{}, err
 	}
-	if err := validateWrapperTableFixtures(fixtures.WrapperTables); err != nil {
+	if err := requireFixtureNames("requiredPolicyCompilationNames", fixtures.RequiredPolicyCompilationNames, fixtureNames(fixtures.PolicyCompilationCases, func(f policyCompilationFixture) string { return f.Name })); err != nil {
 		return titleFixtures{}, err
 	}
 	if err := validatePolicyCompilationFixtures(fixtures.PolicyCompilationCases); err != nil {
