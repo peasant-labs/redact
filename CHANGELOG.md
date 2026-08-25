@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.1.3-rc3
+
+### Fixed
+- A Claude Code turn that opens with `[Request interrupted by user` (with or without `for tool use]`, and whatever scaffolding follows) is the harness recording an interruption, not user prose. The title pipeline treats it as a whole injected turn (exported as `InterruptedRequestPrefix`).
+
+### Changed
+- Every fixture family in `testdata/title.yaml` now carries a required-name manifest (`requiredSimpleTitleNames`, `requiredDecoderMutationNames`, `requiredGenerateFromTurnsNames`, `requiredPolicyCompilationNames`), checked by one shared exact-membership helper; the last bare row counts are gone.
+
 ## v0.1.3-rc2
 
 ### Fixed

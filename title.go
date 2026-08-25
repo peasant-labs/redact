@@ -194,6 +194,12 @@ const SkillBodyPrefix = "Base directory for this skill:"
 // whole turn carries no user prose.
 const AgentMailPrefix = "Another Claude session sent a message:"
 
+// InterruptedRequestPrefix opens the turn a harness records when the user
+// interrupts a response. Both recorded variants, "[Request interrupted by
+// user]" and "[Request interrupted by user for tool use]", share it, and any
+// text that follows is harness scaffolding, never user prose.
+const InterruptedRequestPrefix = "[Request interrupted by user"
+
 // titleWrapperAction is the closed set of cleanup actions for one recognized
 // wrapper.
 type titleWrapperAction uint8
@@ -245,7 +251,7 @@ var titleWrapperRules = map[schema.Harness][]titleWrapperRule{
 // cleans to the empty string, whatever else the turn contains. A harness listed
 // here is cleaned even when it recognizes no wrappers at all.
 var titleWholeTurnPrefixRules = map[schema.Harness][]string{
-	schema.HarnessClaudeCode: {SkillBodyPrefix, AgentMailPrefix},
+	schema.HarnessClaudeCode: {SkillBodyPrefix, AgentMailPrefix, InterruptedRequestPrefix},
 }
 
 // titleWrapperNames returns the recognized wrapper names for one harness, in

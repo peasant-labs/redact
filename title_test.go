@@ -47,13 +47,60 @@ type titleFixtures struct {
 	// RequiredCaseNames is the reviewed manifest of behavior-row names. The
 	// loader asserts exact membership in both directions, so deleting a row or
 	// adding an unreviewed one fails without a bare row count to bump.
-	RequiredCaseNames      []string                   `yaml:"requiredCaseNames"`
-	Cases                  []titleFixture             `yaml:"cases"`
-	SimpleTitleCases       []simpleTitleFixture       `yaml:"simpleTitleCases"`
-	GenerateFromTurnsCases []generateFromTurnsFixture `yaml:"generateFromTurnsCases"`
-	WrapperTables          []wrapperTableFixture      `yaml:"wrapperTables"`
-	PolicyCompilationCases []policyCompilationFixture `yaml:"policyCompilationCases"`
-	DecoderMutations       []titleDecoderMutation     `yaml:"decoderMutations"`
+	RequiredCaseNames []string       `yaml:"requiredCaseNames"`
+	Cases             []titleFixture `yaml:"cases"`
+	// The remaining Required*Names fields are the same manifest contract for
+	// their own fixture family; requireFixtureNames checks every one of them.
+	RequiredSimpleTitleNames       []string                   `yaml:"requiredSimpleTitleNames"`
+	SimpleTitleCases               []simpleTitleFixture       `yaml:"simpleTitleCases"`
+	RequiredDecoderMutationNames   []string                   `yaml:"requiredDecoderMutationNames"`
+	DecoderMutations               []titleDecoderMutation     `yaml:"decoderMutations"`
+	RequiredGenerateFromTurnsNames []string                   `yaml:"requiredGenerateFromTurnsNames"`
+	GenerateFromTurnsCases         []generateFromTurnsFixture `yaml:"generateFromTurnsCases"`
+	WrapperTables                  []wrapperTableFixture      `yaml:"wrapperTables"`
+	RequiredPolicyCompilationNames []string                   `yaml:"requiredPolicyCompilationNames"`
+	PolicyCompilationCases         []policyCompilationFixture `yaml:"policyCompilationCases"`
+}
+
+// requireFixtureNames asserts that a fixture family's reviewed name manifest
+// and its rows agree exactly: every listed name has a row and every row is
+// listed. Deleting a row or adding an unreviewed one fails here without a bare
+// row count to bump.
+func requireFixtureNames(family string, manifest []string, rows []string) error {
+	required := make(map[string]struct{}, len(manifest))
+	for i, name := range manifest {
+		if name == "" {
+			return fmt.Errorf("redact: testdata/title.yaml %s manifest entry %d is empty; name every reviewed row", family, i)
+		}
+		if _, duplicate := required[name]; duplicate {
+			return fmt.Errorf("redact: testdata/title.yaml %s manifest lists %q twice; list every reviewed row exactly once", family, name)
+		}
+		required[name] = struct{}{}
+	}
+	if len(required) == 0 {
+		return fmt.Errorf("redact: testdata/title.yaml has no %s manifest; restore the reviewed row manifest", family)
+	}
+	present := make(map[string]struct{}, len(rows))
+	for _, name := range rows {
+		present[name] = struct{}{}
+		if _, reviewed := required[name]; !reviewed {
+			return fmt.Errorf("redact: title fixture %q is not listed in the %s manifest; add every new row to the reviewed manifest", name, family)
+		}
+	}
+	for name := range required {
+		if _, ok := present[name]; !ok {
+			return fmt.Errorf("redact: reviewed title fixture %q is missing from testdata/title.yaml; restore the row or remove it from the %s manifest in the same reviewed change", name, family)
+		}
+	}
+	return nil
+}
+
+func fixtureNames[T any](rows []T, name func(T) string) []string {
+	names := make([]string, 0, len(rows))
+	for _, row := range rows {
+		names = append(names, name(row))
+	}
+	return names
 }
 
 // policyCompilationFixture pins which harness rule tables compile into a
@@ -125,19 +172,6 @@ func loadTitleFixtures() (titleFixtures, error) {
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml has trailing YAML content; exact fixture ownership is ambiguous; keep exactly one YAML document")
 	}
-	required := make(map[string]struct{}, len(fixtures.RequiredCaseNames))
-	for i, name := range fixtures.RequiredCaseNames {
-		if name == "" {
-			return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml requiredCaseNames[%d] is empty; name every reviewed behavior row", i)
-		}
-		if _, duplicate := required[name]; duplicate {
-			return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml requiredCaseNames lists %q twice; list every reviewed behavior row exactly once", name)
-		}
-		required[name] = struct{}{}
-	}
-	if len(required) == 0 {
-		return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml has no requiredCaseNames manifest; restore the reviewed behavior-row manifest")
-	}
 	knownHarnesses := make(map[schema.Harness]struct{})
 	for _, harness := range schema.Harnesses() {
 		knownHarnesses[harness] = struct{}{}
@@ -156,9 +190,6 @@ func loadTitleFixtures() (titleFixtures, error) {
 			return titleFixtures{}, fmt.Errorf("redact: title fixture name %q is duplicated; give every behavior row a unique name", fixture.Name)
 		}
 		seen[fixture.Name] = struct{}{}
-		if _, reviewed := required[fixture.Name]; !reviewed {
-			return titleFixtures{}, fmt.Errorf("redact: title fixture %q is not listed in requiredCaseNames; add every new behavior row to the reviewed manifest", fixture.Name)
-		}
 		arms[fixture.Operation]++
 		for _, category := range fixture.Categories {
 			if !slices.Contains(canonical, category) {
@@ -187,13 +218,17 @@ func loadTitleFixtures() (titleFixtures, error) {
 			seenForbidden[forbidden] = struct{}{}
 		}
 	}
-	for name := range required {
-		if _, present := seen[name]; !present {
-			return titleFixtures{}, fmt.Errorf("redact: reviewed title fixture %q is missing from testdata/title.yaml cases; restore the row or remove it from requiredCaseNames in the same reviewed change", name)
-		}
+	if err := requireFixtureNames("requiredCaseNames", fixtures.RequiredCaseNames, fixtureNames(fixtures.Cases, func(f titleFixture) string { return f.Name })); err != nil {
+		return titleFixtures{}, err
 	}
 	if arms[titleGenerate] == 0 || arms[titleSanitize] == 0 {
 		return titleFixtures{}, fmt.Errorf("redact: title fixture operation arms are generate=%d sanitize=%d; both production paths need at least one behavior row", arms[titleGenerate], arms[titleSanitize])
+	}
+	if err := requireFixtureNames("requiredSimpleTitleNames", fixtures.RequiredSimpleTitleNames, fixtureNames(fixtures.SimpleTitleCases, func(f simpleTitleFixture) string { return f.Name })); err != nil {
+		return titleFixtures{}, err
+	}
+	if err := requireFixtureNames("requiredGenerateFromTurnsNames", fixtures.RequiredGenerateFromTurnsNames, fixtureNames(fixtures.GenerateFromTurnsCases, func(f generateFromTurnsFixture) string { return f.Name })); err != nil {
+		return titleFixtures{}, err
 	}
 	if err := validateGenerateFromTurnsFixtures(fixtures.GenerateFromTurnsCases); err != nil {
 		return titleFixtures{}, err
@@ -201,11 +236,19 @@ func loadTitleFixtures() (titleFixtures, error) {
 	if err := validateWrapperTableFixtures(fixtures.WrapperTables); err != nil {
 		return titleFixtures{}, err
 	}
+	if err := requireFixtureNames("requiredPolicyCompilationNames", fixtures.RequiredPolicyCompilationNames, fixtureNames(fixtures.PolicyCompilationCases, func(f policyCompilationFixture) string { return f.Name })); err != nil {
+		return titleFixtures{}, err
+	}
 	if err := validatePolicyCompilationFixtures(fixtures.PolicyCompilationCases); err != nil {
 		return titleFixtures{}, err
 	}
-	if len(fixtures.DecoderMutations) != 2 || fixtures.DecoderMutations[0].Name == "" || fixtures.DecoderMutations[1].Name == "" || fixtures.DecoderMutations[0].Input == "" || fixtures.DecoderMutations[1].Input == "" {
-		return titleFixtures{}, fmt.Errorf("redact: testdata/title.yaml must define exactly two named non-empty strict-decoder mutations; restore unknown-field and trailing-document guards")
+	if err := requireFixtureNames("requiredDecoderMutationNames", fixtures.RequiredDecoderMutationNames, fixtureNames(fixtures.DecoderMutations, func(m titleDecoderMutation) string { return m.Name })); err != nil {
+		return titleFixtures{}, err
+	}
+	for _, mutation := range fixtures.DecoderMutations {
+		if mutation.Input == "" {
+			return titleFixtures{}, fmt.Errorf("redact: strict-decoder mutation %q has no input; give every mutation a YAML document the strict decoder must reject", mutation.Name)
+		}
 	}
 	return fixtures, nil
 }
@@ -372,9 +415,6 @@ func TestTitlePipelineSimpleTitleFixtures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(fixtures.SimpleTitleCases) != 11 {
-		t.Fatalf("simpleTitleCases has %d rows, want exactly 11; restore the reviewed SimpleTitle behavior matrix", len(fixtures.SimpleTitleCases))
-	}
 	knownHarnesses := make(map[schema.Harness]struct{})
 	for _, harness := range schema.Harnesses() {
 		knownHarnesses[harness] = struct{}{}
@@ -490,9 +530,6 @@ func inputContainsRecognizedWrapper(input string, harness schema.Harness) bool {
 }
 
 func validateGenerateFromTurnsFixtures(cases []generateFromTurnsFixture) error {
-	if len(cases) != 6 {
-		return fmt.Errorf("redact: testdata/title.yaml defines %d generateFromTurns rows, want exactly 6; restore the reviewed turn-selection matrix", len(cases))
-	}
 	knownHarnesses := make(map[schema.Harness]struct{})
 	for _, harness := range schema.Harnesses() {
 		knownHarnesses[harness] = struct{}{}
@@ -556,9 +593,6 @@ func validateWrapperTableFixtures(tables []wrapperTableFixture) error {
 }
 
 func validatePolicyCompilationFixtures(cases []policyCompilationFixture) error {
-	if len(cases) != 5 {
-		return fmt.Errorf("redact: testdata/title.yaml defines %d policyCompilation rows, want exactly 5; restore the reviewed policy-compilation matrix", len(cases))
-	}
 	knownHarnesses := make(map[schema.Harness]struct{})
 	for _, harness := range schema.Harnesses() {
 		knownHarnesses[harness] = struct{}{}
