@@ -47,8 +47,8 @@ type titleFixtures struct {
 	// RequiredCaseNames is the reviewed manifest of behavior-row names. The
 	// loader asserts exact membership in both directions, so deleting a row or
 	// adding an unreviewed one fails without a bare row count to bump.
-	RequiredCaseNames              []string                   `yaml:"requiredCaseNames"`
-	Cases                          []titleFixture             `yaml:"cases"`
+	RequiredCaseNames []string       `yaml:"requiredCaseNames"`
+	Cases             []titleFixture `yaml:"cases"`
 	// The remaining Required*Names fields are the same manifest contract for
 	// their own fixture family; requireFixtureNames checks every one of them.
 	RequiredSimpleTitleNames       []string                   `yaml:"requiredSimpleTitleNames"`
