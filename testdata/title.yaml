@@ -64,6 +64,10 @@ requiredCaseNames:
   - claude_skill_body_prefix_is_empty
   - claude_skill_body_prefix_beats_later_wrapper
   - claude_skill_body_prefix_beats_unbalanced_wrapper
+  - claude_agent_mail_prefix_alone_is_empty
+  - claude_agent_mail_prefix_with_balanced_block_is_empty
+  - claude_agent_mail_prefix_beats_unbalanced_block
+  - codex_keeps_agent_mail_prefix_as_prose
   - unbalanced_local_command_caveat
   - unbalanced_local_command_stdout
   - unbalanced_local_command_stderr
@@ -164,6 +168,10 @@ cases:
   - {name: claude_skill_body_prefix_is_empty, operation: generate, harness: claude-code, input: "Base directory for this skill: /opt/skills/demo\nUse the bundled reference files.", output: '', expectEmpty: true}
   - {name: claude_skill_body_prefix_beats_later_wrapper, operation: generate, harness: claude-code, input: "Base directory for this skill: /opt/skills/demo\n<command-args>Fix the broken auth flow</command-args>", output: '', expectEmpty: true}
   - {name: claude_skill_body_prefix_beats_unbalanced_wrapper, operation: generate, harness: claude-code, input: "Base directory for this skill: /opt/skills/demo\n<command-args>Fix the broken auth flow", output: '', expectEmpty: true}
+  - {name: claude_agent_mail_prefix_alone_is_empty, operation: generate, harness: claude-code, input: "Another Claude session sent a message:", output: '', expectEmpty: true}
+  - {name: claude_agent_mail_prefix_with_balanced_block_is_empty, operation: generate, harness: claude-code, input: "Another Claude session sent a message:\n<agent-message from=\"worker-2\">\ntask complete\n</agent-message>", output: '', expectEmpty: true}
+  - {name: claude_agent_mail_prefix_beats_unbalanced_block, operation: generate, harness: claude-code, input: "Another Claude session sent a message:\n<agent-message from=\"worker-2\">\ntask complete", output: '', expectEmpty: true}
+  - {name: codex_keeps_agent_mail_prefix_as_prose, operation: generate, harness: codex, input: "Another Claude session sent a message: check the build", output: 'Another Claude session sent a message: check the build'}
   - {name: unbalanced_local_command_caveat, operation: generate, harness: claude-code, input: '<local-command-caveat>caveat payload', errorContains: 'recognized transcript wrapper "local-command-caveat" is unbalanced', noEchoContains: ['caveat payload']}
   - {name: unbalanced_local_command_stdout, operation: generate, harness: claude-code, input: '<local-command-stdout>stdout payload', errorContains: 'recognized transcript wrapper "local-command-stdout" is unbalanced', noEchoContains: ['stdout payload']}
   - {name: unbalanced_local_command_stderr, operation: generate, harness: claude-code, input: '<local-command-stderr>stderr payload', errorContains: 'recognized transcript wrapper "local-command-stderr" is unbalanced', noEchoContains: ['stderr payload']}
@@ -224,7 +232,7 @@ generateFromTurnsCases:
   - {name: nil_receiver_reports_one_skipped_error, harness: claude-code, turns: ['Fix the broken auth flow'], wantIndex: -1, wantText: '', skippedErrorContains: ['title pipeline receiver is nil'], nilReceiver: true}
 wrapperTables:
   - harness: claude-code
-    wholeTurnPrefixes: ['Base directory for this skill:']
+    wholeTurnPrefixes: ['Base directory for this skill:', 'Another Claude session sent a message:']
     wrappers:
       - {name: system-reminder, action: drop}
       - {name: local-command-caveat, action: drop}
