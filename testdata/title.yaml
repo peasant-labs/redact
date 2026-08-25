@@ -68,6 +68,10 @@ requiredCaseNames:
   - claude_agent_mail_prefix_with_balanced_block_is_empty
   - claude_agent_mail_prefix_beats_unbalanced_block
   - codex_keeps_agent_mail_prefix_as_prose
+  - claude_interrupted_request_alone_is_empty
+  - claude_interrupted_request_for_tool_use_is_empty
+  - claude_interrupted_request_beats_following_skill_body
+  - codex_keeps_interrupted_request_as_prose
   - unbalanced_local_command_caveat
   - unbalanced_local_command_stdout
   - unbalanced_local_command_stderr
@@ -172,6 +176,10 @@ cases:
   - {name: claude_agent_mail_prefix_with_balanced_block_is_empty, operation: generate, harness: claude-code, input: "Another Claude session sent a message:\n<agent-message from=\"worker-2\">\ntask complete\n</agent-message>", output: '', expectEmpty: true}
   - {name: claude_agent_mail_prefix_beats_unbalanced_block, operation: generate, harness: claude-code, input: "Another Claude session sent a message:\n<agent-message from=\"worker-2\">\ntask complete", output: '', expectEmpty: true}
   - {name: codex_keeps_agent_mail_prefix_as_prose, operation: generate, harness: codex, input: "Another Claude session sent a message: check the build", output: 'Another Claude session sent a message: check the build'}
+  - {name: claude_interrupted_request_alone_is_empty, operation: generate, harness: claude-code, input: "[Request interrupted by user]", output: '', expectEmpty: true}
+  - {name: claude_interrupted_request_for_tool_use_is_empty, operation: generate, harness: claude-code, input: "[Request interrupted by user for tool use]", output: '', expectEmpty: true}
+  - {name: claude_interrupted_request_beats_following_skill_body, operation: generate, harness: claude-code, input: "[Request interrupted by user]\n[Request interrupted by user]\n# Orchestrator\n\nYou coordinate the workflow.", output: '', expectEmpty: true}
+  - {name: codex_keeps_interrupted_request_as_prose, operation: generate, harness: codex, input: "[Request interrupted by user] retry the build", output: '[Request interrupted by user] retry the build'}
   - {name: unbalanced_local_command_caveat, operation: generate, harness: claude-code, input: '<local-command-caveat>caveat payload', errorContains: 'recognized transcript wrapper "local-command-caveat" is unbalanced', noEchoContains: ['caveat payload']}
   - {name: unbalanced_local_command_stdout, operation: generate, harness: claude-code, input: '<local-command-stdout>stdout payload', errorContains: 'recognized transcript wrapper "local-command-stdout" is unbalanced', noEchoContains: ['stdout payload']}
   - {name: unbalanced_local_command_stderr, operation: generate, harness: claude-code, input: '<local-command-stderr>stderr payload', errorContains: 'recognized transcript wrapper "local-command-stderr" is unbalanced', noEchoContains: ['stderr payload']}
@@ -206,6 +214,18 @@ cases:
   - {name: claude_preserves_longer_unlisted_tag_name, operation: generate, harness: claude-code, input: '<command-names>listed prefix only</command-names>', output: '<command-names>listed prefix only</command-names>'}
   - {name: claude_preserves_longer_unlisted_underscore_tag_name, operation: generate, harness: claude-code, input: '<environment_contexts>listed prefix only</environment_contexts>', output: '<environment_contexts>listed prefix only</environment_contexts>'}
   - {name: sanitize_does_not_clean_command_markup, operation: sanitize, harness: claude-code, input: '<command-name>/effort</command-name>', output: '<command-name>/effort</command-name>'}
+requiredSimpleTitleNames:
+  - claude_strips_markup
+  - over_length_cap_code_point_safe
+  - filesystem_path_stays_literal
+  - home_path_stays_literal
+  - unbalanced_wrapper_errors
+  - simple_unwraps_command_args
+  - simple_caveat_and_stdout_then_prose
+  - simple_bare_command_name_is_empty
+  - simple_skill_body_prefix_is_empty
+  - simple_codex_drops_environment_context
+  - simple_cursor_keeps_command_markup
 simpleTitleCases:
   - {name: claude_strips_markup, harness: claude-code, input: '<system-reminder>internal setup notes</system-reminder><user_query>Fix the broken auth flow</user_query>', output: 'Fix the broken auth flow'}
   - {name: over_length_cap_code_point_safe, harness: claude-code, input: '界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界', output: '界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界界'}
@@ -218,11 +238,21 @@ simpleTitleCases:
   - {name: simple_skill_body_prefix_is_empty, harness: claude-code, input: "Base directory for this skill: /opt/skills/demo\nUse the bundled reference files.", output: '', expectEmpty: true}
   - {name: simple_codex_drops_environment_context, harness: codex, input: "<environment_context><cwd>/srv/app</cwd></environment_context>Fix the failing build", output: 'Fix the failing build'}
   - {name: simple_cursor_keeps_command_markup, harness: cursor, input: '<command-args>literal user text</command-args>', output: '<command-args>literal user text</command-args>'}
+requiredDecoderMutationNames:
+  - unknown_field
+  - trailing_document
 decoderMutations:
   - name: unknown_field
     input: "cases:\n  - name: invalid\n    operation: sanitize\n    harness: claude-code\n    input: safe\n    output: safe\n    surprise: true\n"
   - name: trailing_document
     input: "cases: []\n---\ncases: []\n"
+requiredGenerateFromTurnsNames:
+  - caveat_turn_then_prose_turn
+  - bare_command_turn_then_prose_turn
+  - malformed_turn_then_prose_turn
+  - only_injected_turns
+  - no_turns_at_all
+  - nil_receiver_reports_one_skipped_error
 generateFromTurnsCases:
   - {name: caveat_turn_then_prose_turn, harness: claude-code, turns: ["<local-command-caveat>Caveat: The messages below were generated by the user while running local commands.</local-command-caveat>", 'Fix the broken auth flow'], wantIndex: 1, wantText: 'Fix the broken auth flow'}
   - {name: bare_command_turn_then_prose_turn, harness: claude-code, turns: ['<command-name>/effort</command-name>', 'Review the failing test'], wantIndex: 1, wantText: 'Review the failing test'}
@@ -232,7 +262,7 @@ generateFromTurnsCases:
   - {name: nil_receiver_reports_one_skipped_error, harness: claude-code, turns: ['Fix the broken auth flow'], wantIndex: -1, wantText: '', skippedErrorContains: ['title pipeline receiver is nil'], nilReceiver: true}
 wrapperTables:
   - harness: claude-code
-    wholeTurnPrefixes: ['Base directory for this skill:', 'Another Claude session sent a message:']
+    wholeTurnPrefixes: ['Base directory for this skill:', 'Another Claude session sent a message:', '[Request interrupted by user']
     wrappers:
       - {name: system-reminder, action: drop}
       - {name: local-command-caveat, action: drop}
@@ -252,6 +282,12 @@ wrapperTables:
   - {harness: gemini-cli, wrappers: []}
   - {harness: antigravity, wrappers: []}
   - {harness: strike, wrappers: []}
+requiredPolicyCompilationNames:
+  - prefix_only_harness_cleans_injected_turn
+  - prefix_only_harness_keeps_user_prose
+  - prefix_only_harness_keeps_unrecognized_markup
+  - wrapper_only_harness_cleans_recognized_block
+  - harness_without_rules_keeps_turn_verbatim
 policyCompilationCases:
   - {name: prefix_only_harness_cleans_injected_turn, harness: cursor, wholeTurnPrefixes: ['Base directory for this skill:'], input: "Base directory for this skill: /opt/skills/demo\nUse the bundled reference files.", wantRecognized: true, expectEmpty: true}
   - {name: prefix_only_harness_keeps_user_prose, harness: cursor, wholeTurnPrefixes: ['Base directory for this skill:'], input: 'Fix the broken auth flow', wantRecognized: true, output: 'Fix the broken auth flow'}
