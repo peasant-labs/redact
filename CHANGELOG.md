@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.3
+
+Promotes v0.1.3-rc3 (no code change since the candidate). The three candidates below are folded into this release.
+
 ## v0.1.3-rc3
 
 ### Fixed
