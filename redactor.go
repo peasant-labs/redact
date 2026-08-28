@@ -585,6 +585,8 @@ type privateMetadata struct {
 	cwd         string // working directory from the original metadata
 	projectPath string // project root recorded for the session
 	sourcePath  string // transcript file the session was read from
+	projectName string // project slug: the project path written with dashes
+	hostSlug    string // machine name followed by the working directory written with dashes
 }
 
 // extractPrivateMetadata copies the path-bearing values out of metadata.
@@ -594,6 +596,8 @@ func extractPrivateMetadata(meta *schema.UnifiedMetadata) privateMetadata {
 		cwd:         meta.CWD,
 		projectPath: meta.Project.FilePath,
 		sourcePath:  meta.Source.FilePath,
+		projectName: meta.Project.Name,
+		hostSlug:    string(meta.HostSlug),
 	}
 }
 
@@ -625,32 +629,152 @@ const (
 	legacyUserPlaceholder = "<USER>"
 )
 
-// privatePathPrefixes returns the owner-owned prefixes of one recorded path,
-// longest first: the whole chain of folders above the last segment, and the
-// home folder of whoever owns the path. Both end with a separator. A value that
-// is not rooted in a home folder contributes nothing.
+// privateReplacement is one literal prefix and the text that replaces it. The
+// replacement is not always the same placeholder: a Windows path keeps its
+// volume letter, so each prefix carries the output it produces.
+type privateReplacement struct {
+	old string
+	new string
+}
+
+// pathSeparators are the three ways one location is written in recorded
+// metadata: a literal path, a Claude project slug, and a Peasant host slug.
+var pathSeparators = [...]string{"/", "-", "--"}
+
+// prefixChain returns the owner-owned prefixes inside value, longest first: the
+// whole chain of folders above the last segment, and the home folder itself.
+// start and homeEnd bound the home folder inside value, which lets one helper
+// serve a literal path (the home folder starts the value) and a slug (a machine
+// name can precede it). Every returned prefix ends with a separator.
+func prefixChain(value string, start, homeEnd int, separator string) []string {
+	home := value[start:homeEnd]
+	trimmed := strings.TrimSuffix(value, separator)
+	if cut := strings.LastIndex(trimmed, separator); cut >= 0 && cut+len(separator) > homeEnd {
+		return []string{value[start : cut+len(separator)], home}
+	}
+	return []string{home}
+}
+
+// unixPathReplacements returns the replacements for one recorded path rooted in
+// a home folder, in all three separator forms.
 //
-//	"/home/alice/dev/monorepo"  → "/home/alice/dev/", "/home/alice/"
-//	"/home/alice/app"           → "/home/alice/"
-func privatePathPrefixes(value string) []string {
+//	"/home/alice/dev/monorepo" → "/home/alice/dev/" and "/home/alice/" → "/<PATH>/"
+//	                             "-home-alice-dev-" and "-home-alice-" → "-<PATH>-"
+func unixPathReplacements(value string) []privateReplacement {
 	_, home := parseUsername(value)
 	if home == "" {
 		return nil
 	}
-	trimmed := strings.TrimSuffix(value, "/")
-	prefixes := make([]string, 0, 2)
-	if cut := strings.LastIndex(trimmed, "/"); cut >= len(home) {
-		prefixes = append(prefixes, trimmed[:cut+1])
+	var out []privateReplacement
+	for _, prefix := range prefixChain(value, 0, len(home), "/") {
+		for _, separator := range pathSeparators {
+			out = append(out, privateReplacement{
+				old: strings.ReplaceAll(prefix, "/", separator),
+				new: separator + privatePathPlaceholder + separator,
+			})
+		}
 	}
-	if len(prefixes) == 0 || prefixes[0] != home {
-		prefixes = append(prefixes, home)
+	return out
+}
+
+// windowsHomeFolder returns the home folder of a recorded Windows path and the
+// separator it is written with, or empty strings when value is not one.
+//
+//	`C:\Users\alice\dev\app` → `C:\Users\alice\`, `\`
+func windowsHomeFolder(value string) (string, string) {
+	const users = "users"
+	if len(value) < 4 || value[1] != ':' {
+		return "", ""
 	}
-	return prefixes
+	separator := value[2:3]
+	if separator != `\` && separator != "/" {
+		return "", ""
+	}
+	rest := value[3:]
+	if len(rest) <= len(users) || !strings.EqualFold(rest[:len(users)], users) || rest[len(users):len(users)+1] != separator {
+		return "", ""
+	}
+	account := rest[len(users)+1:]
+	cut := strings.Index(account, separator)
+	if cut < 1 {
+		return "", ""
+	}
+	return value[:3+len(users)+1+cut+1], separator
+}
+
+// windowsPathReplacements returns the replacements for one recorded Windows
+// path. The volume letter survives, matching the form a redacted title uses.
+//
+//	`C:\Users\alice\dev\app` → `C:\Users\alice\dev\` → `C:\<PATH>\`
+func windowsPathReplacements(value string) []privateReplacement {
+	home, separator := windowsHomeFolder(value)
+	if home == "" {
+		return nil
+	}
+	replacement := value[:2] + separator + privatePathPlaceholder + separator
+	var out []privateReplacement
+	for _, prefix := range prefixChain(value, 0, len(home), separator) {
+		out = append(out, privateReplacement{old: prefix, new: replacement})
+	}
+	return out
+}
+
+// slugReplacements returns the replacements for a value that carries a location
+// written with dashes: a project slug, or a machine name followed by one. The
+// account name in the slug must be one the session recorded a path for.
+// Otherwise an ordinary name that happens to contain a "home" segment (for
+// example "some-home-page-widget") would be rewritten as if it were a location.
+//
+//	"laptop--home--alice--work--acme--app" → "laptop--<PATH>--app"
+func slugReplacements(value string, accounts map[string]struct{}) []privateReplacement {
+	for _, separator := range []string{"--", "-"} {
+		for _, base := range []string{"home", "Users"} {
+			marker := separator + base + separator
+			start := strings.Index(value, marker)
+			if start < 0 {
+				continue
+			}
+			rest := value[start+len(marker):]
+			cut := strings.Index(rest, separator)
+			if cut < 1 {
+				continue
+			}
+			if _, recorded := accounts[rest[:cut]]; !recorded {
+				continue
+			}
+			homeEnd := start + len(marker) + cut + len(separator)
+			var out []privateReplacement
+			for _, prefix := range prefixChain(value, start, homeEnd, separator) {
+				out = append(out, privateReplacement{
+					old: prefix,
+					new: separator + privatePathPlaceholder + separator,
+				})
+			}
+			return out
+		}
+	}
+	return nil
+}
+
+// recordedAccounts returns the account names of the paths a session recorded.
+// They are the names a slug is allowed to be read against.
+func recordedAccounts(paths []string) map[string]struct{} {
+	accounts := make(map[string]struct{}, len(paths))
+	for _, value := range paths {
+		if account, _ := parseUsername(value); account != "" {
+			accounts[account] = struct{}{}
+		}
+		if home, separator := windowsHomeFolder(value); home != "" {
+			trimmed := strings.TrimSuffix(home, separator)
+			accounts[trimmed[strings.LastIndex(trimmed, separator)+len(separator):]] = struct{}{}
+		}
+	}
+	return accounts
 }
 
 // buildPrivateReplacer creates a strings.Replacer that replaces the whole
-// owner-owned prefix of a path across all three separator formats: literal path
-// separator (/), Claude single-dash (-), and Peasant double-dash (--).
+// owner-owned prefix of a location across all three separator formats: literal
+// path separator (/), Claude single-dash (-), and Peasant double-dash (--).
 //
 // Everything above the last folder collapses into one placeholder, so the
 // account name and the folders that lead to the project never survive:
@@ -659,64 +783,68 @@ func privatePathPrefixes(value string) []string {
 //	"-home-alice-dev-"        → "-<PATH>-"
 //	"--home--alice--dev--"    → "--<PATH>--"
 //
-// The prefixes come from EVERY path recorded for the session — the working
-// directory, the project root and the transcript file — not from the working
-// directory alone. One session can record locations of different shapes: a
-// harness started in a subpackage of a monorepo, a project root outside the
-// working directory, or two values written with different home conventions. A
+// The prefixes come from EVERY value the session records — the working
+// directory, the project root, the transcript file, the project slug and the
+// host slug — not from one of them. One session can record locations of
+// different shapes: a harness started in a subpackage of a monorepo, a project
+// root outside the working directory, a host slug naming a folder chain none of
+// the paths name, or two values written with different home conventions. A
 // prefix derived from one value would not match the others, and the shorter
 // home-folder prefix would then leave every folder between the home folder and
 // the project exposed. Longer prefixes are offered first, because
 // strings.Replacer resolves a position by list order and a shorter prefix of
-// the same path would otherwise win.
+// the same location would otherwise win.
 //
 // Values stored by an earlier rule set carry the two-placeholder form
 // ({sep}home{sep}<USER>{sep}<PATH>{sep}). They converge on the same canonical
 // output, so a re-redacted stored value and a freshly redacted one agree. The
 // canonical output itself matches no pattern, so replacement is idempotent.
 func buildPrivateReplacer(id privateMetadata) *strings.Replacer {
-	var prefixes []string
-	seen := make(map[string]struct{})
-	for _, value := range []string{id.cwd, id.projectPath, id.sourcePath} {
-		for _, prefix := range privatePathPrefixes(value) {
-			if _, duplicate := seen[prefix]; duplicate {
-				continue
-			}
-			seen[prefix] = struct{}{}
-			prefixes = append(prefixes, prefix)
-		}
+	paths := []string{id.cwd, id.projectPath, id.sourcePath}
+	accounts := recordedAccounts(paths)
+
+	var pairs []privateReplacement
+	for _, value := range paths {
+		pairs = append(pairs, unixPathReplacements(value)...)
+		pairs = append(pairs, windowsPathReplacements(value)...)
 	}
-	if len(prefixes) == 0 {
+	for _, value := range []string{id.hostSlug, id.projectName} {
+		pairs = append(pairs, slugReplacements(value, accounts)...)
+	}
+	if len(pairs) == 0 {
 		return strings.NewReplacer() // no-op
 	}
-	slices.SortStableFunc(prefixes, func(a, b string) int { return len(b) - len(a) })
 
-	separators := []string{"/", "-", "--"}
-	var oldNew []string
-	for _, prefix := range prefixes {
-		for _, sep := range separators {
-			oldNew = append(oldNew,
-				strings.ReplaceAll(prefix, "/", sep),
-				sep+privatePathPlaceholder+sep,
-			)
-		}
-	}
 	// Values stored by an earlier rule set converge on the same output. The
 	// account name is already erased in these, so both prefix bases apply
-	// whatever convention the current owner's machine uses. The longer form is
-	// offered first because the shorter one is a prefix of it.
-	for _, sep := range separators {
-		canonical := sep + privatePathPlaceholder + sep
+	// whatever convention the current owner's machine uses.
+	for _, separator := range pathSeparators {
+		canonical := separator + privatePathPlaceholder + separator
 		for _, legacyBase := range []string{"home", "Users"} {
-			oldNew = append(oldNew,
-				sep+legacyBase+sep+legacyUserPlaceholder+sep+privatePathPlaceholder+sep,
-				canonical,
-				sep+legacyBase+sep+legacyUserPlaceholder+sep,
-				canonical,
+			pairs = append(pairs,
+				privateReplacement{separator + legacyBase + separator + legacyUserPlaceholder + separator + privatePathPlaceholder + separator, canonical},
+				privateReplacement{separator + legacyBase + separator + legacyUserPlaceholder + separator, canonical},
 			)
 		}
 	}
 
+	seen := make(map[string]struct{}, len(pairs))
+	unique := pairs[:0]
+	for _, pair := range pairs {
+		if _, duplicate := seen[pair.old]; duplicate {
+			continue
+		}
+		seen[pair.old] = struct{}{}
+		unique = append(unique, pair)
+	}
+	// Longest first: strings.Replacer resolves a position by list order, so a
+	// prefix contained in a longer one must never be offered before it.
+	slices.SortStableFunc(unique, func(a, b privateReplacement) int { return len(b.old) - len(a.old) })
+
+	oldNew := make([]string, 0, 2*len(unique))
+	for _, pair := range unique {
+		oldNew = append(oldNew, pair.old, pair.new)
+	}
 	return strings.NewReplacer(oldNew...)
 }
 

@@ -66,6 +66,10 @@ required_metadata_paths_ids:
   - working_directory_below_project_root
   - mismatched_home_conventions_between_fields
   - project_redacted_without_home_rooted_source
+  - host_slug_diverging_folder_chain_collapses
+  - project_name_slug_diverging_collapses
+  - project_name_with_home_word_is_untouched
+  - windows_metadata_path_becomes_path_project
 required_code_pipeline_ids:
   - standard_preserves_code_and_redacts_secret
   - maximum_anonymizes_identifier
@@ -253,3 +257,33 @@ metadata_paths:
     project_file_path: /home/alice/dev/app
     want_cwd: /<PATH>/app
     want_project_file_path: /<PATH>/app
+  - id: host_slug_diverging_folder_chain_collapses
+    why: a host slug names a location the recorded paths do not name; it must lose its own folder chain, or a client or company folder survives in a published session while every other field is clean
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_file_path: /home/alice/dev/app
+    host_slug: laptop--home--alice--work--clients--acme--secretproject
+    want_project_file_path: /<PATH>/app
+    want_host_slug: laptop--<PATH>--secretproject
+  - id: project_name_slug_diverging_collapses
+    why: the single-dash project slug can name its own folder chain too; the same rule applies to it so no separator form is left as the one that leaks
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_name: -home-alice-work-clients-acme-secretproject
+    want_project_name: -<PATH>-secretproject
+  - id: project_name_with_home_word_is_untouched
+    why: an ordinary name can contain a home segment without being a location; it is read as a slug only when the account name in it is one the session recorded a path for, so a real project name is never rewritten
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_name: the-go-home-early-feature
+    want_project_name: the-go-home-early-feature
+  - id: windows_metadata_path_becomes_path_project
+    why: a session recorded on Windows writes its paths with a volume letter and backslashes; it loses the folders above the project like any other path and keeps its volume letter, the same form a redacted title uses
+    level: standard
+    cwd: 'C:\Users\alice\dev\app'
+    project_file_path: 'C:\Users\alice\dev\app'
+    want_cwd: 'C:\<PATH>\app'
+    want_project_file_path: 'C:\<PATH>\app'
