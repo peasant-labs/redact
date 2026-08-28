@@ -56,7 +56,8 @@ package redact
 //	         with one <PATH> placeholder, in the slash, single-dash and double-dash
 //	         forms; the prefixes come from every value the session records, the
 //	         project and host slugs and Windows paths included, not from the
-//	         working directory alone; titles use the same form and stored
+//	         working directory alone; a slug is read by the shape of its field;
+//	         the fallback slug rules fire on a machine-name-prefixed slug; titles use the same form and stored
 //	         two-placeholder values converge on it.
 const RuleSetVersion = "3.1.0"
 
