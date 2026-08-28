@@ -1,3 +1,69 @@
+# Every family below is guarded by a reviewed name manifest: the loader asserts
+# exact membership in both directions, so a deleted row and an unreviewed new row
+# both fail without a row count to bump.
+required_secrets_ids:
+  - anthropic_key
+  - openai_key
+  - github_pat
+  - aws_access_key
+  - aws_secret_key
+  - stripe_key
+  - twilio_key
+  - twilio_auth_token
+  - sendgrid_key
+  - slack_token
+  - jwt_token
+  - private_key_block
+  - generic_api_key
+  - bearer_token
+  - basic_auth
+  - access_code
+required_pii_ids:
+  - email_standard
+  - email_minimal_unchanged
+  - phone_us_standard
+  - ssn_standard
+  - credit_card_standard
+  - ip_address_standard
+required_paths_ids:
+  - unix_home_standard
+  - windows_home_standard
+  - unix_home_space_in_segment
+  - windows_home_space_in_segment
+  - unix_home_dual_path_on_line
+  - claude_project_slug_minimal
+  - claude_project_slug_users_variant
+  - peasant_host_slug_minimal
+  - peasant_host_slug_users_variant
+  - false_positive_go_home_early
+  - false_positive_home_assistant
+  - false_positive_home_automation
+  - false_positive_go_home_early_feature
+  - false_positive_some_home_page_widget
+  - slug_after_space
+  - slug_after_slash
+  - unix_path_at_minimal
+required_code_blocks_ids:
+  - standard_fences
+  - indented_fences
+  - no_fences
+  - fences_with_lang
+required_parity_ids:
+  - file_path_false_positive
+  - bare_base64_no_context
+  - real_aws_key_with_context
+  - back_reference_unix_home_path
+  - back_reference_claude_project_slug
+required_metadata_paths_ids:
+  - nested_project_becomes_path_project
+  - home_direct_project_becomes_path_project
+  - claude_slug_becomes_path_slug
+  - peasant_host_slug_becomes_path_slug
+  - legacy_user_slug_converges
+  - canonical_slug_idempotent
+required_code_pipeline_ids:
+  - standard_preserves_code_and_redacts_secret
+  - maximum_anonymizes_identifier
 secrets:
   - {id: anthropic_key, level: minimal, input: "sk-ant-api03-abc123def456abc123def456abc123def456abc123", contains: "<ANTHROPIC_KEY>"}
   - {id: openai_key, level: minimal, input: "sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789", contains: "<OPENAI_KEY>"}
@@ -72,3 +138,67 @@ code_pipeline:
       ```
     contains: ["```go"]
     absent: ["anonymizeIdentifier", "<CODE_BLOCK>"]
+
+# metadata_paths drives RedactMetadata, the context-aware stage that knows the
+# owner of the session. Every folder above the project folder, the account name
+# included, collapses into one placeholder in all three separator forms.
+metadata_paths:
+  - id: nested_project_becomes_path_project
+    why: a project below an intermediate folder keeps only its own folder name, so a published path names the project and nothing about the machine it sat on
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_file_path: /home/alice/dev/app
+    host_slug: laptop--home--alice--dev--app
+    want_source_file_path: /<PATH>/.claude/projects/-<PATH>-app/uuid.jsonl
+    want_cwd: /<PATH>/app
+    want_project_file_path: /<PATH>/app
+    want_host_slug: laptop--<PATH>--app
+  - id: home_direct_project_becomes_path_project
+    why: a project directly under the home folder gets the same canonical form as a nested one, so the published shape does not reveal how deep the project sat
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-app/uuid.jsonl
+    cwd: /home/alice/app
+    project_file_path: /home/alice/app
+    host_slug: laptop--home--alice--app
+    want_source_file_path: /<PATH>/.claude/projects/-<PATH>-app/uuid.jsonl
+    want_cwd: /<PATH>/app
+    want_project_file_path: /<PATH>/app
+    want_host_slug: laptop--<PATH>--app
+  - id: claude_slug_becomes_path_slug
+    why: the single-dash project slug is a path written with dashes; it collapses with the same rule as the path so the two forms of one location agree
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    want_source_file_path: /<PATH>/.claude/projects/-<PATH>-app/uuid.jsonl
+  - id: peasant_host_slug_becomes_path_slug
+    why: the double-dash host slug is the same location again; it collapses to the same placeholder, so no separator form leaks the account name
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    host_slug: laptop--home--alice--dev--app
+    want_host_slug: laptop--<PATH>--app
+  - id: legacy_user_slug_converges
+    why: values stored by an earlier rule set carry two placeholders in every separator form; they converge on the canonical one so a collection never mixes two shapes of the same location
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_file_path: /home/<USER>/<PATH>/app
+    project_name: -home-<USER>-<PATH>-app
+    host_slug: laptop--home--<USER>--<PATH>--app
+    want_project_file_path: /<PATH>/app
+    want_project_name: -<PATH>-app
+    want_host_slug: laptop--<PATH>--app
+  - id: canonical_slug_idempotent
+    why: an already canonical value passes through the active replacer unchanged, so redacting a stored session again is safe
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-<PATH>-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_file_path: /<PATH>/app
+    project_name: -<PATH>-app
+    host_slug: laptop--<PATH>--app
+    want_source_file_path: /<PATH>/.claude/projects/-<PATH>-app/uuid.jsonl
+    want_project_file_path: /<PATH>/app
+    want_project_name: -<PATH>-app
+    want_host_slug: laptop--<PATH>--app
+    idempotent: true

@@ -3,6 +3,13 @@ requiredCaseNames:
   - project_directly_under_home
   - unrelated_home_path
   - linux_project_path
+  - nested_project_becomes_path_project
+  - home_direct_project_becomes_path_project
+  - unrelated_home_path_collapses_to_path
+  - windows_project_path
+  - already_canonical_is_idempotent
+  - old_user_path_form_converges
+  - redaction_before_unicode_cap
   - credential
   - pii
   - project_rule
@@ -107,14 +114,21 @@ requiredCaseNames:
   - claude_preserves_longer_unlisted_underscore_tag_name
   - sanitize_does_not_clean_command_markup
 cases:
-  - {name: shared_project_path_parity, operation: generate, harness: claude-code, projectPath: /Users/alice/work/app, input: '<system-reminder>internal setup</system-reminder><user_query>Fix /Users/alice/work/app/src/auth.go</user_query>', output: 'Fix /Users/<USER>/<PATH>/app/src/auth.go', categories: [PATH]}
-  - {name: project_directly_under_home, operation: generate, harness: claude-code, projectPath: /Users/alice/app, input: 'Fix /Users/alice/app/src/auth.go', output: 'Fix /Users/<USER>/<PATH>/app/src/auth.go', categories: [PATH]}
-  - {name: unrelated_home_path, operation: sanitize, harness: claude-code, projectPath: /Users/alice/work/app, input: 'Read /Users/alice/private/notes.txt', output: 'Read /Users/<USER>/<PATH>', categories: [PATH]}
-  - {name: linux_project_path, operation: sanitize, harness: opencode, projectPath: /home/alice/work/app, input: 'Edit /home/alice/work/app/main.go', output: 'Edit /home/<USER>/<PATH>/app/main.go', categories: [PATH]}
+  - {name: shared_project_path_parity, operation: generate, harness: claude-code, projectPath: /Users/alice/work/app, input: '<system-reminder>internal setup</system-reminder><user_query>Fix /Users/alice/work/app/src/auth.go</user_query>', output: 'Fix /<PATH>/app/src/auth.go', categories: [PATH]}
+  - {name: project_directly_under_home, operation: generate, harness: claude-code, projectPath: /Users/alice/app, input: 'Fix /Users/alice/app/src/auth.go', output: 'Fix /<PATH>/app/src/auth.go', categories: [PATH]}
+  - {name: unrelated_home_path, operation: sanitize, harness: claude-code, projectPath: /Users/alice/work/app, input: 'Read /Users/alice/private/notes.txt', output: 'Read /<PATH>', categories: [PATH]}
+  - {name: linux_project_path, operation: sanitize, harness: opencode, projectPath: /home/alice/work/app, input: 'Edit /home/alice/work/app/main.go', output: 'Edit /<PATH>/app/main.go', categories: [PATH]}
+  - {name: nested_project_becomes_path_project, operation: generate, harness: claude-code, projectPath: /home/alice/dev/app, input: 'Fix /home/alice/dev/app/src/auth.go', output: 'Fix /<PATH>/app/src/auth.go', categories: [PATH], why: 'a title keeps the project folder and the file below it; every folder above the project, the account name included, becomes one placeholder'}
+  - {name: home_direct_project_becomes_path_project, operation: sanitize, harness: claude-code, projectPath: /home/alice/app, input: 'Fix /home/alice/app/src/auth.go', output: 'Fix /<PATH>/app/src/auth.go', categories: [PATH], why: 'a project directly under the home folder gets the same canonical root as a nested one, so the shape does not depend on how deep the project sits'}
+  - {name: unrelated_home_path_collapses_to_path, operation: sanitize, harness: claude-code, projectPath: /home/alice/dev/app, input: 'Read /home/bob/secret/notes', output: 'Read /<PATH>', categories: [PATH], why: 'a home path that is not under the project keeps no folder name at all, because nothing below an unrelated home folder is safe to publish'}
+  - {name: windows_project_path, operation: sanitize, harness: claude-code, projectPath: 'C:\Users\alice\dev\app', input: 'Fix C:\Users\alice\dev\app\src\auth.go', output: 'Fix C:\<PATH>\app\src\auth.go', categories: [PATH], why: 'the Windows form keeps its volume letter and its separator, and collapses the same prefix as the Unix form'}
+  - {name: already_canonical_is_idempotent, operation: sanitize, harness: claude-code, projectPath: /home/alice/dev/app, input: 'Fix /<PATH>/app/src/auth.go', output: 'Fix /<PATH>/app/src/auth.go', why: 'a title that is already canonical passes through unchanged and reports no fresh sensitive category, so a stored title can be processed again safely', idempotent: true}
+  - {name: old_user_path_form_converges, operation: sanitize, harness: claude-code, projectPath: /home/alice/dev/app, input: 'Fix /home/<USER>/<PATH>/app/src/auth.go', output: 'Fix /<PATH>/app/src/auth.go', categories: [PATH], why: 'a title stored by an earlier rule set carries two placeholders; it converges on the canonical form so one collection never shows two shapes of the same path'}
+  - {name: redaction_before_unicode_cap, operation: generate, harness: claude-code, projectPath: /home/alice/development/workspace/app, input: 'Fix /home/alice/development/workspace/app/src/auth.go and keep this trailing note', output: 'Fix /<PATH>/app/src/auth.go and keep this trailing note', categories: [PATH], why: 'the raw title is longer than the code point cap and the redacted one is not; the whole trailing sentence survives only because the path collapses before the title is capped'}
   - {name: credential, operation: sanitize, harness: codex, input: 'Rotate ghp_abcdefghijklmnopqrstuvwxyz0123456789', output: 'Rotate <GITHUB_PAT>', categories: [CREDENTIAL]}
   - {name: pii, operation: sanitize, harness: cursor, input: 'Email alice@example.com', output: 'Email <EMAIL>', categories: [PII]}
   - {name: project_rule, operation: sanitize, harness: gemini-cli, input: 'module github.com/acme/private', output: 'module <GO_MODULE>', categories: [INTERNAL]}
-  - {name: canonical_category_order, operation: sanitize, harness: claude-code, projectPath: /Users/alice/app, input: 'ghp_abcdefghijklmnopqrstuvwxyz0123456789 alice@example.com /Users/alice/app/a.go module github.com/acme/private', output: '<GITHUB_PAT> <EMAIL> /Users/<USER>/<PATH>/app/a.go module <GO_MODULE>', categories: [CREDENTIAL, PII, PATH, INTERNAL]}
+  - {name: canonical_category_order, operation: sanitize, harness: claude-code, projectPath: /Users/alice/app, input: 'ghp_abcdefghijklmnopqrstuvwxyz0123456789 alice@example.com /Users/alice/app/a.go module github.com/acme/private', output: '<GITHUB_PAT> <EMAIL> /<PATH>/app/a.go module <GO_MODULE>', categories: [CREDENTIAL, PII, PATH, INTERNAL]}
   - {name: redact_before_cap, operation: generate, harness: claude-code, input: 'Implement ghp_abcdefghijklmnopqrstuvwxyz0123456789 and preserve this useful suffix after replacement', output: 'Implement <GITHUB_PAT> and preserve this useful suffix after replacement', categories: [CREDENTIAL]}
   - {name: unicode_cap_at_whitespace, operation: generate, harness: claude-code, input: '界界界界界界界界界界 界界界界界界界界界界 界界界界界界界界界界 界界界界界界界界界界 界界界界界界界界界界 界界界界界界界界界界 界界界界界界界界界界 界界界界界界界界界界 tail', output: '界界界界界界界界界界 界界界界界界界界界界 界界界界界界界界界界 界界界界界界界界界界 界界界界界界界界界界 界界界界界界界界界界 界界界界界界界界界界'}
   - {name: empty_generate, operation: generate, harness: claude-code, input: '', output: ''}
@@ -123,7 +137,7 @@ cases:
   - {name: malformed_user_wrapper, operation: generate, harness: claude-code, input: '<user_query>partial request', errorContains: 'recognized transcript wrapper "user_query" is unbalanced', noEchoContains: ['partial request']}
   - {name: sanitize_does_not_clean_markup, operation: sanitize, harness: claude-code, input: '<user_query>Keep markup</user_query>', output: '<user_query>Keep markup</user_query>'}
   - {name: safe_manual_bytes, operation: sanitize, harness: claude-code, input: '  Owner wording  ', output: '  Owner wording  '}
-  - {name: generated_idempotence, operation: generate, harness: claude-code, projectPath: /Users/alice/work/app, input: 'Fix /Users/alice/work/app/src/auth.go', output: 'Fix /Users/<USER>/<PATH>/app/src/auth.go', categories: [PATH], idempotent: true}
+  - {name: generated_idempotence, operation: generate, harness: claude-code, projectPath: /Users/alice/work/app, input: 'Fix /Users/alice/work/app/src/auth.go', output: 'Fix /<PATH>/app/src/auth.go', categories: [PATH], idempotent: true}
   - {name: sanitized_idempotence, operation: sanitize, harness: claude-code, input: 'Contact alice@example.com', output: 'Contact <EMAIL>', categories: [PII], idempotent: true}
   - {name: runtime_configuration_isolation, operation: sanitize, harness: claude-code, input: 'keep title-policy-marker', output: 'keep title-policy-marker', runtimeIsolation: true}
   - {name: concurrent_call_isolation, operation: sanitize, harness: claude-code, input: 'Email alice@example.com', output: 'Email <EMAIL>', categories: [PII], concurrent: true}
@@ -131,13 +145,13 @@ cases:
   - {name: nil_sanitize, operation: sanitize, harness: claude-code, input: safe, errorContains: 'title pipeline receiver is nil', nilReceiver: true}
   - {name: opencode_preserves_system_markup, operation: generate, harness: opencode, input: '<system-reminder>literal user text</system-reminder>', output: '<system-reminder>literal user text</system-reminder>'}
   - {name: cursor_preserves_user_query_markup, operation: generate, harness: cursor, input: '<user_query>literal user text</user_query>', output: '<user_query>literal user text</user_query>'}
-  - {name: unix_spaced_profile_project, operation: sanitize, harness: claude-code, projectPath: '/Users/Alice Smith/work/app', input: 'Fix /Users/Alice Smith/work/app/src/auth.go', output: 'Fix /Users/<USER>/<PATH>/app/src/auth.go', categories: [PATH]}
-  - {name: unix_spaced_profile_unrelated, operation: sanitize, harness: claude-code, projectPath: '/Users/Alice Smith/work/app', input: 'Read /Users/Alice Smith/private/notes.txt', output: 'Read /Users/<USER>/<PATH>', categories: [PATH]}
-  - {name: windows_project_root, operation: sanitize, harness: claude-code, projectPath: 'C:\Users\alice\work\app', input: 'Fix C:\Users\alice\work\app\src\auth.go', output: 'Fix C:\Users\<USER>\<PATH>\app\src\auth.go', categories: [PATH]}
-  - {name: windows_unrelated_profile, operation: sanitize, harness: claude-code, projectPath: 'D:\Users\alice\work\app', input: 'Read D:\Users\alice\private\notes.txt', output: 'Read D:\Users\<USER>\<PATH>', categories: [PATH]}
-  - {name: windows_non_c_project_idempotence, operation: sanitize, harness: claude-code, projectPath: 'D:\Users\alice\work\app', input: 'Fix D:\Users\alice\work\app\src\auth.go', output: 'Fix D:\Users\<USER>\<PATH>\app\src\auth.go', categories: [PATH], idempotent: true}
-  - {name: windows_spaced_profile_project, operation: sanitize, harness: claude-code, projectPath: 'D:\Users\Alice Smith\work\app', input: 'Fix D:\Users\Alice Smith\work\app\src\auth.go', output: 'Fix D:\Users\<USER>\<PATH>\app\src\auth.go', categories: [PATH]}
-  - {name: windows_spaced_profile_unrelated, operation: sanitize, harness: claude-code, projectPath: 'D:\Users\Alice Smith\work\app', input: 'Read D:\Users\Alice Smith\private\notes.txt', output: 'Read D:\Users\<USER>\<PATH>', categories: [PATH]}
+  - {name: unix_spaced_profile_project, operation: sanitize, harness: claude-code, projectPath: '/Users/Alice Smith/work/app', input: 'Fix /Users/Alice Smith/work/app/src/auth.go', output: 'Fix /<PATH>/app/src/auth.go', categories: [PATH]}
+  - {name: unix_spaced_profile_unrelated, operation: sanitize, harness: claude-code, projectPath: '/Users/Alice Smith/work/app', input: 'Read /Users/Alice Smith/private/notes.txt', output: 'Read /<PATH>', categories: [PATH]}
+  - {name: windows_project_root, operation: sanitize, harness: claude-code, projectPath: 'C:\Users\alice\work\app', input: 'Fix C:\Users\alice\work\app\src\auth.go', output: 'Fix C:\<PATH>\app\src\auth.go', categories: [PATH]}
+  - {name: windows_unrelated_profile, operation: sanitize, harness: claude-code, projectPath: 'D:\Users\alice\work\app', input: 'Read D:\Users\alice\private\notes.txt', output: 'Read D:\<PATH>', categories: [PATH]}
+  - {name: windows_non_c_project_idempotence, operation: sanitize, harness: claude-code, projectPath: 'D:\Users\alice\work\app', input: 'Fix D:\Users\alice\work\app\src\auth.go', output: 'Fix D:\<PATH>\app\src\auth.go', categories: [PATH], idempotent: true}
+  - {name: windows_spaced_profile_project, operation: sanitize, harness: claude-code, projectPath: 'D:\Users\Alice Smith\work\app', input: 'Fix D:\Users\Alice Smith\work\app\src\auth.go', output: 'Fix D:\<PATH>\app\src\auth.go', categories: [PATH]}
+  - {name: windows_spaced_profile_unrelated, operation: sanitize, harness: claude-code, projectPath: 'D:\Users\Alice Smith\work\app', input: 'Read D:\Users\Alice Smith\private\notes.txt', output: 'Read D:\<PATH>', categories: [PATH]}
   - {name: nested_recognized_wrapper, operation: generate, harness: claude-code, input: '<user_query>outer <system-reminder>inner</system-reminder></user_query>', errorContains: 'is nested', noEchoContains: [outer, inner]}
   - {name: crossed_recognized_wrapper, operation: generate, harness: claude-code, input: '<user_query>outer <system-reminder>inner</user_query></system-reminder>', errorContains: 'is crossed', noEchoContains: [outer, inner]}
   - {name: no_whitespace_cap_after_redaction, operation: generate, harness: claude-code, input: 'ghp_abcdefghijklmnopqrstuvwxyz0123456789aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', output: '<GITHUB_PAT>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', categories: [CREDENTIAL]}
@@ -146,7 +160,7 @@ cases:
   - {name: filtered_scp_email_parity, operation: sanitize, harness: claude-code, input: 'git@github.com:acme/private.git', output: 'git@github.com:acme/private.git', engineParity: true}
   - {name: mixed_concurrent_credential, operation: sanitize, harness: claude-code, input: 'ghp_abcdefghijklmnopqrstuvwxyz0123456789', output: '<GITHUB_PAT>', categories: [CREDENTIAL], concurrentGroup: mixed_categories}
   - {name: mixed_concurrent_pii, operation: sanitize, harness: claude-code, input: 'alice@example.com', output: '<EMAIL>', categories: [PII], concurrentGroup: mixed_categories}
-  - {name: mixed_concurrent_path, operation: sanitize, harness: claude-code, projectPath: '/Users/alice/app', input: '/Users/alice/app/main.go', output: '/Users/<USER>/<PATH>/app/main.go', categories: [PATH], concurrentGroup: mixed_categories}
+  - {name: mixed_concurrent_path, operation: sanitize, harness: claude-code, projectPath: '/Users/alice/app', input: '/Users/alice/app/main.go', output: '/<PATH>/app/main.go', categories: [PATH], concurrentGroup: mixed_categories}
   - {name: claude_drops_local_command_caveat_with_prose, operation: generate, harness: claude-code, input: "<local-command-caveat>Caveat: The messages below were generated by the user while running local commands.</local-command-caveat>Fix the broken auth flow", output: 'Fix the broken auth flow', idempotent: true}
   - {name: claude_drops_local_command_stdout_with_prose, operation: generate, harness: claude-code, input: "<local-command-stdout>total 12 files listed</local-command-stdout>Fix the broken auth flow", output: 'Fix the broken auth flow'}
   - {name: claude_drops_local_command_stderr_with_prose, operation: generate, harness: claude-code, input: "<local-command-stderr>command not found</local-command-stderr>Fix the broken auth flow", output: 'Fix the broken auth flow'}

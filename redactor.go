@@ -615,26 +615,43 @@ func parseUsername(path string) (username string, prefix string) {
 	return "", ""
 }
 
-// buildPrivateReplacer creates a strings.Replacer that replaces username and
-// intermediate path components across all three separator formats: literal
-// path separator (/), Claude single-dash (-), and Peasant double-dash (--).
+const (
+	// privatePathPlaceholder stands for everything above the project folder in
+	// a redacted path: the account name and every folder that leads to it.
+	privatePathPlaceholder = "<PATH>"
+	// legacyUserPlaceholder is the account-name placeholder written by an
+	// earlier rule set. Values stored then still carry it, so redaction
+	// converges those on the current canonical form instead of leaving two
+	// shapes in one collection.
+	legacyUserPlaceholder = "<USER>"
+)
+
+// buildPrivateReplacer creates a strings.Replacer that replaces the whole
+// owner-owned prefix of a path across all three separator formats: literal path
+// separator (/), Claude single-dash (-), and Peasant double-dash (--).
 //
-// All three formats use the same logic:
+// Everything before the project folder collapses into one placeholder, so the
+// owner's account name and the folders above the project never survive:
 //
-//	{sep}home{sep}{username}{sep}{intermediate}{sep} → {sep}home{sep}<USER>{sep}<PATH>{sep}
-//	{sep}home{sep}{username}{sep}                    → {sep}home{sep}<USER>{sep}
+//	{sep}home{sep}{username}{sep}{intermediate}{sep} → {sep}<PATH>{sep}
+//	{sep}home{sep}{username}{sep}                    → {sep}<PATH>{sep}
 //
 // Given username="alice", cwd="/home/alice/dev/myproject":
 //
-//	"/home/alice/dev/"        → "/home/<USER>/<PATH>/"
-//	"-home-alice-dev-"        → "-home-<USER>-<PATH>-"
-//	"--home--alice--dev--"    → "--home--<USER>--<PATH>--"
+//	"/home/alice/dev/"        → "/<PATH>/"
+//	"-home-alice-dev-"        → "-<PATH>-"
+//	"--home--alice--dev--"    → "--<PATH>--"
 //
 // When there is no intermediate path (project directly under home):
 //
-//	"/home/alice/"            → "/home/<USER>/"
-//	"-home-alice-"            → "-home-<USER>-"
-//	"--home--alice--"         → "--home--<USER>--"
+//	"/home/alice/"            → "/<PATH>/"
+//	"-home-alice-"            → "-<PATH>-"
+//	"--home--alice--"         → "--<PATH>--"
+//
+// Values stored by an earlier rule set carry the two-placeholder form
+// ({sep}home{sep}<USER>{sep}<PATH>{sep}). They converge on the same canonical
+// output, so a re-redacted stored value and a freshly redacted one agree. The
+// canonical output itself matches no pattern, so replacement is idempotent.
 func buildPrivateReplacer(id privateMetadata) *strings.Replacer {
 	if id.username == "" || id.prefix == "" {
 		return strings.NewReplacer() // no-op
@@ -664,23 +681,38 @@ func buildPrivateReplacer(id privateMetadata) *strings.Replacer {
 		}
 	}
 
-	// Generate replacements for all three separator formats.
+	// Generate replacements for all three separator formats. Within one
+	// separator the longer pattern is listed first: strings.Replacer resolves a
+	// position by list order, so the owner-plus-intermediate prefix must be
+	// offered before the shorter owner-only prefix that is contained in it.
 	separators := []string{"/", "-", "--"}
 	for _, sep := range separators {
+		canonical := sep + privatePathPlaceholder + sep
 		if intermediate != "" {
-			// With intermediate: {sep}home{sep}user{sep}intermediate{sep} → {sep}home{sep}<USER>{sep}<PATH>{sep}
+			// With intermediate: {sep}home{sep}user{sep}intermediate{sep} → {sep}<PATH>{sep}
 			intermediateSep := strings.ReplaceAll(intermediate, "/", sep)
 			oldNew = append(oldNew,
 				sep+osBase+sep+id.username+sep+intermediateSep+sep,
-				sep+osBase+sep+"<USER>"+sep+"<PATH>"+sep,
+				canonical,
 			)
 		}
-		// Username-only: {sep}home{sep}user{sep} → {sep}home{sep}<USER>{sep}
+		// Owner-only: {sep}home{sep}user{sep} → {sep}<PATH>{sep}
 		// This handles: no intermediate, partial matches, and direct home paths.
 		oldNew = append(oldNew,
 			sep+osBase+sep+id.username+sep,
-			sep+osBase+sep+"<USER>"+sep,
+			canonical,
 		)
+		// Values stored by an earlier rule set converge on the same output. The
+		// owner name is already erased in these, so both prefix bases apply
+		// whatever the current owner's operating system is.
+		for _, legacyBase := range []string{"home", "Users"} {
+			oldNew = append(oldNew,
+				sep+legacyBase+sep+legacyUserPlaceholder+sep+privatePathPlaceholder+sep,
+				canonical,
+				sep+legacyBase+sep+legacyUserPlaceholder+sep,
+				canonical,
+			)
+		}
 	}
 
 	return strings.NewReplacer(oldNew...)

@@ -52,7 +52,11 @@ package redact
 //	         rules plus spaced-username companion rules and FilterFn prefix rejection.
 //	3.0.0 — git_remote_https / git_remote_ssh / git_branch_output moved to Maximum-only
 //	         via per-rule minimum levels; Standard no longer redacts git URLs or branch names.
-const RuleSetVersion = "3.0.0"
+//	3.1.0 — a redacted path keeps the project folder and replaces everything above it
+//	         with one <PATH> placeholder, in the slash, single-dash and double-dash
+//	         forms; titles use the same form and stored two-placeholder values
+//	         converge on it.
+const RuleSetVersion = "3.1.0"
 
 // Version returns the rule set version string.
 // It can be called without instantiating a Redactor.

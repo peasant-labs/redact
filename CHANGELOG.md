@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.1.4-rc1
+
+### Changed
+- A redacted path now keeps the project folder and replaces everything above it with one `<PATH>` placeholder: `/home/alice/dev/app` becomes `/<PATH>/app`, and a project directly under the home folder gets the same form. The account name no longer appears in a redacted path.
+- The single-dash and double-dash slug forms of the same location follow the same rule: `-home-alice-dev-app` becomes `-<PATH>-app` and `--home--alice--dev--app` becomes `--<PATH>--app`.
+- Titles use the same canonical form. A path under the project root becomes `/<PATH>/<project>/<relative>`; a home path outside the project keeps no folder name at all and becomes `/<PATH>`. The Windows form keeps its volume letter: `C:\Users\alice\dev\app` becomes `C:\<PATH>\app`.
+- Values written by rule set 3.0.0 carry two placeholders (`/home/<USER>/<PATH>/app`). Redaction converges them on the canonical form, so one collection never mixes two shapes of the same path. The check is anchored at the start of the path, because the older form also contains the canonical placeholder.
+- `RuleSetVersion` is `3.1.0`. The standard `unix_home_path` rule is unchanged: it still redacts other people's home paths that appear in transcript text.
+
 ## v0.1.3
 
 Promotes v0.1.3-rc3 (no code change since the candidate). The three candidates below are folded into this release.

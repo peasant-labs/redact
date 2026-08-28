@@ -297,8 +297,11 @@ func TestRedactMetadata_SourceFilePath(t *testing.T) {
 	r := mustNewRedactor(t, Standard, nil)
 	result := r.RedactMetadata(meta)
 
-	if !strings.Contains(result.Source.FilePath, "<USER>") {
-		t.Errorf("SourceFilePath: got %q, want path containing <USER>", result.Source.FilePath)
+	if !strings.Contains(result.Source.FilePath, "<PATH>") {
+		t.Errorf("SourceFilePath: got %q, want path containing <PATH>", result.Source.FilePath)
+	}
+	if strings.Contains(result.Source.FilePath, "alice") {
+		t.Errorf("SourceFilePath: account name leaked: %q", result.Source.FilePath)
 	}
 }
 
@@ -699,17 +702,17 @@ func TestRedactMetadata_ContextAwareSlug(t *testing.T) {
 	r := mustNewRedactor(t, Minimal, nil)
 	result := r.RedactMetadata(meta)
 
-	// AC2/AC8: The slug "-home-testuser-dev-" must be replaced with context-aware placeholders.
+	// The slug "-home-testuser-dev-" must be replaced with the canonical placeholder.
 	if strings.Contains(result.Source.FilePath, "testuser") {
 		t.Errorf("ContextAwareSlug: username leaked in Source.FilePath: %q", result.Source.FilePath)
 	}
-	if !strings.Contains(result.Source.FilePath, "<USER>") {
-		t.Errorf("ContextAwareSlug: expected <USER> in Source.FilePath: %q", result.Source.FilePath)
+	if !strings.Contains(result.Source.FilePath, "<PATH>") {
+		t.Errorf("ContextAwareSlug: expected <PATH> in Source.FilePath: %q", result.Source.FilePath)
 	}
 }
 
 // TestRedactMetadata_HostSlugRedaction verifies that HostSlug containing a username
-// slug is redacted (AC11).
+// slug is redacted.
 func TestRedactMetadata_HostSlugRedaction(t *testing.T) {
 	meta := makeTestMetadata()
 	meta.CWD = "/home/testuser/dev/project"
@@ -719,12 +722,12 @@ func TestRedactMetadata_HostSlugRedaction(t *testing.T) {
 	r := mustNewRedactor(t, Minimal, nil)
 	result := r.RedactMetadata(meta)
 
-	// AC11: HostSlug must not leak the username.
+	// HostSlug must not leak the username.
 	if strings.Contains(string(result.HostSlug), "testuser") {
 		t.Errorf("HostSlugRedaction: username leaked in HostSlug: %q", result.HostSlug)
 	}
-	if !strings.Contains(string(result.HostSlug), "<USER>") {
-		t.Errorf("HostSlugRedaction: expected <USER> in HostSlug: %q", result.HostSlug)
+	if !strings.Contains(string(result.HostSlug), "<PATH>") {
+		t.Errorf("HostSlugRedaction: expected <PATH> in HostSlug: %q", result.HostSlug)
 	}
 }
 
@@ -741,13 +744,13 @@ func TestRedactMetadata_CWDFieldRedaction(t *testing.T) {
 	if strings.Contains(result.CWD, "testuser") {
 		t.Errorf("CWDFieldRedaction: username leaked in CWD: %q", result.CWD)
 	}
-	if !strings.Contains(result.CWD, "<USER>") {
-		t.Errorf("CWDFieldRedaction: expected <USER> in CWD: %q", result.CWD)
+	if !strings.Contains(result.CWD, "<PATH>") {
+		t.Errorf("CWDFieldRedaction: expected <PATH> in CWD: %q", result.CWD)
 	}
 }
 
 // TestRedactMetadata_FallbackWithoutCWD verifies that when CWD is empty,
-// the regex fallback (Phase 3) still redacts the username from slug paths (AC3).
+// the regex fallback still redacts the username from slug paths.
 func TestRedactMetadata_FallbackWithoutCWD(t *testing.T) {
 	meta := makeTestMetadata()
 	meta.CWD = "" // no CWD available
@@ -757,12 +760,12 @@ func TestRedactMetadata_FallbackWithoutCWD(t *testing.T) {
 	r := mustNewRedactor(t, Minimal, nil)
 	result := r.RedactMetadata(meta)
 
-	// AC3: Even without CWD, the username-only fallback replacer + regex rules should redact.
+	// Even without CWD, the owner-only replacer and the regex rules still redact.
 	if strings.Contains(result.Source.FilePath, "testuser") {
 		t.Errorf("FallbackWithoutCWD: username leaked in Source.FilePath: %q", result.Source.FilePath)
 	}
-	if !strings.Contains(result.Source.FilePath, "<USER>") {
-		t.Errorf("FallbackWithoutCWD: expected <USER> in Source.FilePath: %q", result.Source.FilePath)
+	if !strings.Contains(result.Source.FilePath, "<PATH>") {
+		t.Errorf("FallbackWithoutCWD: expected <PATH> in Source.FilePath: %q", result.Source.FilePath)
 	}
 	// HostSlug should also be redacted via the fallback path.
 	if strings.Contains(string(result.HostSlug), "testuser") {

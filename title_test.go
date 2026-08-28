@@ -37,6 +37,7 @@ type titleFixture struct {
 	NoEchoContains   []string              `yaml:"noEchoContains"`
 	ExpectEmpty      bool                  `yaml:"expectEmpty"`
 	Idempotent       bool                  `yaml:"idempotent"`
+	Why              string                `yaml:"why"`
 	RuntimeIsolation bool                  `yaml:"runtimeIsolation"`
 	Concurrent       bool                  `yaml:"concurrent"`
 	ConcurrentGroup  string                `yaml:"concurrentGroup"`
@@ -65,31 +66,32 @@ type titleFixtures struct {
 // requireFixtureNames asserts that a fixture family's reviewed name manifest
 // and its rows agree exactly: every listed name has a row and every row is
 // listed. Deleting a row or adding an unreviewed one fails here without a bare
-// row count to bump.
-func requireFixtureNames(family string, manifest []string, rows []string) error {
+// row count to bump. The file name is a parameter because every fixture file in
+// this package uses the same manifest contract.
+func requireFixtureNames(file, family string, manifest []string, rows []string) error {
 	required := make(map[string]struct{}, len(manifest))
 	for i, name := range manifest {
 		if name == "" {
-			return fmt.Errorf("redact: testdata/title.yaml %s manifest entry %d is empty; name every reviewed row", family, i)
+			return fmt.Errorf("redact: %s %s manifest entry %d is empty; name every reviewed row", file, family, i)
 		}
 		if _, duplicate := required[name]; duplicate {
-			return fmt.Errorf("redact: testdata/title.yaml %s manifest lists %q twice; list every reviewed row exactly once", family, name)
+			return fmt.Errorf("redact: %s %s manifest lists %q twice; list every reviewed row exactly once", file, family, name)
 		}
 		required[name] = struct{}{}
 	}
 	if len(required) == 0 {
-		return fmt.Errorf("redact: testdata/title.yaml has no %s manifest; restore the reviewed row manifest", family)
+		return fmt.Errorf("redact: %s has no %s manifest; restore the reviewed row manifest", file, family)
 	}
 	present := make(map[string]struct{}, len(rows))
 	for _, name := range rows {
 		present[name] = struct{}{}
 		if _, reviewed := required[name]; !reviewed {
-			return fmt.Errorf("redact: title fixture %q is not listed in the %s manifest; add every new row to the reviewed manifest", name, family)
+			return fmt.Errorf("redact: %s fixture %q is not listed in the %s manifest; add every new row to the reviewed manifest", file, name, family)
 		}
 	}
 	for name := range required {
 		if _, ok := present[name]; !ok {
-			return fmt.Errorf("redact: reviewed title fixture %q is missing from testdata/title.yaml; restore the row or remove it from the %s manifest in the same reviewed change", name, family)
+			return fmt.Errorf("redact: reviewed fixture %q is missing from %s; restore the row or remove it from the %s manifest in the same reviewed change", name, file, family)
 		}
 	}
 	return nil
@@ -218,16 +220,16 @@ func loadTitleFixtures() (titleFixtures, error) {
 			seenForbidden[forbidden] = struct{}{}
 		}
 	}
-	if err := requireFixtureNames("requiredCaseNames", fixtures.RequiredCaseNames, fixtureNames(fixtures.Cases, func(f titleFixture) string { return f.Name })); err != nil {
+	if err := requireFixtureNames("testdata/title.yaml", "requiredCaseNames", fixtures.RequiredCaseNames, fixtureNames(fixtures.Cases, func(f titleFixture) string { return f.Name })); err != nil {
 		return titleFixtures{}, err
 	}
 	if arms[titleGenerate] == 0 || arms[titleSanitize] == 0 {
 		return titleFixtures{}, fmt.Errorf("redact: title fixture operation arms are generate=%d sanitize=%d; both production paths need at least one behavior row", arms[titleGenerate], arms[titleSanitize])
 	}
-	if err := requireFixtureNames("requiredSimpleTitleNames", fixtures.RequiredSimpleTitleNames, fixtureNames(fixtures.SimpleTitleCases, func(f simpleTitleFixture) string { return f.Name })); err != nil {
+	if err := requireFixtureNames("testdata/title.yaml", "requiredSimpleTitleNames", fixtures.RequiredSimpleTitleNames, fixtureNames(fixtures.SimpleTitleCases, func(f simpleTitleFixture) string { return f.Name })); err != nil {
 		return titleFixtures{}, err
 	}
-	if err := requireFixtureNames("requiredGenerateFromTurnsNames", fixtures.RequiredGenerateFromTurnsNames, fixtureNames(fixtures.GenerateFromTurnsCases, func(f generateFromTurnsFixture) string { return f.Name })); err != nil {
+	if err := requireFixtureNames("testdata/title.yaml", "requiredGenerateFromTurnsNames", fixtures.RequiredGenerateFromTurnsNames, fixtureNames(fixtures.GenerateFromTurnsCases, func(f generateFromTurnsFixture) string { return f.Name })); err != nil {
 		return titleFixtures{}, err
 	}
 	if err := validateGenerateFromTurnsFixtures(fixtures.GenerateFromTurnsCases); err != nil {
@@ -236,13 +238,13 @@ func loadTitleFixtures() (titleFixtures, error) {
 	if err := validateWrapperTableFixtures(fixtures.WrapperTables); err != nil {
 		return titleFixtures{}, err
 	}
-	if err := requireFixtureNames("requiredPolicyCompilationNames", fixtures.RequiredPolicyCompilationNames, fixtureNames(fixtures.PolicyCompilationCases, func(f policyCompilationFixture) string { return f.Name })); err != nil {
+	if err := requireFixtureNames("testdata/title.yaml", "requiredPolicyCompilationNames", fixtures.RequiredPolicyCompilationNames, fixtureNames(fixtures.PolicyCompilationCases, func(f policyCompilationFixture) string { return f.Name })); err != nil {
 		return titleFixtures{}, err
 	}
 	if err := validatePolicyCompilationFixtures(fixtures.PolicyCompilationCases); err != nil {
 		return titleFixtures{}, err
 	}
-	if err := requireFixtureNames("requiredDecoderMutationNames", fixtures.RequiredDecoderMutationNames, fixtureNames(fixtures.DecoderMutations, func(m titleDecoderMutation) string { return m.Name })); err != nil {
+	if err := requireFixtureNames("testdata/title.yaml", "requiredDecoderMutationNames", fixtures.RequiredDecoderMutationNames, fixtureNames(fixtures.DecoderMutations, func(m titleDecoderMutation) string { return m.Name })); err != nil {
 		return titleFixtures{}, err
 	}
 	for _, mutation := range fixtures.DecoderMutations {
