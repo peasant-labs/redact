@@ -133,7 +133,7 @@ func TestHomePathSingleSegmentFilters(t *testing.T) {
 }
 
 func TestRuleSetVersion(t *testing.T) {
-	if RuleSetVersion != "3.0.0" || Version() != "3.0.0" {
-		t.Errorf("rule set versions = (%q, %q), want (3.0.0, 3.0.0)", RuleSetVersion, Version())
+	if RuleSetVersion != "3.1.0" || Version() != "3.1.0" {
+		t.Errorf("rule set versions = (%q, %q), want (3.1.0, 3.1.0)", RuleSetVersion, Version())
 	}
 }

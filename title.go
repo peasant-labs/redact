@@ -468,7 +468,7 @@ func normalizedProjectRoot(projectPath string) (string, bool) {
 			return "", false
 		}
 		project := filepath.Base(projectPath)
-		return prefix + "<USER>/<PATH>/" + project, true
+		return "/" + privatePathPlaceholder + "/" + project, true
 	}
 	slash := strings.ReplaceAll(projectPath, `\`, "/")
 	if len(slash) >= 10 && slash[1] == ':' && strings.EqualFold(slash[2:9], "/Users/") {
@@ -478,7 +478,34 @@ func normalizedProjectRoot(projectPath string) (string, bool) {
 			return "", false
 		}
 		parts := strings.Split(rest, "/")
-		return slash[:3] + "Users/<USER>/<PATH>/" + parts[len(parts)-1], true
+		return slash[:3] + privatePathPlaceholder + "/" + parts[len(parts)-1], true
+	}
+	return "", false
+}
+
+// legacyTitleRoots are the two-placeholder path roots written by an earlier rule
+// set. A stored title that carries one of them converges on the canonical root
+// so one collection never mixes two shapes of the same path.
+var legacyTitleRoots = [...]string{"home", "Users"}
+
+// convergeLegacyTitlePath rewrites a path that starts with a two-placeholder
+// root ({root}home/<USER>/<PATH>) to the canonical single-placeholder root. The
+// check is anchored at the start of the path: a plain substring test also
+// accepts the legacy form and would leave it unchanged.
+func convergeLegacyTitlePath(path, root string) (string, bool) {
+	canonical := root + privatePathPlaceholder
+	for _, base := range legacyTitleRoots {
+		legacy := root + base + "/" + legacyUserPlaceholder + "/" + privatePathPlaceholder
+		if len(path) < len(legacy) || !strings.EqualFold(path[:len(legacy)], legacy) {
+			continue
+		}
+		remainder := path[len(legacy):]
+		if remainder == "" {
+			return canonical, true
+		}
+		if strings.HasPrefix(remainder, "/") {
+			return canonical + remainder, true
+		}
 	}
 	return "", false
 }
@@ -529,18 +556,29 @@ func isTitlePathTerminator(r rune) bool {
 
 func normalizeOneTitlePath(candidate, projectPath string, windows bool) string {
 	separator, volume, path, project := "/", "", candidate, projectPath
+	root := "/"
 	if windows {
 		separator, volume = `\`, candidate[:3]
 		path, project = strings.ReplaceAll(candidate, `\`, "/"), strings.ReplaceAll(projectPath, `\`, "/")
+		root = strings.ReplaceAll(volume, `\`, "/")
 	}
-	if strings.Contains(path, "/<USER>/<PATH>") {
+	canonical := root + privatePathPlaceholder
+	// Anchored, not a substring test: the legacy two-placeholder form also
+	// contains the canonical placeholder, and it must still be rewritten.
+	if path == canonical || strings.HasPrefix(path, canonical+"/") {
 		return candidate
+	}
+	if converged, ok := convergeLegacyTitlePath(path, root); ok {
+		if windows {
+			return strings.ReplaceAll(converged, "/", separator)
+		}
+		return converged
 	}
 	parts := strings.Split(path, "/")
 	if len(parts) < 4 {
 		return candidate
 	}
-	base := strings.Join(parts[:2], "/") + "/<USER>/<PATH>"
+	base := canonical
 	project = strings.TrimSuffix(filepath.ToSlash(project), "/")
 	if project != "" && (path == project || strings.HasPrefix(path, project+"/")) {
 		projectParts := strings.Split(project, "/")
@@ -550,8 +588,7 @@ func normalizeOneTitlePath(candidate, projectPath string, windows bool) string {
 		}
 	}
 	if windows {
-		volumeSlash := strings.ReplaceAll(volume, `\`, "/")
-		base = volume + strings.TrimPrefix(base, volumeSlash)
+		base = volume + strings.TrimPrefix(base, root)
 		return strings.ReplaceAll(base, "/", separator)
 	}
 	return base

@@ -524,24 +524,30 @@ var Rules = []Rule{
 		// Claude project slug: -home-{user}- or -Users-{user}-
 		// Captures the username segment between the OS prefix and the next dash separator.
 		// Uses non-greedy *? with trailing (-) anchor to match the shortest valid username.
-		// The leading (\W) anchor prevents false positives on natural English words like
-		// "go-home-early-feature" or "some-home-page-widget" where a word character precedes
-		// the -home- segment. Slugs at string start (no \W prefix) are handled by the
-		// context-aware buildPrivateReplacer in RedactMetadata; this regex is a fallback.
+		// The leading anchor accepts the start of the text or a non-word character. It
+		// must not accept a word character, because that is the shape of an ordinary
+		// name carrying a "home" segment ("go-home-early-feature",
+		// "some-home-page-widget"), which is not a location. The single dash cannot
+		// tell those two apart, so this rule stays conservative and the context-aware
+		// stage in RedactMetadata covers a project slug the field itself identifies.
 		ID:          "claude_project_slug",
 		Category:    CategoryPaths,
-		Pattern:     regexp.MustCompile(`(\W)(-(?:home|Users)-)([a-zA-Z0-9_][a-zA-Z0-9_.-]*?)(-)`),
+		Pattern:     regexp.MustCompile(`(^|\W)(-(?:home|Users)-)([a-zA-Z0-9_][a-zA-Z0-9_.-]*?)(-)`),
 		Replacement: "${1}${2}<USER>${4}",
 	},
 	{
 		// Peasant host slug: --home--{user}-- or --Users--{user}--
 		// Double-dash variant used in DeriveHostSlug for untracked projects.
-		// Same non-greedy matching strategy and \W anchor as claude_project_slug.
-		// Slugs at string start are handled by buildPrivateReplacer; this is a fallback.
+		// Same non-greedy matching strategy as claude_project_slug, with no
+		// condition on what precedes the marker. A real host slug begins with the
+		// machine name and no separator before the marker ("laptop--home--alice--"),
+		// so a leading non-word character was never present and this rule could not
+		// fire on the very values it exists for. The double dash is not a shape an
+		// ordinary name takes, so accepting any position adds no false positive.
 		ID:          "peasant_host_slug",
 		Category:    CategoryPaths,
-		Pattern:     regexp.MustCompile(`(\W)(--(?:home|Users)--)([a-zA-Z0-9_][a-zA-Z0-9_.-]*?)(--)`),
-		Replacement: "${1}${2}<USER>${4}",
+		Pattern:     regexp.MustCompile(`(--(?:home|Users)--)([a-zA-Z0-9_][a-zA-Z0-9_.-]*?)(--)`),
+		Replacement: "${1}<USER>${3}",
 	},
 }
 

@@ -1,3 +1,82 @@
+# Every family below is guarded by a reviewed name manifest: the loader asserts
+# exact membership in both directions, so a deleted row and an unreviewed new row
+# both fail without a row count to bump.
+required_secrets_ids:
+  - anthropic_key
+  - openai_key
+  - github_pat
+  - aws_access_key
+  - aws_secret_key
+  - stripe_key
+  - twilio_key
+  - twilio_auth_token
+  - sendgrid_key
+  - slack_token
+  - jwt_token
+  - private_key_block
+  - generic_api_key
+  - bearer_token
+  - basic_auth
+  - access_code
+required_pii_ids:
+  - email_standard
+  - email_minimal_unchanged
+  - phone_us_standard
+  - ssn_standard
+  - credit_card_standard
+  - ip_address_standard
+required_paths_ids:
+  - unix_home_standard
+  - windows_home_standard
+  - unix_home_space_in_segment
+  - windows_home_space_in_segment
+  - unix_home_dual_path_on_line
+  - claude_project_slug_minimal
+  - claude_project_slug_users_variant
+  - peasant_host_slug_minimal
+  - peasant_host_slug_users_variant
+  - false_positive_go_home_early
+  - false_positive_home_assistant
+  - false_positive_home_automation
+  - false_positive_go_home_early_feature
+  - false_positive_some_home_page_widget
+  - machine_prefixed_slug_fallback_redacts_account
+  - slug_after_space
+  - slug_after_slash
+  - unix_path_at_minimal
+required_code_blocks_ids:
+  - standard_fences
+  - indented_fences
+  - no_fences
+  - fences_with_lang
+required_parity_ids:
+  - file_path_false_positive
+  - bare_base64_no_context
+  - real_aws_key_with_context
+  - back_reference_unix_home_path
+  - back_reference_claude_project_slug
+required_metadata_paths_ids:
+  - nested_project_becomes_path_project
+  - home_direct_project_becomes_path_project
+  - claude_slug_becomes_path_slug
+  - peasant_host_slug_becomes_path_slug
+  - legacy_user_slug_converges
+  - canonical_slug_idempotent
+  - monorepo_subpackage_keeps_project_root
+  - project_outside_working_directory_tree
+  - working_directory_below_project_root
+  - mismatched_home_conventions_between_fields
+  - project_redacted_without_home_rooted_source
+  - host_slug_diverging_folder_chain_collapses
+  - project_name_slug_diverging_collapses
+  - project_name_with_home_word_is_untouched
+  - windows_metadata_path_becomes_path_project
+  - host_slug_unknown_account_collapses
+  - host_slug_without_any_home_rooted_path_collapses
+  - project_name_slug_unknown_account_collapses
+required_code_pipeline_ids:
+  - standard_preserves_code_and_redacts_secret
+  - maximum_anonymizes_identifier
 secrets:
   - {id: anthropic_key, level: minimal, input: "sk-ant-api03-abc123def456abc123def456abc123def456abc123", contains: "<ANTHROPIC_KEY>"}
   - {id: openai_key, level: minimal, input: "sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789", contains: "<OPENAI_KEY>"}
@@ -37,6 +116,7 @@ paths:
   - {id: false_positive_home_automation, level: standard, input: "home-automation-system", contains: "home-automation-system"}
   - {id: false_positive_go_home_early_feature, level: standard, input: "the-go-home-early-feature", contains: "the-go-home-early-feature"}
   - {id: false_positive_some_home_page_widget, level: standard, input: "some-home-page-widget", contains: "some-home-page-widget"}
+  - {id: machine_prefixed_slug_fallback_redacts_account, level: standard, input: "laptop--home--bob--work--clients--acme--project", contains: "--<USER>--"}
   - {id: slug_after_space, level: standard, input: " -home-alice-dev-project", contains: "-home-<USER>-"}
   - {id: slug_after_slash, level: standard, input: "/-home-alice-dev-project", contains: "-home-<USER>-"}
   - {id: unix_path_at_minimal, level: minimal, input: "/home/alice/dev/project", contains: "/home/<USER>/dev/project"}
@@ -72,3 +152,167 @@ code_pipeline:
       ```
     contains: ["```go"]
     absent: ["anonymizeIdentifier", "<CODE_BLOCK>"]
+
+# metadata_paths drives RedactMetadata, the context-aware stage that knows every
+# path the session recorded. Everything above the last folder of a recorded path,
+# the account name included, collapses into one placeholder in all three
+# separator forms. The prefixes come from every recorded path, so a value whose
+# shape differs from the working directory is covered too.
+metadata_paths:
+  - id: nested_project_becomes_path_project
+    why: a project below an intermediate folder keeps only its own folder name, so a published path names the project and nothing about the machine it sat on
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_file_path: /home/alice/dev/app
+    host_slug: laptop--home--alice--dev--app
+    want_source_file_path: /<PATH>/uuid.jsonl
+    want_cwd: /<PATH>/app
+    want_project_file_path: /<PATH>/app
+    want_host_slug: laptop--<PATH>--app
+  - id: home_direct_project_becomes_path_project
+    why: a project directly under the home folder gets the same canonical form as a nested one, so the published shape does not reveal how deep the project sat
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-app/uuid.jsonl
+    cwd: /home/alice/app
+    project_file_path: /home/alice/app
+    host_slug: laptop--home--alice--app
+    want_source_file_path: /<PATH>/uuid.jsonl
+    want_cwd: /<PATH>/app
+    want_project_file_path: /<PATH>/app
+    want_host_slug: laptop--<PATH>--app
+  - id: claude_slug_becomes_path_slug
+    why: the single-dash project slug is a path written with dashes; it collapses with the same rule as the path so the two forms of one location agree
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_name: -home-alice-dev-app
+    want_project_name: -<PATH>-app
+    want_source_file_path: /<PATH>/uuid.jsonl
+  - id: peasant_host_slug_becomes_path_slug
+    why: the double-dash host slug is the same location again; it collapses to the same placeholder, so no separator form leaks the account name
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    host_slug: laptop--home--alice--dev--app
+    want_host_slug: laptop--<PATH>--app
+  - id: legacy_user_slug_converges
+    why: values stored by an earlier rule set carry two placeholders in every separator form; they converge on the canonical one so a collection never mixes two shapes of the same location
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_file_path: /home/<USER>/<PATH>/app
+    project_name: -home-<USER>-<PATH>-app
+    host_slug: laptop--home--<USER>--<PATH>--app
+    want_project_file_path: /<PATH>/app
+    want_project_name: -<PATH>-app
+    want_host_slug: laptop--<PATH>--app
+  - id: canonical_slug_idempotent
+    why: an already canonical value passes through the active replacer unchanged, so redacting a stored session again is safe
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-<PATH>-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_file_path: /<PATH>/app
+    project_name: -<PATH>-app
+    host_slug: laptop--<PATH>--app
+    want_source_file_path: /<PATH>/uuid.jsonl
+    want_project_file_path: /<PATH>/app
+    want_project_name: -<PATH>-app
+    want_host_slug: laptop--<PATH>--app
+    idempotent: true
+  - id: monorepo_subpackage_keeps_project_root
+    why: a harness started in a subpackage records a working directory deeper than the project root; the project root must still lose every folder above it instead of keeping the ones the working directory does not name
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-monorepo-packages-app/uuid.jsonl
+    cwd: /home/alice/dev/monorepo/packages/app
+    project_file_path: /home/alice/dev/monorepo
+    host_slug: laptop--home--alice--dev--monorepo
+    want_cwd: /<PATH>/app
+    want_project_file_path: /<PATH>/monorepo
+    want_host_slug: laptop--<PATH>--monorepo
+  - id: project_outside_working_directory_tree
+    why: a project root in a different tree than the working directory shares no folder with it; every folder of that tree, a client or company name included, must still be replaced
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-myproject/uuid.jsonl
+    cwd: /home/alice/dev/myproject
+    project_file_path: /home/alice/work/clients/acme/bigproject
+    want_cwd: /<PATH>/myproject
+    want_project_file_path: /<PATH>/bigproject
+  - id: working_directory_below_project_root
+    why: a working directory inside the project keeps only its own folder name and the project root keeps only its own, so neither value names the folders that lead to them
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app/services/api
+    project_file_path: /home/alice/dev/app
+    want_cwd: /<PATH>/api
+    want_project_file_path: /<PATH>/app
+  - id: mismatched_home_conventions_between_fields
+    why: two values of one session can be written with different home folder conventions; each value is covered by a prefix taken from itself, so neither falls back to a weaker rule
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_file_path: /Users/alice/dev/app
+    want_cwd: /<PATH>/app
+    want_project_file_path: /<PATH>/app
+  - id: project_redacted_without_home_rooted_source
+    why: a transcript read from outside any home folder must not switch the context-aware stage off; the project root is still redacted from its own prefix
+    level: standard
+    source_file_path: /var/lib/peasant/session.jsonl
+    cwd: /home/alice/dev/app
+    project_file_path: /home/alice/dev/app
+    want_cwd: /<PATH>/app
+    want_project_file_path: /<PATH>/app
+  - id: host_slug_diverging_folder_chain_collapses
+    why: a host slug names a location the recorded paths do not name; it must lose its own folder chain, or a client or company folder survives in a published session while every other field is clean
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_file_path: /home/alice/dev/app
+    host_slug: laptop--home--alice--work--clients--acme--secretproject
+    want_project_file_path: /<PATH>/app
+    want_host_slug: laptop--<PATH>--secretproject
+  - id: project_name_slug_diverging_collapses
+    why: the single-dash project slug can name its own folder chain too; the same rule applies to it so no separator form is left as the one that leaks
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_name: -home-alice-work-clients-acme-secretproject
+    want_project_name: -<PATH>-secretproject
+  - id: project_name_with_home_word_is_untouched
+    why: an ordinary name can contain a home segment without being a location; it is read as a slug only when the account name in it is one the session recorded a path for, so a real project name is never rewritten
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_name: the-go-home-early-feature
+    want_project_name: the-go-home-early-feature
+  - id: windows_metadata_path_becomes_path_project
+    why: a session recorded on Windows writes its paths with a volume letter and backslashes; it loses the folders above the project like any other path and keeps its volume letter, the same form a redacted title uses
+    level: standard
+    cwd: 'C:\Users\alice\dev\app'
+    project_file_path: 'C:\Users\alice\dev\app'
+    want_cwd: 'C:\<PATH>\app'
+    want_project_file_path: 'C:\<PATH>\app'
+  - id: host_slug_unknown_account_collapses
+    why: a host slug is a location by construction, so it is read as one even when the account in it is not the account of any recorded path; that mismatch is exactly the case no other prefix can cover
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_file_path: /home/alice/dev/app
+    host_slug: laptop--home--bob--work--clients--acme--secretproject
+    want_project_file_path: /<PATH>/app
+    want_host_slug: laptop--<PATH>--secretproject
+  - id: host_slug_without_any_home_rooted_path_collapses
+    why: a session can record every path outside a home folder, on a network mount or in a container, and still carry a host slug minted against one; the slug must still lose its account name and its folder chain
+    level: standard
+    source_file_path: /var/lib/peasant/session.jsonl
+    cwd: /var/lib/peasant/workdir
+    project_file_path: /mnt/data/clients/acme/secretproject
+    host_slug: laptop--home--alice--work--clients--acme--secretproject
+    want_host_slug: laptop--<PATH>--secretproject
+  - id: project_name_slug_unknown_account_collapses
+    why: a project name that is a slug from its first character is a location whatever account it names, so the single-dash form is covered by the same reading as the host slug
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_name: -home-bob-work-clients-acme-secretproject
+    want_project_name: -<PATH>-secretproject
