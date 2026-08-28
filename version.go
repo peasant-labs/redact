@@ -54,8 +54,9 @@ package redact
 //	         via per-rule minimum levels; Standard no longer redacts git URLs or branch names.
 //	3.1.0 — a redacted path keeps its last folder and replaces everything above it
 //	         with one <PATH> placeholder, in the slash, single-dash and double-dash
-//	         forms; the prefixes come from every path the session records, not from
-//	         the working directory alone; titles use the same form and stored
+//	         forms; the prefixes come from every value the session records, the
+//	         project and host slugs and Windows paths included, not from the
+//	         working directory alone; titles use the same form and stored
 //	         two-placeholder values converge on it.
 const RuleSetVersion = "3.1.0"
 
