@@ -3,9 +3,10 @@
 ## v0.1.4-rc1
 
 ### Changed
-- A redacted path now keeps the project folder and replaces everything above it with one `<PATH>` placeholder: `/home/alice/dev/app` becomes `/<PATH>/app`, and a project directly under the home folder gets the same form. The account name no longer appears in a redacted path.
+- A redacted path now keeps its last folder and replaces everything above it with one `<PATH>` placeholder: the project root `/home/alice/dev/app` becomes `/<PATH>/app`, and a project directly under the home folder gets the same form. Neither the account name nor a folder that leads to the project appears in a redacted path.
 - The single-dash and double-dash slug forms of the same location follow the same rule: `-home-alice-dev-app` becomes `-<PATH>-app` and `--home--alice--dev--app` becomes `--<PATH>--app`.
 - Titles use the same canonical form. A path under the project root becomes `/<PATH>/<project>/<relative>`; a home path outside the project keeps no folder name at all and becomes `/<PATH>`. The Windows form keeps its volume letter: `C:\Users\alice\dev\app` becomes `C:\<PATH>\app`.
+- The replacement prefixes are derived from every path a session records - the working directory, the project root and the transcript file - instead of from the working directory alone. A session whose recorded locations have different shapes (a harness started in a subpackage of a monorepo, a project root outside the working directory, or two values written with different home conventions) no longer keeps the folders that lead to the project. A recorded transcript file now collapses to `/<PATH>/<file>`, and a transcript read from outside any home folder no longer switches the stage off for the other fields.
 - Values written by rule set 3.0.0 carry two placeholders (`/home/<USER>/<PATH>/app`). Redaction converges them on the canonical form, so one collection never mixes two shapes of the same path. The check is anchored at the start of the path, because the older form also contains the canonical placeholder.
 - `RuleSetVersion` is `3.1.0`. The standard `unix_home_path` rule is unchanged: it still redacts other people's home paths that appear in transcript text.
 

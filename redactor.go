@@ -577,24 +577,23 @@ func (r *DefaultRedactor) RedactJSON(value any) any {
 	}
 }
 
-// privateMetadata holds private identifiers extracted from session metadata.
-// Used by the metadata redaction pipeline to build context-aware replacers.
+// privateMetadata holds the path-bearing values of one session's metadata.
+// Each value describes a location on the owner's machine in its own way, so the
+// redaction stage derives its replacements from all of them instead of
+// generalizing from one. Copied verbatim; nothing is parsed here.
 type privateMetadata struct {
-	username string // OS username (e.g., "alice")
-	prefix   string // home directory prefix with trailing slash (e.g., "/home/alice/")
-	cwd      string // working directory from the original metadata
+	cwd         string // working directory from the original metadata
+	projectPath string // project root recorded for the session
+	sourcePath  string // transcript file the session was read from
 }
 
-// extractPrivateMetadata extracts private identifiers from metadata.
-// The username and prefix are parsed from Source.FilePath using /home/{user}/
-// or /Users/{user}/ conventions. CWD is copied verbatim.
+// extractPrivateMetadata copies the path-bearing values out of metadata.
 // Pure function — no receiver needed.
 func extractPrivateMetadata(meta *schema.UnifiedMetadata) privateMetadata {
-	username, prefix := parseUsername(meta.Source.FilePath)
 	return privateMetadata{
-		username: username,
-		prefix:   prefix,
-		cwd:      meta.CWD,
+		cwd:         meta.CWD,
+		projectPath: meta.Project.FilePath,
+		sourcePath:  meta.Source.FilePath,
 	}
 }
 
@@ -626,85 +625,88 @@ const (
 	legacyUserPlaceholder = "<USER>"
 )
 
+// privatePathPrefixes returns the owner-owned prefixes of one recorded path,
+// longest first: the whole chain of folders above the last segment, and the
+// home folder of whoever owns the path. Both end with a separator. A value that
+// is not rooted in a home folder contributes nothing.
+//
+//	"/home/alice/dev/monorepo"  → "/home/alice/dev/", "/home/alice/"
+//	"/home/alice/app"           → "/home/alice/"
+func privatePathPrefixes(value string) []string {
+	_, home := parseUsername(value)
+	if home == "" {
+		return nil
+	}
+	trimmed := strings.TrimSuffix(value, "/")
+	prefixes := make([]string, 0, 2)
+	if cut := strings.LastIndex(trimmed, "/"); cut >= len(home) {
+		prefixes = append(prefixes, trimmed[:cut+1])
+	}
+	if len(prefixes) == 0 || prefixes[0] != home {
+		prefixes = append(prefixes, home)
+	}
+	return prefixes
+}
+
 // buildPrivateReplacer creates a strings.Replacer that replaces the whole
 // owner-owned prefix of a path across all three separator formats: literal path
 // separator (/), Claude single-dash (-), and Peasant double-dash (--).
 //
-// Everything before the project folder collapses into one placeholder, so the
-// owner's account name and the folders above the project never survive:
-//
-//	{sep}home{sep}{username}{sep}{intermediate}{sep} → {sep}<PATH>{sep}
-//	{sep}home{sep}{username}{sep}                    → {sep}<PATH>{sep}
-//
-// Given username="alice", cwd="/home/alice/dev/myproject":
+// Everything above the last folder collapses into one placeholder, so the
+// account name and the folders that lead to the project never survive:
 //
 //	"/home/alice/dev/"        → "/<PATH>/"
 //	"-home-alice-dev-"        → "-<PATH>-"
 //	"--home--alice--dev--"    → "--<PATH>--"
 //
-// When there is no intermediate path (project directly under home):
-//
-//	"/home/alice/"            → "/<PATH>/"
-//	"-home-alice-"            → "-<PATH>-"
-//	"--home--alice--"         → "--<PATH>--"
+// The prefixes come from EVERY path recorded for the session — the working
+// directory, the project root and the transcript file — not from the working
+// directory alone. One session can record locations of different shapes: a
+// harness started in a subpackage of a monorepo, a project root outside the
+// working directory, or two values written with different home conventions. A
+// prefix derived from one value would not match the others, and the shorter
+// home-folder prefix would then leave every folder between the home folder and
+// the project exposed. Longer prefixes are offered first, because
+// strings.Replacer resolves a position by list order and a shorter prefix of
+// the same path would otherwise win.
 //
 // Values stored by an earlier rule set carry the two-placeholder form
 // ({sep}home{sep}<USER>{sep}<PATH>{sep}). They converge on the same canonical
 // output, so a re-redacted stored value and a freshly redacted one agree. The
 // canonical output itself matches no pattern, so replacement is idempotent.
 func buildPrivateReplacer(id privateMetadata) *strings.Replacer {
-	if id.username == "" || id.prefix == "" {
+	var prefixes []string
+	seen := make(map[string]struct{})
+	for _, value := range []string{id.cwd, id.projectPath, id.sourcePath} {
+		for _, prefix := range privatePathPrefixes(value) {
+			if _, duplicate := seen[prefix]; duplicate {
+				continue
+			}
+			seen[prefix] = struct{}{}
+			prefixes = append(prefixes, prefix)
+		}
+	}
+	if len(prefixes) == 0 {
 		return strings.NewReplacer() // no-op
 	}
+	slices.SortStableFunc(prefixes, func(a, b string) int { return len(b) - len(a) })
 
-	// Determine the OS prefix base (either "home" or "Users").
-	osBase := "home"
-	if strings.HasPrefix(id.prefix, "/Users/") {
-		osBase = "Users"
-	}
-
-	var oldNew []string
-
-	// Determine intermediate path from CWD if available.
-	// CWD like "/home/alice/dev/project" → rest = "dev/project" → intermediate = "dev"
-	var intermediate string
-	if id.cwd != "" {
-		_, cwdPrefix := parseUsername(id.cwd)
-		if cwdPrefix != "" {
-			rest := strings.TrimSuffix(id.cwd[len(cwdPrefix):], "/")
-			if rest != "" {
-				parts := strings.Split(rest, "/")
-				if len(parts) > 1 {
-					intermediate = strings.Join(parts[:len(parts)-1], "/")
-				}
-			}
-		}
-	}
-
-	// Generate replacements for all three separator formats. Within one
-	// separator the longer pattern is listed first: strings.Replacer resolves a
-	// position by list order, so the owner-plus-intermediate prefix must be
-	// offered before the shorter owner-only prefix that is contained in it.
 	separators := []string{"/", "-", "--"}
-	for _, sep := range separators {
-		canonical := sep + privatePathPlaceholder + sep
-		if intermediate != "" {
-			// With intermediate: {sep}home{sep}user{sep}intermediate{sep} → {sep}<PATH>{sep}
-			intermediateSep := strings.ReplaceAll(intermediate, "/", sep)
+	var oldNew []string
+	for _, prefix := range prefixes {
+		for _, sep := range separators {
 			oldNew = append(oldNew,
-				sep+osBase+sep+id.username+sep+intermediateSep+sep,
-				canonical,
+				strings.ReplaceAll(prefix, "/", sep),
+				sep+privatePathPlaceholder+sep,
 			)
 		}
-		// Owner-only: {sep}home{sep}user{sep} → {sep}<PATH>{sep}
-		// This handles: no intermediate, partial matches, and direct home paths.
-		oldNew = append(oldNew,
-			sep+osBase+sep+id.username+sep,
-			canonical,
-		)
-		// Values stored by an earlier rule set converge on the same output. The
-		// owner name is already erased in these, so both prefix bases apply
-		// whatever the current owner's operating system is.
+	}
+	// Values stored by an earlier rule set converge on the same output. The
+	// account name is already erased in these, so both prefix bases apply
+	// whatever convention the current owner's machine uses. The longer form is
+	// offered first because the shorter one is a prefix of it.
+	for _, sep := range separators {
+		canonical := sep + privatePathPlaceholder + sep
 		for _, legacyBase := range []string{"home", "Users"} {
 			oldNew = append(oldNew,
 				sep+legacyBase+sep+legacyUserPlaceholder+sep+privatePathPlaceholder+sep,
@@ -743,13 +745,11 @@ func (r *DefaultRedactor) RedactMetadata(meta *schema.UnifiedMetadata) *schema.U
 }
 
 // redactPrivatePaths applies context-aware path and slug redaction to the metadata copy.
-// If no username was extracted, this is a no-op. Otherwise it builds a unified replacer
-// that handles all three separator formats (/, -, --) and applies it to path-bearing fields.
+// It builds one replacer from every path the session recorded, covering all three
+// separator formats (/, -, --), and applies it to the path-bearing fields. When the
+// session recorded no home-rooted path the replacer is a no-op.
 // Free function — no receiver needed.
 func redactPrivatePaths(redacted *schema.UnifiedMetadata, id privateMetadata) {
-	if id.username == "" {
-		return
-	}
 	replacer := buildPrivateReplacer(id)
 	redacted.Source.FilePath = replacer.Replace(redacted.Source.FilePath)
 	redacted.Project.FilePath = replacer.Replace(redacted.Project.FilePath)
