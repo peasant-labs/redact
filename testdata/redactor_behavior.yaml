@@ -40,6 +40,7 @@ required_paths_ids:
   - false_positive_home_automation
   - false_positive_go_home_early_feature
   - false_positive_some_home_page_widget
+  - machine_prefixed_slug_fallback_redacts_account
   - slug_after_space
   - slug_after_slash
   - unix_path_at_minimal
@@ -70,6 +71,9 @@ required_metadata_paths_ids:
   - project_name_slug_diverging_collapses
   - project_name_with_home_word_is_untouched
   - windows_metadata_path_becomes_path_project
+  - host_slug_unknown_account_collapses
+  - host_slug_without_any_home_rooted_path_collapses
+  - project_name_slug_unknown_account_collapses
 required_code_pipeline_ids:
   - standard_preserves_code_and_redacts_secret
   - maximum_anonymizes_identifier
@@ -112,6 +116,7 @@ paths:
   - {id: false_positive_home_automation, level: standard, input: "home-automation-system", contains: "home-automation-system"}
   - {id: false_positive_go_home_early_feature, level: standard, input: "the-go-home-early-feature", contains: "the-go-home-early-feature"}
   - {id: false_positive_some_home_page_widget, level: standard, input: "some-home-page-widget", contains: "some-home-page-widget"}
+  - {id: machine_prefixed_slug_fallback_redacts_account, level: standard, input: "laptop--home--bob--work--clients--acme--project", contains: "--<USER>--"}
   - {id: slug_after_space, level: standard, input: " -home-alice-dev-project", contains: "-home-<USER>-"}
   - {id: slug_after_slash, level: standard, input: "/-home-alice-dev-project", contains: "-home-<USER>-"}
   - {id: unix_path_at_minimal, level: minimal, input: "/home/alice/dev/project", contains: "/home/<USER>/dev/project"}
@@ -287,3 +292,27 @@ metadata_paths:
     project_file_path: 'C:\Users\alice\dev\app'
     want_cwd: 'C:\<PATH>\app'
     want_project_file_path: 'C:\<PATH>\app'
+  - id: host_slug_unknown_account_collapses
+    why: a host slug is a location by construction, so it is read as one even when the account in it is not the account of any recorded path; that mismatch is exactly the case no other prefix can cover
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_file_path: /home/alice/dev/app
+    host_slug: laptop--home--bob--work--clients--acme--secretproject
+    want_project_file_path: /<PATH>/app
+    want_host_slug: laptop--<PATH>--secretproject
+  - id: host_slug_without_any_home_rooted_path_collapses
+    why: a session can record every path outside a home folder, on a network mount or in a container, and still carry a host slug minted against one; the slug must still lose its account name and its folder chain
+    level: standard
+    source_file_path: /var/lib/peasant/session.jsonl
+    cwd: /var/lib/peasant/workdir
+    project_file_path: /mnt/data/clients/acme/secretproject
+    host_slug: laptop--home--alice--work--clients--acme--secretproject
+    want_host_slug: laptop--<PATH>--secretproject
+  - id: project_name_slug_unknown_account_collapses
+    why: a project name that is a slug from its first character is a location whatever account it names, so the single-dash form is covered by the same reading as the host slug
+    level: standard
+    source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
+    cwd: /home/alice/dev/app
+    project_name: -home-bob-work-clients-acme-secretproject
+    want_project_name: -<PATH>-secretproject

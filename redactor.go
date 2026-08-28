@@ -719,14 +719,30 @@ func windowsPathReplacements(value string) []privateReplacement {
 	return out
 }
 
+// slugFieldShape says how much of a value has to look like a location written
+// with dashes before it is read as one. The field decides, not the account name
+// inside it: an account the session never recorded a path for is exactly the
+// case where nothing else would redact the slug.
+type slugFieldShape string
+
+const (
+	// slugAnywhere fits a field that is a location by construction. A host slug
+	// is a machine name followed by a location written with dashes, so a marker
+	// anywhere in it names folders.
+	slugAnywhere slugFieldShape = "anywhere"
+	// slugWholeValue fits a free-form name that is a location only when the
+	// whole value is one, meaning it starts with the marker. An ordinary name
+	// can carry a "home" segment part way through ("some-home-page-widget",
+	// "the-go-home-early-feature") and must be left alone.
+	slugWholeValue slugFieldShape = "whole-value"
+)
+
 // slugReplacements returns the replacements for a value that carries a location
-// written with dashes: a project slug, or a machine name followed by one. The
-// account name in the slug must be one the session recorded a path for.
-// Otherwise an ordinary name that happens to contain a "home" segment (for
-// example "some-home-page-widget") would be rewritten as if it were a location.
+// written with dashes: a project slug, or a machine name followed by one.
 //
 //	"laptop--home--alice--work--acme--app" → "laptop--<PATH>--app"
-func slugReplacements(value string, accounts map[string]struct{}) []privateReplacement {
+//	"-home-alice-work-acme-app"            → "-<PATH>-app"
+func slugReplacements(value string, shape slugFieldShape) []privateReplacement {
 	for _, separator := range []string{"--", "-"} {
 		for _, base := range []string{"home", "Users"} {
 			marker := separator + base + separator
@@ -734,12 +750,12 @@ func slugReplacements(value string, accounts map[string]struct{}) []privateRepla
 			if start < 0 {
 				continue
 			}
+			if shape == slugWholeValue && start != 0 {
+				continue
+			}
 			rest := value[start+len(marker):]
 			cut := strings.Index(rest, separator)
 			if cut < 1 {
-				continue
-			}
-			if _, recorded := accounts[rest[:cut]]; !recorded {
 				continue
 			}
 			homeEnd := start + len(marker) + cut + len(separator)
@@ -756,22 +772,6 @@ func slugReplacements(value string, accounts map[string]struct{}) []privateRepla
 	return nil
 }
 
-// recordedAccounts returns the account names of the paths a session recorded.
-// They are the names a slug is allowed to be read against.
-func recordedAccounts(paths []string) map[string]struct{} {
-	accounts := make(map[string]struct{}, len(paths))
-	for _, value := range paths {
-		if account, _ := parseUsername(value); account != "" {
-			accounts[account] = struct{}{}
-		}
-		if home, separator := windowsHomeFolder(value); home != "" {
-			trimmed := strings.TrimSuffix(home, separator)
-			accounts[trimmed[strings.LastIndex(trimmed, separator)+len(separator):]] = struct{}{}
-		}
-	}
-	return accounts
-}
-
 // buildPrivateReplacer creates a strings.Replacer that replaces the whole
 // owner-owned prefix of a location across all three separator formats: literal
 // path separator (/), Claude single-dash (-), and Peasant double-dash (--).
@@ -785,7 +785,10 @@ func recordedAccounts(paths []string) map[string]struct{} {
 //
 // The prefixes come from EVERY value the session records — the working
 // directory, the project root, the transcript file, the project slug and the
-// host slug — not from one of them. One session can record locations of
+// host slug — not from one of them. A slug is read by the shape of the field
+// that holds it, never by whether its account name appears in one of the paths:
+// a slug whose account matches nothing recorded is precisely the case no other
+// prefix can cover. One session can record locations of
 // different shapes: a harness started in a subpackage of a monorepo, a project
 // root outside the working directory, a host slug naming a folder chain none of
 // the paths name, or two values written with different home conventions. A
@@ -800,17 +803,13 @@ func recordedAccounts(paths []string) map[string]struct{} {
 // output, so a re-redacted stored value and a freshly redacted one agree. The
 // canonical output itself matches no pattern, so replacement is idempotent.
 func buildPrivateReplacer(id privateMetadata) *strings.Replacer {
-	paths := []string{id.cwd, id.projectPath, id.sourcePath}
-	accounts := recordedAccounts(paths)
-
 	var pairs []privateReplacement
-	for _, value := range paths {
+	for _, value := range []string{id.cwd, id.projectPath, id.sourcePath} {
 		pairs = append(pairs, unixPathReplacements(value)...)
 		pairs = append(pairs, windowsPathReplacements(value)...)
 	}
-	for _, value := range []string{id.hostSlug, id.projectName} {
-		pairs = append(pairs, slugReplacements(value, accounts)...)
-	}
+	pairs = append(pairs, slugReplacements(id.hostSlug, slugAnywhere)...)
+	pairs = append(pairs, slugReplacements(id.projectName, slugWholeValue)...)
 	if len(pairs) == 0 {
 		return strings.NewReplacer() // no-op
 	}
