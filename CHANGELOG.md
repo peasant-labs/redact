@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.4
+
+Promotes v0.1.4-rc1 (no code change since the candidate).
+
 ## v0.1.4-rc1
 
 ### Changed
