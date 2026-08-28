@@ -26,23 +26,24 @@ const (
 )
 
 type titleFixture struct {
-	Name             string                `yaml:"name"`
-	Operation        titleFixtureOperation `yaml:"operation"`
-	Harness          schema.Harness        `yaml:"harness"`
-	ProjectPath      string                `yaml:"projectPath"`
-	Input            string                `yaml:"input"`
-	Output           string                `yaml:"output"`
-	Categories       []CategoryString      `yaml:"categories"`
-	ErrorContains    string                `yaml:"errorContains"`
-	NoEchoContains   []string              `yaml:"noEchoContains"`
-	ExpectEmpty      bool                  `yaml:"expectEmpty"`
-	Idempotent       bool                  `yaml:"idempotent"`
-	Why              string                `yaml:"why"`
-	RuntimeIsolation bool                  `yaml:"runtimeIsolation"`
-	Concurrent       bool                  `yaml:"concurrent"`
-	ConcurrentGroup  string                `yaml:"concurrentGroup"`
-	EngineParity     bool                  `yaml:"engineParity"`
-	NilReceiver      bool                  `yaml:"nilReceiver"`
+	Name           string                `yaml:"name"`
+	Operation      titleFixtureOperation `yaml:"operation"`
+	Harness        schema.Harness        `yaml:"harness"`
+	ProjectPath    string                `yaml:"projectPath"`
+	Input          string                `yaml:"input"`
+	Output         string                `yaml:"output"`
+	Categories     []CategoryString      `yaml:"categories"`
+	ErrorContains  string                `yaml:"errorContains"`
+	NoEchoContains []string              `yaml:"noEchoContains"`
+	ExpectEmpty    bool                  `yaml:"expectEmpty"`
+	Idempotent     bool                  `yaml:"idempotent"`
+	// Why is required on every row: one sentence saying what the row protects.
+	Why              string `yaml:"why"`
+	RuntimeIsolation bool   `yaml:"runtimeIsolation"`
+	Concurrent       bool   `yaml:"concurrent"`
+	ConcurrentGroup  string `yaml:"concurrentGroup"`
+	EngineParity     bool   `yaml:"engineParity"`
+	NilReceiver      bool   `yaml:"nilReceiver"`
 }
 type titleFixtures struct {
 	// RequiredCaseNames is the reviewed manifest of behavior-row names. The
@@ -197,6 +198,9 @@ func loadTitleFixtures() (titleFixtures, error) {
 			if !slices.Contains(canonical, category) {
 				return titleFixtures{}, fmt.Errorf("redact: title fixture %q uses unknown category %q; use a canonical CategoryString", fixture.Name, category)
 			}
+		}
+		if fixture.Why == "" {
+			return titleFixtures{}, fmt.Errorf("redact: title fixture %q has no why; state in one sentence what the row protects so a later reader can judge a change to it", fixture.Name)
 		}
 		if fixture.ExpectEmpty && (fixture.Output != "" || fixture.ErrorContains != "") {
 			return titleFixtures{}, fmt.Errorf("redact: title fixture %q declares expectEmpty together with an output or an expected error; declare exactly one observable outcome", fixture.Name)

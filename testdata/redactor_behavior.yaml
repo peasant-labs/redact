@@ -74,6 +74,10 @@ required_metadata_paths_ids:
   - host_slug_unknown_account_collapses
   - host_slug_without_any_home_rooted_path_collapses
   - project_name_slug_unknown_account_collapses
+  - host_slug_account_only_collapses
+  - project_name_slug_account_only_collapses
+  - metadata_path_account_only_collapses
+  - windows_metadata_path_account_only_collapses
 required_code_pipeline_ids:
   - standard_preserves_code_and_redacts_secret
   - maximum_anonymizes_identifier
@@ -279,7 +283,7 @@ metadata_paths:
     project_name: -home-alice-work-clients-acme-secretproject
     want_project_name: -<PATH>-secretproject
   - id: project_name_with_home_word_is_untouched
-    why: an ordinary name can contain a home segment without being a location; it is read as a slug only when the account name in it is one the session recorded a path for, so a real project name is never rewritten
+    why: an ordinary name can contain a home segment without being a location; a project name is read as one only when the VALUE STARTS with the marker, so a name that carries the segment part way through is never rewritten, whatever account it names
     level: standard
     source_file_path: /home/alice/.claude/projects/-home-alice-dev-app/uuid.jsonl
     cwd: /home/alice/dev/app
@@ -316,3 +320,27 @@ metadata_paths:
     cwd: /home/alice/dev/app
     project_name: -home-bob-work-clients-acme-secretproject
     want_project_name: -<PATH>-secretproject
+  - id: host_slug_account_only_collapses
+    why: a session run straight from the home folder has no project folder to keep, so its host slug is the marker and the account name alone; the account name is still the owner and the slug must collapse to the placeholder rather than return it
+    level: standard
+    host_slug: laptop--home--alice
+    want_host_slug: laptop--<PATH>
+  - id: project_name_slug_account_only_collapses
+    why: the single-dash project slug of the same session carries the same bare account name and collapses the same way, so no separator form returns it
+    level: standard
+    project_name: -home-alice
+    want_project_name: -<PATH>
+  - id: metadata_path_account_only_collapses
+    why: the path form of that session is the home folder itself; it collapses to the placeholder like a home path outside the project does, instead of keeping the account name as if it were a project folder
+    level: standard
+    cwd: /home/alice
+    project_file_path: /home/alice
+    want_cwd: /<PATH>
+    want_project_file_path: /<PATH>
+  - id: windows_metadata_path_account_only_collapses
+    why: a session recorded on Windows and run from the home folder collapses the same way and keeps its volume letter, so the Windows form is not the one that returns the account name
+    level: standard
+    cwd: 'C:\Users\alice'
+    project_file_path: 'C:\Users\alice'
+    want_cwd: 'C:\<PATH>'
+    want_project_file_path: 'C:\<PATH>'

@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.1.5-rc1
+
+### Fixed
+- A session run straight from the home folder records a location that is only the account name: the host slug `laptop--home--alice`, the project slug `-home-alice`, and the path `/home/alice`. All three came back unredacted, so the account name reached published output. Each now collapses to the placeholder with no account name (`laptop--<PATH>`, `-<PATH>`, `/<PATH>`), the form a home path outside the project already had. The Windows form does the same and keeps its volume letter: `C:\Users\alice` becomes `C:\<PATH>`. A location that does have folders below the home folder is unaffected, because its longer prefix still matches first.
+- `RuleSetVersion` is `3.1.1`.
+
+### Changed
+- `parseUsername` is replaced by `homeFolderPrefix`, which returns only the home folder that roots a path and recognizes a path that IS the home folder. The account name it used to return had no reader left. Internal helper; the public API is unchanged.
+- Every row in `testdata/title.yaml` now carries a one-sentence `why`, and the loader refuses a row without one, matching the behavior fixtures.
+
 ## v0.1.4
 
 Promotes v0.1.4-rc1 (no code change since the candidate).

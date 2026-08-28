@@ -601,21 +601,27 @@ func extractPrivateMetadata(meta *schema.UnifiedMetadata) privateMetadata {
 	}
 }
 
-// parseUsername extracts the OS username from a literal path prefix.
-// Returns ("alice", "/home/alice/") for "/home/alice/.claude/projects/..."
-// Returns ("jean-luc", "/home/jean-luc/") for "/home/jean-luc/dev/..."
-// Returns ("", "") if the path doesn't match /home/{user}/ or /Users/{user}/.
-func parseUsername(path string) (username string, prefix string) {
+// homeFolderPrefix returns the home folder that roots a literal path, ending
+// with a separator. A path that IS the home folder gives the same answer as one
+// below it, so the account name is recognized either way.
+//
+//	"/home/alice/.claude/projects/x" → "/home/alice/"
+//	"/home/jean-luc/dev/app"         → "/home/jean-luc/"
+//	"/home/alice"                    → "/home/alice/"
+//	"/var/lib/peasant/session.jsonl" → ""
+func homeFolderPrefix(path string) string {
 	for _, base := range []string{"/home/", "/Users/"} {
-		if strings.HasPrefix(path, base) {
-			rest := path[len(base):]
-			idx := strings.Index(rest, "/")
-			if idx > 0 {
-				return rest[:idx], base + rest[:idx] + "/"
-			}
+		if !strings.HasPrefix(path, base) {
+			continue
+		}
+		account := path[len(base):]
+		if cut := strings.Index(account, "/"); cut > 0 {
+			return base + account[:cut] + "/"
+		} else if cut < 0 && account != "" {
+			return base + account + "/"
 		}
 	}
-	return "", ""
+	return ""
 }
 
 const (
@@ -661,18 +667,33 @@ func prefixChain(value string, start, homeEnd int, separator string) []string {
 //	"/home/alice/dev/monorepo" → "/home/alice/dev/" and "/home/alice/" → "/<PATH>/"
 //	                             "-home-alice-dev-" and "-home-alice-" → "-<PATH>-"
 func unixPathReplacements(value string) []privateReplacement {
-	_, home := parseUsername(value)
+	home := homeFolderPrefix(value)
 	if home == "" {
 		return nil
 	}
 	var out []privateReplacement
-	for _, prefix := range prefixChain(value, 0, len(home), "/") {
+	prefixes := []string{}
+	if strings.HasPrefix(value, home) {
+		prefixes = prefixChain(value, 0, len(home), "/")
+	}
+	for _, prefix := range prefixes {
 		for _, separator := range pathSeparators {
 			out = append(out, privateReplacement{
 				old: strings.ReplaceAll(prefix, "/", separator),
 				new: separator + privatePathPlaceholder + separator,
 			})
 		}
+	}
+	// The home folder with nothing below it: a session run straight from the
+	// home folder records that path, and its slug forms carry the account name
+	// with no folder after it. Offered last, so it is only reached where no
+	// longer prefix of the same location matches.
+	bare := strings.TrimSuffix(home, "/")
+	for _, separator := range pathSeparators {
+		out = append(out, privateReplacement{
+			old: strings.ReplaceAll(bare, "/", separator),
+			new: separator + privatePathPlaceholder,
+		})
 	}
 	return out
 }
@@ -696,6 +717,9 @@ func windowsHomeFolder(value string) (string, string) {
 	}
 	account := rest[len(users)+1:]
 	cut := strings.Index(account, separator)
+	if cut < 0 && account != "" {
+		return value + separator, separator
+	}
 	if cut < 1 {
 		return "", ""
 	}
@@ -713,9 +737,15 @@ func windowsPathReplacements(value string) []privateReplacement {
 	}
 	replacement := value[:2] + separator + privatePathPlaceholder + separator
 	var out []privateReplacement
-	for _, prefix := range prefixChain(value, 0, len(home), separator) {
-		out = append(out, privateReplacement{old: prefix, new: replacement})
+	if strings.HasPrefix(value, home) {
+		for _, prefix := range prefixChain(value, 0, len(home), separator) {
+			out = append(out, privateReplacement{old: prefix, new: replacement})
+		}
 	}
+	out = append(out, privateReplacement{
+		old: strings.TrimSuffix(home, separator),
+		new: value[:2] + separator + privatePathPlaceholder,
+	})
 	return out
 }
 
@@ -755,8 +785,17 @@ func slugReplacements(value string, shape slugFieldShape) []privateReplacement {
 			}
 			rest := value[start+len(marker):]
 			cut := strings.Index(rest, separator)
-			if cut < 1 {
+			if cut == 0 || rest == "" {
 				continue
+			}
+			if cut < 0 {
+				// The marker and the account name with no folder after them: a
+				// session run straight from the home folder. The account name
+				// alone is still the owner, so it goes too.
+				return []privateReplacement{{
+					old: value[start:],
+					new: separator + privatePathPlaceholder,
+				}}
 			}
 			homeEnd := start + len(marker) + cut + len(separator)
 			var out []privateReplacement
