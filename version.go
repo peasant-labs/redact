@@ -59,7 +59,10 @@ package redact
 //	         working directory alone; a slug is read by the shape of its field;
 //	         the fallback slug rules fire on a machine-name-prefixed slug; titles use the same form and stored
 //	         two-placeholder values converge on it.
-const RuleSetVersion = "3.1.0"
+//	3.1.1 — a location that is only the account name, recorded by a session run
+//	         straight from the home folder, collapses to the placeholder in the
+//	         path form and in both slug forms instead of returning the account.
+const RuleSetVersion = "3.1.1"
 
 // Version returns the rule set version string.
 // It can be called without instantiating a Redactor.
