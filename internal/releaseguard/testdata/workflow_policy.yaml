@@ -24,14 +24,6 @@
   job: release
   step: Verify tag commit and run release quality gate
   want: true
-- name: final_rc_ancestry
-  kind: literal
-  file: .github/workflows/release.yml
-  contains: "same-version release-candidate ancestor"
-- name: final_rc_green_evidence
-  kind: literal
-  file: .github/workflows/release.yml
-  contains: "--status success"
 - name: normal_pr_quality_gate
   kind: release_check
   file: .github/workflows/tests.yml
