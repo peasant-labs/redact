@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.1.6
+
+### Added
+- `LICENSE`: the module now carries the standard Apache-2.0 text (`Copyright 2026 Peasant Labs`, byte-identical to the `peasant` module). Earlier versions shipped no license grant, so the code was all-rights-reserved by default.
+
+No rule or code changes; `RuleSetVersion` is unchanged at `3.1.1`. (Cut directly as a final — redact no longer requires an rc ancestor.)
+
 ## v0.1.5
 
 Promotes v0.1.5-rc1 (no code change since the candidate).
