@@ -46,27 +46,17 @@ jobs:
           test "$(git rev-list -n 1 "$TAG")" = "$GITHUB_SHA"
           make release-check
 
-      - name: Classify release and verify final-release ancestry
+      - name: Classify release (rc vs final)
         id: guard
+        # Finals no longer require a prior rc (matching schema and peasant). The
+        # rc-vs-final classification is kept because the next step uses it to set
+        # --prerelease for -rcN tags; rc remains available, just not mandatory.
         run: |
-          read -r KIND BASE <<EOF
+          read -r KIND _ <<EOF
           $(go run ./cmd/releaseguard tag "$TAG")
           EOF
           echo "kind=$KIND" >> "$GITHUB_OUTPUT"
-          if [ "$KIND" = final ]; then
-            mapfile -t RC_TAGS < <(git tag --merged "$GITHUB_SHA" --list "${BASE}-rc*" --sort=-v:refname)
-            RC_TAG="${RC_TAGS[0]:-}"
-            if [ -z "$RC_TAG" ]; then
-              echo "::error::Final release $TAG requires a same-version release-candidate ancestor."
-              exit 1
-            fi
-            go run ./cmd/releaseguard tag "$RC_TAG" >/dev/null
-            RC_SHA=$(git rev-list -n 1 "$RC_TAG")
-            gh run list --workflow Release --commit "$RC_SHA" --status success --limit 1 --json databaseId --jq 'length == 1' | grep -qx true || {
-              echo "::error::Release candidate $RC_TAG has no successful Release workflow evidence."
-              exit 1
-            }
-          fi
+          echo "Release kind: $KIND"
 
       - name: Create the GitHub Release
         run: |
