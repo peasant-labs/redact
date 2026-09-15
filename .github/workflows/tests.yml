@@ -48,6 +48,11 @@ jobs:
     needs: determine-runner
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     timeout-minutes: 15
+    # The race detector and the tree-sitter anonymizer both require cgo.
+    # The pool job environment leaves CGO_ENABLED off, which would silently
+    # test the degraded !cgo build, so pin it on for this job.
+    env:
+      CGO_ENABLED: 1
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
