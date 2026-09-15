@@ -49,8 +49,8 @@ jobs:
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     timeout-minutes: 15
     # The race detector and the tree-sitter anonymizer both require cgo.
-    # The pool job environment leaves CGO_ENABLED off, which would silently
-    # test the degraded !cgo build, so pin it on for this job.
+    # The pool job environment leaves CGO_ENABLED off, so pin it on for
+    # this job to keep race and tree-sitter coverage.
     env:
       CGO_ENABLED: 1
     steps:
