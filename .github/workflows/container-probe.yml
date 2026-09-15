@@ -1,0 +1,66 @@
+name: Container runner probe
+
+# Trial only: runs redact's exact quality gates on the containerized runner
+# (desktop-container-1, label `container`) to validate the container image.
+# Triggered by pushes to the trial branch and manual dispatch. Delete with
+# the trial branch once the container decision is made.
+on:
+  push:
+    branches: [trial/container-runner-probe]
+  workflow_dispatch:
+
+concurrency:
+  group: container-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  probe-test:
+    name: probe test
+    runs-on: [self-hosted, container]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Runner provenance
+        run: |
+          echo "runner: $RUNNER_NAME"
+          go env CGO_ENABLED CC
+          which gcc
+
+      - name: Run module quality gate
+        run: make release-check
+
+  probe-lint:
+    name: probe lint
+    runs-on: [self-hosted, container]
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Check formatting
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "::error::Files not formatted:"
+            gofmt -l .
+            exit 1
+          fi
