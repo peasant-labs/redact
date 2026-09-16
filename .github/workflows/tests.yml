@@ -1,7 +1,10 @@
 name: Tests
 
 # Quality gate for the redact module.
-# Runs on PRs and pushes to main.
+# Runs on PRs and pushes to main. Jobs run on the organization's self-hosted
+# container pool when a runner is online, on ubuntu-latest otherwise; both
+# environments default CGO_ENABLED=1, which the race detector and the
+# tree-sitter anonymizer require.
 on:
   pull_request:
   push:
@@ -28,13 +31,13 @@ jobs:
         run: |
           set -euo pipefail
           if ! online=$(gh api /orgs/peasant-labs/actions/runners --paginate \
-              --jq '.runners[] | select(.status == "online") | select(any(.labels[]; .name == "nixos")) | .name' 2>/dev/null | wc -l); then
+              --jq '.runners[] | select(.status == "online") | select(any(.labels[]; .name == "container")) | .name' 2>/dev/null | wc -l); then
             echo "::warning::runner availability query failed; using the fallback"
             online=0
           fi
           echo "online runners: ${online}"
           if [ "${online}" -gt 0 ]; then
-            echo 'runner=["self-hosted","nixos"]' >> "$GITHUB_OUTPUT"
+            echo 'runner=["self-hosted","container"]' >> "$GITHUB_OUTPUT"
           else
             echo 'runner=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
           fi
@@ -48,11 +51,6 @@ jobs:
     needs: determine-runner
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     timeout-minutes: 15
-    # The race detector and the tree-sitter anonymizer both require cgo.
-    # The pool job environment leaves CGO_ENABLED off, so pin it on for
-    # this job to keep race and tree-sitter coverage.
-    env:
-      CGO_ENABLED: 1
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
