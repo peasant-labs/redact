@@ -58,15 +58,16 @@ type RedactionReport struct {
 // DefaultRedactor is the production implementation of Redactor.
 // It is safe for concurrent use via an internal mutex.
 type DefaultRedactor struct {
-	level           RedactionLevel
-	mu              sync.Mutex
-	report          RedactionReport
-	categories      map[string]bool // internal set for O(1) dedup; exported as []string via Report()
-	astAnonymizer   ASTAnonymizer   // AST code anonymization (v2, Maximum only)
-	residueDetector ResidueDetector // post-redaction advisory scanner (v2)
-	userRules       []Rule          // v3: compiled from userPatterns at construction; read-only after init
-	lastMatches     []Match         // matches from the last Detect() call (last-call-only, not accumulated)
-	scannerConfig   scannerConfig   // immutable JSONL scanner defaults supplied at construction
+	level               RedactionLevel
+	mu                  sync.Mutex
+	report              RedactionReport
+	categories          map[string]bool // internal set for O(1) dedup; exported as []string via Report()
+	astAnonymizer       ASTAnonymizer   // AST code anonymization (v2, Maximum only)
+	residueDetector     ResidueDetector // post-redaction advisory scanner (v2)
+	userRules           []Rule          // v3: compiled from userPatterns at construction; read-only after init
+	configuredRuleCount int             // source boundary before generated XDG rules
+	lastMatches         []Match         // matches from the last Detect() call (last-call-only, not accumulated)
+	scannerConfig       scannerConfig   // immutable JSONL scanner defaults supplied at construction
 }
 
 // XDGPaths holds resolved XDG base directory paths for custom path redaction.
@@ -133,6 +134,7 @@ func NewRedactor(level RedactionLevel, userPatterns []UserPattern, xdg XDGPaths,
 	}
 
 	// Generate XDG path rules for non-standard XDG locations.
+	configuredRuleCount := len(userRules)
 	xdgRules := buildXDGRules(xdg)
 	userRules = append(userRules, xdgRules...)
 
@@ -146,13 +148,14 @@ func NewRedactor(level RedactionLevel, userPatterns []UserPattern, xdg XDGPaths,
 		anon = NewRegexAnonymizer()
 	}
 	return &DefaultRedactor{
-		level:           level,
-		report:          RedactionReport{Counts: make(map[string]int)},
-		categories:      make(map[string]bool),
-		astAnonymizer:   anon,
-		residueDetector: NewResidueDetector(),
-		userRules:       userRules,
-		scannerConfig:   cfg,
+		level:               level,
+		report:              RedactionReport{Counts: make(map[string]int)},
+		categories:          make(map[string]bool),
+		astAnonymizer:       anon,
+		residueDetector:     NewResidueDetector(),
+		userRules:           userRules,
+		configuredRuleCount: configuredRuleCount,
+		scannerConfig:       cfg,
 	}, nil
 }
 
@@ -476,6 +479,10 @@ func maskCodeBlocks(s string) string {
 //
 // Thread-safe. Fail-closed: panics are recovered and maximum-level rules are applied.
 func (r *DefaultRedactor) RedactText(input string) (output string) {
+	return r.redactText(input, nil)
+}
+
+func (r *DefaultRedactor) redactText(input string, call *observationCall) (output string) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			// Fail-closed: apply maximum redaction as fallback.
@@ -492,6 +499,9 @@ func (r *DefaultRedactor) RedactText(input string) (output string) {
 			}
 			fallback = detectEntropyInWords(fallback)
 			output = fallback
+			if call != nil {
+				call.failed(DiagnosticEngineRecovered)
+			}
 		}
 	}()
 
@@ -512,7 +522,7 @@ func (r *DefaultRedactor) RedactText(input string) (output string) {
 	// This is a documented behavioral change from v3: previously Report().Matches
 	// was only populated by explicit Detect() calls; now RedactText also records
 	// the filtered matches it used.
-	stepMatches := r.Detect(out)
+	stepMatches := r.detect(out, call)
 	if len(stepMatches) > 0 {
 		out = r.Redact(out, stepMatches)
 		// Record redaction counts per rule.
@@ -555,21 +565,25 @@ func (r *DefaultRedactor) RedactText(input string) (output string) {
 // Supported types: string, []any, map[string]any, json.Number. Other types pass through unchanged.
 // json.Number is returned as-is: integers > 2^53 decoded via UseNumber() retain full precision.
 func (r *DefaultRedactor) RedactJSON(value any) any {
+	return r.redactJSON(value, nil)
+}
+
+func (r *DefaultRedactor) redactJSON(value any, call *observationCall) any {
 	switch v := value.(type) {
 	case string:
-		return r.RedactText(v)
+		return r.redactTextChild(v, call)
 	case json.Number:
 		return value
 	case []any:
 		result := make([]any, len(v))
 		for i, elem := range v {
-			result[i] = r.RedactJSON(elem)
+			result[i] = r.redactJSON(elem, call)
 		}
 		return result
 	case map[string]any:
 		result := make(map[string]any, len(v))
 		for key, val := range v {
-			result[key] = r.RedactJSON(val)
+			result[key] = r.redactJSON(val, call)
 		}
 		return result
 	default:
@@ -896,6 +910,10 @@ func buildPrivateReplacer(id privateMetadata) *strings.Replacer {
 // Fields redacted: Source.FilePath, CWD, HostSlug, Git.Remote/Branch/Worktree/Tracking,
 // Project.FilePath/Name, Diagnostics.Warnings[i].Location/Message.
 func (r *DefaultRedactor) RedactMetadata(meta *schema.UnifiedMetadata) *schema.UnifiedMetadata {
+	return r.redactMetadata(meta, nil)
+}
+
+func (r *DefaultRedactor) redactMetadata(meta *schema.UnifiedMetadata, call *observationCall) *schema.UnifiedMetadata {
 	if meta == nil {
 		return nil
 	}
@@ -905,7 +923,7 @@ func (r *DefaultRedactor) RedactMetadata(meta *schema.UnifiedMetadata) *schema.U
 
 	identifiers := extractPrivateMetadata(meta)
 	redactPrivatePaths(&redacted, identifiers)
-	r.redactAllFields(&redacted, meta)
+	r.redactAllFields(&redacted, meta, call)
 
 	return &redacted
 }
@@ -927,35 +945,35 @@ func redactPrivatePaths(redacted *schema.UnifiedMetadata, id privateMetadata) {
 // redactAllFields applies r.RedactText() to all sensitive fields of the metadata copy.
 // Deep-copies pointer fields (Git) and slice fields (Diagnostics, Subagents) from
 // the original to avoid aliasing.
-func (r *DefaultRedactor) redactAllFields(redacted *schema.UnifiedMetadata, original *schema.UnifiedMetadata) {
+func (r *DefaultRedactor) redactAllFields(redacted *schema.UnifiedMetadata, original *schema.UnifiedMetadata, call *observationCall) {
 	// Source and CWD.
-	redacted.Source.FilePath = r.RedactText(redacted.Source.FilePath)
-	redacted.CWD = r.RedactText(redacted.CWD)
+	redacted.Source.FilePath = r.redactTextChild(redacted.Source.FilePath, call)
+	redacted.CWD = r.redactTextChild(redacted.CWD, call)
 
 	// HostSlug — RedactText for any remaining patterns.
-	redacted.HostSlug = schema.HostSlug(r.RedactText(string(redacted.HostSlug)))
+	redacted.HostSlug = schema.HostSlug(r.redactTextChild(string(redacted.HostSlug), call))
 
 	// Git (nullable pointer fields — copy the pointed-to string if non-nil).
 	if original.Git.Remote != nil {
-		v := r.RedactText(*original.Git.Remote)
+		v := r.redactTextChild(*original.Git.Remote, call)
 		redacted.Git.Remote = &v
 	}
 	if original.Git.Branch != nil {
-		v := r.RedactText(*original.Git.Branch)
+		v := r.redactTextChild(*original.Git.Branch, call)
 		redacted.Git.Branch = &v
 	}
 	if original.Git.Worktree != nil {
-		v := r.RedactText(*original.Git.Worktree)
+		v := r.redactTextChild(*original.Git.Worktree, call)
 		redacted.Git.Worktree = &v
 	}
 	if original.Git.Tracking != nil {
-		v := r.RedactText(*original.Git.Tracking)
+		v := r.redactTextChild(*original.Git.Tracking, call)
 		redacted.Git.Tracking = &v
 	}
 
 	// Project.
-	redacted.Project.FilePath = r.RedactText(redacted.Project.FilePath)
-	redacted.Project.Name = r.RedactText(redacted.Project.Name)
+	redacted.Project.FilePath = r.redactTextChild(redacted.Project.FilePath, call)
+	redacted.Project.Name = r.redactTextChild(redacted.Project.Name, call)
 
 	// Diagnostics — copy the slice so we don't alias the original.
 	if len(original.Diagnostics.Warnings) > 0 {
@@ -963,8 +981,8 @@ func (r *DefaultRedactor) redactAllFields(redacted *schema.UnifiedMetadata, orig
 		for i, w := range original.Diagnostics.Warnings {
 			warnings[i] = schema.DiagnosticEntry{
 				ErrorType:   w.ErrorType,
-				Location:    r.RedactText(w.Location),
-				Message:     r.RedactText(w.Message),
+				Location:    r.redactTextChild(w.Location, call),
+				Message:     r.redactTextChild(w.Message, call),
 				Remediation: w.Remediation,
 			}
 		}

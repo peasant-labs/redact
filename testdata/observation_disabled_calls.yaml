@@ -26,3 +26,16 @@ allocationCases:
     allocation: true
     operation: RedactMetadata
     input: contact reader@example.com
+
+requiredNames: [detect_nonempty, detect_empty_preserves_matches, redact_nonempty, redact_empty, text_nonempty, text_empty, json_array, json_scalar, metadata_nonempty, metadata_nil]
+cases:
+  - {name: detect_nonempty, operation: Detect, input: PRIVATE, detected: 1}
+  - {name: detect_empty_preserves_matches, operation: Detect, input: '', prior: PRIVATE, detected: 0, total: 1}
+  - {name: redact_nonempty, operation: Redact, input: PRIVATE, output: '<SAFE>'}
+  - {name: redact_empty, operation: Redact, input: '', output: ''}
+  - {name: text_nonempty, operation: RedactText, input: PRIVATE, output: '<SAFE>', total: 1}
+  - {name: text_empty, operation: RedactText, input: '', output: ''}
+  - {name: json_array, operation: RedactJSON, json: '["PRIVATE",9007199254740993,{"key":"PRIVATE"}]', output: '["<SAFE>",9007199254740993,{"key":"<SAFE>"}]', total: 2}
+  - {name: json_scalar, operation: RedactJSON, json: 'true', output: 'true'}
+  - {name: metadata_nonempty, operation: RedactMetadata, metadata: '{"cwd":"PRIVATE"}', total: 1}
+  - {name: metadata_nil, operation: RedactMetadata, metadata: 'null', output: 'null'}

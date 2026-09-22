@@ -1,0 +1,25 @@
+requiredNames: [success, hostile_error, private_panic, child_error_parent_panic, retained_mutated_snapshot]
+text: &text
+  runid: run
+  correlationid: call
+  callid: 1
+  operation: 3
+  regexdetected: {value: 1, coverage: 1}
+  regexapplied: {coverage: 0, diagnostic: 1}
+  contextualreplacements: {coverage: 2}
+  rules: [{rule: {id: fixture, origin: 2, index: 0}, category: pii, count: 1}]
+cases:
+  - {name: success, operation: RedactText, input: PRIVATE, output: '<SAFE>', total: 1, status: 1, events: [*text]}
+  - {name: hostile_error, operation: RedactText, input: PRIVATE, output: '<SAFE>', total: 1, status: 2, failure: error, events: [*text]}
+  - {name: private_panic, operation: RedactText, input: PRIVATE, output: '<SAFE>', total: 1, status: 3, failure: panic, events: [*text]}
+  - name: child_error_parent_panic
+    operation: RedactJSON
+    json: '"PRIVATE"'
+    output: '<SAFE>'
+    total: 1
+    status: 4
+    failure: combined
+    events:
+      - {<<: *text, callid: 2, parentcallid: 1}
+      - {runid: run, correlationid: call, callid: 1, operation: 4, regexdetected: {coverage: 2}, regexapplied: {coverage: 2}, contextualreplacements: {coverage: 2}}
+  - {name: retained_mutated_snapshot, operation: RedactText, input: PRIVATE, output: '<SAFE>', total: 1, status: 1, failure: mutate, events: [*text]}

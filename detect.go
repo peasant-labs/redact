@@ -31,22 +31,40 @@ type Match struct {
 //
 // If no patterns match, Detect returns nil (not an empty slice).
 func (r *DefaultRedactor) Detect(input string) []Match {
+	return r.detect(input, nil)
+}
+
+func (r *DefaultRedactor) detect(input string, call *observationCall) []Match {
 	if input == "" {
 		return nil
 	}
 
 	activeRules := make([]Rule, 0, len(Rules)+len(r.userRules))
-	for _, rule := range Rules {
+	for index, rule := range Rules {
 		if r.isActiveRule(rule) {
 			activeRules = append(activeRules, rule)
+			if call != nil {
+				call.record.Rules = append(call.record.Rules, RuleDetection{Rule: RuleIdentity{ID: rule.ID, Origin: RuleOriginBuiltin, Index: index}, Category: rule.Category})
+			}
 		}
 	}
-	for _, rule := range r.userRules {
+	for index, rule := range r.userRules {
 		if r.isActiveRule(rule) {
 			activeRules = append(activeRules, rule)
+			if call != nil {
+				origin, sourceIndex := RuleOriginConfigured, index
+				if index >= r.configuredRuleCount {
+					origin, sourceIndex = RuleOriginRuntimeXDG, index-r.configuredRuleCount
+				}
+				call.record.Rules = append(call.record.Rules, RuleDetection{Rule: RuleIdentity{ID: rule.ID, Origin: origin, Index: sourceIndex}, Category: rule.Category})
+			}
 		}
 	}
-	matches := detectWithRules(input, activeRules)
+	var accepted func(int)
+	if call != nil {
+		accepted = func(index int) { call.record.Rules[index].Count++; call.record.RegexDetected.Value++ }
+	}
+	matches := detectWithRulesInto(input, activeRules, accepted)
 
 	if len(matches) == 0 {
 		// Record nil as the last detect result (last-call-only semantics).
@@ -67,8 +85,12 @@ func (r *DefaultRedactor) Detect(input string) []Match {
 // detectWithRules is the pure canonical regex detector. Reporting and
 // last-call state remain the responsibility of DefaultRedactor.Detect.
 func detectWithRules(input string, rules []Rule) []Match {
+	return detectWithRulesInto(input, rules, nil)
+}
+
+func detectWithRulesInto(input string, rules []Rule, accepted func(ruleIndex int)) []Match {
 	var matches []Match
-	for _, rule := range rules {
+	for index, rule := range rules {
 		if rule.Pattern == nil {
 			continue
 		}
@@ -76,6 +98,9 @@ func detectWithRules(input string, rules []Rule) []Match {
 			match := Match{Rule: rule.ID, Offset: loc[0], Length: loc[1] - loc[0], Category: rule.Category, MatchedText: input[loc[0]:loc[1]]}
 			if rule.FilterFn == nil || rule.FilterFn(match.MatchedText, input, match.Offset) {
 				matches = append(matches, match)
+				if accepted != nil {
+					accepted(index)
+				}
 			}
 		}
 	}
