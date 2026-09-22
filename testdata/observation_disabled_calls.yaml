@@ -1,0 +1,28 @@
+requiredAllocationNames:
+  - alloc_detect
+  - alloc_redact
+  - alloc_redact_text
+  - alloc_redact_json
+  - alloc_redact_metadata
+allocationCases:
+  - name: alloc_detect
+    allocation: true
+    operation: Detect
+    input: contact reader@example.com
+  - name: alloc_redact
+    allocation: true
+    operation: Redact
+    input: contact reader@example.com
+  - name: alloc_redact_text
+    allocation: true
+    operation: RedactText
+    input: contact reader@example.com
+  - name: alloc_redact_json
+    allocation: true
+    operation: RedactJSON
+    input: contact reader@example.com
+    number: '9007199254740993'
+  - name: alloc_redact_metadata
+    allocation: true
+    operation: RedactMetadata
+    input: contact reader@example.com
