@@ -51,6 +51,7 @@ cases:
   - name: metadata_fields
     operation: RedactMetadata
     metadata: '{"cwd":"PRIVATE","git":{"remote":"PRIVATE","branch":"PRIVATE","worktree":"PRIVATE","tracking":"PRIVATE"},"diagnostics":{"warnings":[{"location":"PRIVATE","message":"PRIVATE"}]}}'
+    metadataOutput: '{"cwd":"<SAFE>","git":{"remote":"<SAFE>","branch":"<SAFE>","worktree":"<SAFE>","tracking":"<SAFE>"},"diagnostics":{"warnings":[{"location":"<SAFE>","message":"<SAFE>"}]}}'
     total: 7
     status: 1
     events:

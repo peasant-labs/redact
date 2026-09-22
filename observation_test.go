@@ -4,7 +4,63 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
+
+func TestObservationEmptyCoverage(t *testing.T) {
+	data, err := observationFixtures.ReadFile("testdata/observation_disabled_calls.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file struct {
+		Required []string             `yaml:"requiredCoverageNames"`
+		Cases    []observationFixture `yaml:"coverageCases"`
+	}
+	if err := yaml.Unmarshal(data, &file); err != nil {
+		t.Fatal(err)
+	}
+	names := fixtureNames(file.Cases, func(row observationFixture) string { return row.Name })
+	seen := make(map[string]bool)
+	for _, name := range names {
+		if seen[name] {
+			t.Fatal("duplicate coverage observation fixture")
+		}
+		seen[name] = true
+	}
+	if err := requireFixtureNames("observation_disabled_calls.yaml", "coverage", file.Required, names); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"empty_detect", "no_match_detect", "empty_redact", "empty_text", "no_match_text", "empty_json_array", "empty_json_map", "empty_metadata", "empty_ids"} {
+		if !slices.Contains(names, name) {
+			t.Fatalf("missing pinned coverage fixture %s", name)
+		}
+	}
+	for _, row := range file.Cases {
+		t.Run(row.Name, func(t *testing.T) {
+			engine, legacy := observationEngine(t), observationEngine(t)
+			var events []Observation
+			runID, correlation := "run", "call"
+			if row.Name == "empty_ids" {
+				runID, correlation = "", ""
+			}
+			run, err := NewRun(engine, runID, func(event Observation) error { events = append(events, event); return nil })
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, status := callObservation(t, run, nil, row, correlation)
+			want, _ := callObservation(t, nil, legacy, row, correlation)
+			if status != DeliveryOK || !reflect.DeepEqual(got, want) {
+				t.Fatal("empty/no-match result changed")
+			}
+			if row.Operation != "Detect" && row.Operation != "RedactMetadata" && observationOutput(t, got) != row.Output {
+				t.Fatal("empty/no-match output not exact")
+			}
+			requireObservationEvents(t, events, row.Events)
+			requireObservationReport(t, engine.Report(), legacy.Report())
+		})
+	}
+}
 
 func requireObservationEvents(t *testing.T, got, want []Observation) {
 	t.Helper()
@@ -51,6 +107,12 @@ func TestObservationDisabled(t *testing.T) {
 			if !reflect.DeepEqual(got, want) || status != DeliveryDisabled || run.counter.Load() != 0 {
 				t.Fatalf("disabled forwarding changed output/status/counter: %#v %#v %v %d", got, want, status, run.counter.Load())
 			}
+			if row.MetadataOutput != "" {
+				_, golden := observationValue(t, observationFixture{Metadata: row.MetadataOutput})
+				if !reflect.DeepEqual(got, golden) {
+					t.Fatal("metadata differs from exact golden output")
+				}
+			}
 			if row.Operation == "Detect" {
 				if len(got.([]Match)) != row.Detected {
 					t.Fatal("wrong accepted matches")
@@ -72,13 +134,53 @@ func TestObservationDisabled(t *testing.T) {
 }
 
 func TestObservationConstructor(t *testing.T) {
-	// Both nil forms must be rejected before any operation or callback.
-	var typedNil *DefaultRedactor
-	if run, err := NewRun(nil, "private", nil); run != nil || err == nil {
-		t.Fatal("nil engine accepted")
+	data, err := observationFixtures.ReadFile("testdata/observation_disabled_calls.yaml")
+	if err != nil {
+		t.Fatal(err)
 	}
-	if run, err := NewRun(typedNil, "private", func(Observation) error { t.Fatal("callback during construction"); return nil }); run != nil || err == nil {
-		t.Fatal("typed nil engine accepted")
+	var file struct {
+		Required []string `yaml:"requiredConstructorNames"`
+		Cases    []struct {
+			Name    string `yaml:"name"`
+			Typed   bool   `yaml:"typed"`
+			Enabled bool   `yaml:"enabled"`
+			Error   string `yaml:"error"`
+		} `yaml:"constructorCases"`
+	}
+	if err := yaml.Unmarshal(data, &file); err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	seen := map[string]bool{}
+	for _, row := range file.Cases {
+		if seen[row.Name] {
+			t.Fatal("duplicate constructor fixture")
+		}
+		seen[row.Name] = true
+		names = append(names, row.Name)
+		t.Run(row.Name, func(t *testing.T) {
+			var engine Redactor
+			if row.Typed {
+				var typedNil *DefaultRedactor
+				engine = typedNil
+			}
+			var observer Observer
+			if row.Enabled {
+				observer = func(Observation) error { t.Fatal("constructor invoked callback"); return nil }
+			}
+			run, err := NewRun(engine, "PRIVATE_RUN_ID", observer)
+			if run != nil || err == nil || err.Error() != row.Error {
+				t.Fatalf("nil constructor result differs from fixed safe fixture: %v", err)
+			}
+		})
+	}
+	if err := requireFixtureNames("observation_disabled_calls.yaml", "constructors", file.Required, names); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"nil_interface_disabled", "nil_interface_enabled", "typed_nil_disabled", "typed_nil_enabled"} {
+		if !seen[name] {
+			t.Fatalf("missing required constructor fixture %s", name)
+		}
 	}
 }
 
@@ -95,6 +197,12 @@ func TestObservationNested(t *testing.T) {
 			want, _ := callObservation(t, nil, legacy, row, "call")
 			if status != row.Status || !reflect.DeepEqual(got, want) {
 				t.Fatalf("nested result/status mismatch: %v %#v %#v", status, got, want)
+			}
+			if row.MetadataOutput != "" {
+				_, golden := observationValue(t, observationFixture{Metadata: row.MetadataOutput})
+				if !reflect.DeepEqual(got, golden) {
+					t.Fatal("nested metadata differs from exact golden output")
+				}
 			}
 			if row.Operation != "RedactMetadata" || row.Metadata == "null" {
 				if observationOutput(t, got) != row.Output {
@@ -130,10 +238,12 @@ func TestObservationObserverFailure(t *testing.T) {
 		t.Run(row.Name, func(t *testing.T) {
 			engine, legacy := observationEngine(t), observationEngine(t)
 			var events []Observation
+			var retained []Observation
 			run, err := NewRun(engine, "run", func(event Observation) error {
 				snapshot := event
 				snapshot.Rules = slices.Clone(event.Rules)
 				events = append(events, snapshot)
+				retained = append(retained, event)
 				switch row.Failure {
 				case "error":
 					return hostileObservationError{}
@@ -167,6 +277,15 @@ func TestObservationObserverFailure(t *testing.T) {
 				run.RedactText("later", row.Input)
 				if !reflect.DeepEqual(first, events[0]) || events[1].Rules[0].Count != 1 || events[1].Rules[0].Rule.ID != "fixture" {
 					t.Fatal("callback slice mutation affected retained/future snapshot")
+				}
+			} else {
+				before := slices.Clone(events)
+				_, nextStatus := callObservation(t, run, nil, row, "later")
+				if nextStatus != row.Status || len(events) != 2*len(before) {
+					t.Fatal("observer failure changed future callback delivery")
+				}
+				if !reflect.DeepEqual(retained[:len(before)], before) {
+					t.Fatal("a later call changed an unmodified retained snapshot")
 				}
 			}
 		})

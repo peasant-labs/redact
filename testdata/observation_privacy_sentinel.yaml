@@ -1,0 +1,144 @@
+requiredNames: [builtin_configured_collision, configured_collision, configured_runtime_collision, filtered_inactive_rules, text_single_scan, forbidden_payloads, forged_match]
+schema:
+  Observation: [RunID, CorrelationID, CallID, ParentCallID, Operation, RegexDetected, RegexApplied, ContextualReplacements, Rules, Diagnostic]
+  ObservedCount: [Value, Coverage, Diagnostic]
+  RuleDetection: [Rule, Category, Count]
+  RuleIdentity: [ID, Origin, Index]
+enums:
+  Operation: [1, 2, 3, 4, 5]
+  Coverage: [0, 1, 2]
+  DiagnosticCode: [0, 1, 2, 3]
+  DeliveryStatus: [0, 1, 2, 3, 4]
+  RuleOrigin: [1, 2, 3]
+text: &text
+  runid: authorized-run
+  correlationid: authorized-call
+  callid: 1
+  operation: 3
+  regexdetected: {value: 2, coverage: 1}
+  regexapplied: {coverage: 0, diagnostic: 1}
+  contextualreplacements: {coverage: 2}
+cases:
+  - name: builtin_configured_collision
+    operation: RedactText
+    input: PRIVATE
+    output: '<CONFIGURED>'
+    runID: authorized-run
+    correlationID: authorized-call
+    builtins: [{id: authorized-rule, category: pii, pattern: PRIVATE, replacement: '<BUILTIN>'}]
+    patterns: [{id: authorized-rule, category: secrets, pattern: PRIVATE, replacement: '<CONFIGURED>'}]
+    total: 2
+    reportCounts: {authorized-rule: 2}
+    reportCategories: [pii]
+    forbidden: [PRIVATE, '<BUILTIN>', '<CONFIGURED>', PRIVATE_RESIDUE_PREVIEW]
+    authorized: [authorized-rule, authorized-run, authorized-call]
+    events:
+      - <<: *text
+        rules:
+          - {rule: {id: authorized-rule, origin: 1, index: 0}, category: pii, count: 1}
+          - {rule: {id: authorized-rule, origin: 2, index: 0}, category: secrets, count: 1}
+  - name: configured_collision
+    operation: RedactText
+    input: PRIVATE
+    output: '<LAST>'
+    runID: authorized-run
+    correlationID: authorized-call
+    patterns:
+      - {id: authorized-rule, category: pii, pattern: PRIVATE, replacement: '<FIRST>'}
+      - {id: authorized-rule, category: project, pattern: PRIVATE, replacement: '<LAST>'}
+    total: 2
+    reportCounts: {authorized-rule: 2}
+    reportCategories: [pii]
+    forbidden: [PRIVATE, '<FIRST>', '<LAST>']
+    authorized: [authorized-rule]
+    events:
+      - <<: *text
+        rules:
+          - {rule: {id: authorized-rule, origin: 2, index: 0}, category: pii, count: 1}
+          - {rule: {id: authorized-rule, origin: 2, index: 1}, category: project, count: 1}
+  - name: configured_runtime_collision
+    operation: RedactText
+    input: /data/PRIVATEXDG/share
+    output: /data/<USER>/share
+    runID: authorized-run
+    correlationID: authorized-call
+    xdg: {datahome: /data/PRIVATEXDG/share}
+    patterns: [{id: xdg_data_home, category: secrets, pattern: /data/PRIVATEXDG, replacement: PRIVATE_REPLACEMENT}]
+    total: 2
+    reportCounts: {xdg_data_home: 2}
+    reportCategories: [secrets]
+    forbidden: [/data/PRIVATEXDG, PRIVATE_REPLACEMENT, PRIVATE_RESIDUE_PREVIEW]
+    authorized: [xdg_data_home]
+    events:
+      - <<: *text
+        rules:
+          - {rule: {id: xdg_data_home, origin: 2, index: 0}, category: secrets, count: 1}
+          - {rule: {id: xdg_data_home, origin: 3, index: 0}, category: paths, count: 1}
+  - name: filtered_inactive_rules
+    operation: Detect
+    input: PRIVATE
+    runID: authorized-run
+    correlationID: authorized-call
+    filterCalls: 2
+    builtins: &filteredRules
+      - {id: inactive, category: pii, minimum: maximum, pattern: PRIVATE, replacement: '<INACTIVE>'}
+      - {id: no_match, category: pii, pattern: absent, replacement: '<ABSENT>'}
+      - {id: filtered, category: pii, pattern: PRIVATE, filter: reject, replacement: '<REJECTED>'}
+      - {id: accepted, category: pii, pattern: PRIVATE, filter: accept, replacement: '<ACCEPTED>'}
+    forbidden: [PRIVATE, inactive, no_match, filtered, '<ACCEPTED>']
+    authorized: [accepted]
+    reportCounts: {}
+    events:
+      - <<: *text
+        operation: 1
+        regexdetected: {value: 1, coverage: 1}
+        regexapplied: {coverage: 2}
+        rules: [{rule: {id: accepted, origin: 1, index: 3}, category: pii, count: 1}]
+  - name: text_single_scan
+    operation: RedactText
+    input: PRIVATE
+    output: '<ACCEPTED>'
+    runID: authorized-run
+    correlationID: authorized-call
+    builtins: *filteredRules
+    filterCalls: 2
+    total: 1
+    reportCounts: {accepted: 1}
+    reportCategories: [pii]
+    forbidden: [PRIVATE, inactive, no_match, filtered, '<ACCEPTED>']
+    authorized: [accepted]
+    events:
+      - <<: *text
+        regexdetected: {value: 1, coverage: 1}
+        rules: [{rule: {id: accepted, origin: 1, index: 3}, category: pii, count: 1}]
+  - name: forbidden_payloads
+    operation: RedactText
+    input: PRIVATETEXT
+    output: PRIVATE_REPLACEMENT
+    runID: authorized-run
+    correlationID: authorized-call
+    patterns: [{id: authorized-rule, category: pii, pattern: 'PRIVATE(?:TEXT)', replacement: PRIVATE_REPLACEMENT}]
+    total: 1
+    reportCounts: {authorized-rule: 1}
+    reportCategories: [pii]
+    failure: error
+    status: 2
+    forbidden: [PRIVATETEXT, 'PRIVATE(?:TEXT)', PRIVATE_REPLACEMENT, PRIVATE_RESIDUE_PREVIEW, PRIVATE_ERROR_PAYLOAD, PRIVATE_PANIC_PAYLOAD]
+    authorized: [authorized-rule, authorized-run, authorized-call]
+    events:
+      - <<: *text
+        regexdetected: {value: 1, coverage: 1}
+        rules: [{rule: {id: authorized-rule, origin: 2, index: 0}, category: pii, count: 1}]
+  - name: forged_match
+    operation: Redact
+    input: PRIVATETEXT
+    output: '<REDACTED>'
+    runID: authorized-run
+    correlationID: authorized-call
+    matches: [{rule: PRIVATE_FORGED_RULE, offset: 0, length: 11, category: PRIVATE_CATEGORY, matchedtext: PRIVATE_MATCH}]
+    forbidden: [PRIVATETEXT, PRIVATE_FORGED_RULE, PRIVATE_CATEGORY, PRIVATE_MATCH]
+    reportCounts: {}
+    events:
+      - <<: *text
+        operation: 2
+        regexdetected: {coverage: 2}

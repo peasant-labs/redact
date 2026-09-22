@@ -20,6 +20,7 @@ type observationFixture struct {
 	Input            string                   `yaml:"input"`
 	JSON             string                   `yaml:"json"`
 	Metadata         string                   `yaml:"metadata"`
+	MetadataOutput   string                   `yaml:"metadataOutput"`
 	Output           string                   `yaml:"output"`
 	Detected         int                      `yaml:"detected"`
 	Total            int                      `yaml:"total"`
@@ -39,6 +40,7 @@ type observationFixture struct {
 	RunID            string                   `yaml:"runID"`
 	CorrelationID    string                   `yaml:"correlationID"`
 	FilterCalls      int                      `yaml:"filterCalls"`
+	Matches          []Match                  `yaml:"matches"`
 	ReportCounts     map[string]int           `yaml:"reportCounts"`
 	ReportCategories []string                 `yaml:"reportCategories"`
 	TitleCategories  []CategoryString         `yaml:"titleCategories"`

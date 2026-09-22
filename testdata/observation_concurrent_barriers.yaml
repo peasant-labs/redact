@@ -1,0 +1,20 @@
+requiredNames: [callbacks_release_report_lock]
+first: &first
+  runid: first
+  correlationid: first-call
+  callid: 1
+  operation: 3
+  regexdetected: {value: 1, coverage: 1}
+  regexapplied: {coverage: 0, diagnostic: 1}
+  contextualreplacements: {coverage: 2}
+  rules: [{rule: {id: fixture, origin: 2, index: 0}, category: pii, count: 1}]
+cases:
+  - name: callbacks_release_report_lock
+    input: PRIVATE
+    output: '<SAFE>'
+    other: PRIVATE PRIVATE
+    otherOutput: '<SAFE> <SAFE>'
+    total: 4
+    events:
+      - *first
+      - {<<: *first, runid: second, correlationid: second-call, regexdetected: {value: 2, coverage: 1}, rules: [{rule: {id: fixture, origin: 2, index: 0}, category: pii, count: 2}]}
