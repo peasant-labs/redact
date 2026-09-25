@@ -1,0 +1,51 @@
+requiredNames: [filter_fallback, residue_fallback, direct_detect_panic, direct_application_panic, fallback_propagates_panic, json_child_recovered, json_child_panicked, observer_failure_after_recovery]
+recovered: &recovered
+  runid: run
+  correlationid: call
+  callid: 1
+  operation: 3
+  diagnostic: 2
+  regexdetected: {coverage: 0, diagnostic: 2}
+  regexapplied: {coverage: 0, diagnostic: 2}
+  contextualreplacements: {coverage: 2}
+panic: &panic
+  <<: *recovered
+  diagnostic: 3
+  regexdetected: {coverage: 0, diagnostic: 3}
+  regexapplied: {coverage: 0, diagnostic: 3}
+parent: &parent
+  runid: run
+  correlationid: call
+  callid: 1
+  operation: 4
+  regexdetected: {coverage: 2}
+  regexapplied: {coverage: 2}
+  contextualreplacements: {coverage: 2}
+cases:
+  - {name: filter_fallback, failure: filter, operation: RedactText, input: PRIVATE, output: '<SAFE>', status: 1, events: [*recovered]}
+  - {name: residue_fallback, failure: residue, operation: RedactText, input: PRIVATE, output: '<SAFE>', total: 1, status: 1, events: [*recovered]}
+  - name: direct_detect_panic
+    failure: detect
+    operation: Detect
+    input: PRIVATE
+    events: [{<<: *panic, operation: 1, regexapplied: {coverage: 2}}]
+  - name: direct_application_panic
+    failure: application
+    operation: Redact
+    input: PRIVATE
+    events: [{<<: *panic, operation: 2, regexdetected: {coverage: 2}}]
+  - {name: fallback_propagates_panic, failure: fallback, operation: RedactText, input: PRIVATE, total: 1, events: [*panic]}
+  - name: json_child_recovered
+    failure: filter
+    operation: RedactJSON
+    json: '"PRIVATE"'
+    output: '<SAFE>'
+    status: 1
+    events: [{<<: *recovered, callid: 2, parentcallid: 1}, *parent]
+  - name: json_child_panicked
+    failure: fallback
+    operation: RedactJSON
+    json: '"PRIVATE"'
+    total: 1
+    events: [{<<: *panic, callid: 2, parentcallid: 1}, {<<: *parent, diagnostic: 3}]
+  - {name: observer_failure_after_recovery, failure: filter_observer, operation: RedactText, input: PRIVATE, output: '<SAFE>', status: 3, events: [*recovered]}

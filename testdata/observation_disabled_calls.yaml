@@ -1,0 +1,125 @@
+requiredAllocationNames:
+  - alloc_detect
+  - alloc_redact
+  - alloc_redact_text
+  - alloc_redact_json
+  - alloc_redact_metadata
+allocationCases:
+  - name: alloc_detect
+    allocation: true
+    operation: Detect
+    input: contact reader@example.com
+  - name: alloc_redact
+    allocation: true
+    operation: Redact
+    input: contact reader@example.com
+  - name: alloc_redact_text
+    allocation: true
+    operation: RedactText
+    input: contact reader@example.com
+  - name: alloc_redact_json
+    allocation: true
+    operation: RedactJSON
+    input: contact reader@example.com
+    number: '9007199254740993'
+  - name: alloc_redact_metadata
+    allocation: true
+    operation: RedactMetadata
+    input: contact reader@example.com
+
+requiredNames: [detect_nonempty, detect_empty_preserves_matches, redact_nonempty, redact_empty, text_nonempty, text_empty, json_array, json_scalar, metadata_nonempty, metadata_nil]
+cases:
+  - {name: detect_nonempty, operation: Detect, input: PRIVATE, detected: 1}
+  - {name: detect_empty_preserves_matches, operation: Detect, input: '', prior: PRIVATE, detected: 0, total: 1}
+  - {name: redact_nonempty, operation: Redact, input: PRIVATE, output: '<SAFE>'}
+  - {name: redact_empty, operation: Redact, input: '', output: ''}
+  - {name: text_nonempty, operation: RedactText, input: PRIVATE, output: '<SAFE>', total: 1}
+  - {name: text_empty, operation: RedactText, input: '', output: ''}
+  - {name: json_array, operation: RedactJSON, json: '["PRIVATE",9007199254740993,{"key":"PRIVATE"}]', output: '["<SAFE>",9007199254740993,{"key":"<SAFE>"}]', total: 2}
+  - {name: json_scalar, operation: RedactJSON, json: 'true', output: 'true'}
+  - {name: metadata_nonempty, operation: RedactMetadata, metadata: '{"cwd":"PRIVATE"}', metadataOutput: '{"cwd":"<SAFE>"}', total: 1}
+  - {name: metadata_nil, operation: RedactMetadata, metadata: 'null', output: 'null'}
+
+requiredExternalNames: [legacy_interface_implementation, disabled_external_forwarding, enabled_external_rejected, public_unkeyed_rule_match]
+externalCases:
+  - {name: legacy_interface_implementation, input: external, output: external, level: standard, version: fixture}
+  - {name: disabled_external_forwarding, input: external, output: external, level: standard, version: fixture}
+  - name: enabled_external_rejected
+    error: |-
+      what: cannot enable observation for this redactor
+      why: only DefaultRedactor exposes the canonical observation seam
+      where: redact.NewRun
+      when: binding before processing
+      means: no run was created and no content was processed
+      fix: use NewRedactor or pass a nil observer for legacy forwarding
+  - {name: public_unkeyed_rule_match, id: public-rule, category: pii, input: external, offset: 0, length: 8}
+requiredTitleNames: [title_overlap_parity, title_backreference_parity, title_sensitive_category_parity]
+titleCases:
+  - name: title_overlap_parity
+    input: ABCDEF
+    output: '<FIRST>'
+    titleCategories: [CREDENTIAL]
+    builtins:
+      - {id: first, category: secrets, pattern: ABCDEF, replacement: '<FIRST>'}
+      - {id: second, category: pii, pattern: BCDEF, replacement: '<SECOND>'}
+  - name: title_backreference_parity
+    input: key=PRIVATE
+    output: PRIVATE
+    titleCategories: [CREDENTIAL]
+    builtins: [{id: backref, category: secrets, pattern: 'key=(PRIVATE)', replacement: '${1}'}]
+  - name: title_sensitive_category_parity
+    input: PRIVATE
+    output: '<SAFE>'
+    titleCategories: [PII]
+    builtins: [{id: pii, category: pii, pattern: PRIVATE, replacement: '<SAFE>'}]
+
+requiredCoverageNames: [empty_detect, no_match_detect, empty_redact, empty_text, no_match_text, empty_json_array, empty_json_map, empty_metadata, empty_ids]
+detect: &detect
+  runid: run
+  correlationid: call
+  callid: 1
+  operation: 1
+  regexdetected: {coverage: 1}
+  regexapplied: {coverage: 2}
+  contextualreplacements: {coverage: 2}
+text: &text
+  <<: *detect
+  operation: 3
+  regexapplied: {coverage: 0, diagnostic: 1}
+parent: &parent
+  <<: *detect
+  operation: 4
+  regexdetected: {coverage: 2}
+coverageCases:
+  - {name: empty_detect, operation: Detect, events: [*detect]}
+  - {name: no_match_detect, operation: Detect, input: ordinary, events: [*detect]}
+  - {name: empty_redact, operation: Redact, events: [{<<: *text, operation: 2, regexdetected: {coverage: 2}}]}
+  - {name: empty_text, operation: RedactText, events: [*text]}
+  - {name: no_match_text, operation: RedactText, input: ordinary, output: ordinary, events: [*text]}
+  - {name: empty_json_array, operation: RedactJSON, json: '[]', output: '[]', events: [*parent]}
+  - {name: empty_json_map, operation: RedactJSON, json: '{}', output: '{}', events: [*parent]}
+  - name: empty_metadata
+    operation: RedactMetadata
+    metadata: '{}'
+    events:
+      - {<<: *text, callid: 2, parentcallid: 1}
+      - {<<: *text, callid: 3, parentcallid: 1}
+      - {<<: *text, callid: 4, parentcallid: 1}
+      - {<<: *text, callid: 5, parentcallid: 1}
+      - {<<: *text, callid: 6, parentcallid: 1}
+      - {<<: *parent, operation: 5, contextualreplacements: {coverage: 0, diagnostic: 1}}
+  - {name: empty_ids, operation: RedactText, input: ordinary, output: ordinary, events: [{<<: *text, runid: '', correlationid: ''}]}
+
+requiredConstructorNames: [nil_interface_disabled, nil_interface_enabled, typed_nil_disabled, typed_nil_enabled]
+nilError: &nilError |-
+  what: cannot bind a nil redactor
+  why: a run requires a usable engine
+  where: redact.NewRun
+  when: binding before processing
+  means: no run was created
+  fix: pass a non-nil Redactor from a successful constructor
+constructorCases:
+  - {name: nil_interface_disabled, error: *nilError}
+  - {name: nil_interface_enabled, enabled: true, error: *nilError}
+  - {name: typed_nil_disabled, typed: true, error: *nilError}
+  - {name: typed_nil_enabled, typed: true, enabled: true, error: *nilError}

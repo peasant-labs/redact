@@ -1,0 +1,74 @@
+requiredNames: [json_string, json_nested, json_number, metadata_nil, metadata_fields]
+text: &text
+  runid: run
+  correlationid: call
+  callid: 2
+  parentcallid: 1
+  operation: 3
+  regexdetected: {value: 1, coverage: 1}
+  regexapplied: {coverage: 0, diagnostic: 1}
+  contextualreplacements: {coverage: 2}
+  rules: [{rule: {id: fixture, origin: 2, index: 0}, category: pii, count: 1}]
+empty: &empty
+  <<: *text
+  regexdetected: {coverage: 1}
+  rules: []
+parent: &parent
+  runid: run
+  correlationid: call
+  callid: 1
+  operation: 4
+  regexdetected: {coverage: 2}
+  regexapplied: {coverage: 2}
+  contextualreplacements: {coverage: 2}
+cases:
+  - name: json_string
+    operation: RedactJSON
+    durationPolicy: parent_and_children
+    json: '"PRIVATE"'
+    output: '<SAFE>'
+    total: 1
+    status: 1
+    events: [*text, *parent]
+  - name: json_nested
+    operation: RedactJSON
+    durationPolicy: parent_and_children
+    json: '["PRIVATE",["PRIVATE",9007199254740993],{"private-key":"PRIVATE"}]'
+    output: '["<SAFE>",["<SAFE>",9007199254740993],{"private-key":"<SAFE>"}]'
+    total: 3
+    status: 1
+    events: [*text, {<<: *text, callid: 3}, {<<: *text, callid: 4}, *parent]
+  - name: json_number
+    operation: RedactJSON
+    durationPolicy: parent
+    json: '9007199254740993'
+    output: '9007199254740993'
+    status: 1
+    events: [*parent]
+  - name: metadata_nil
+    operation: RedactMetadata
+    durationPolicy: parent
+    metadata: 'null'
+    output: 'null'
+    status: 1
+    events: [{<<: *parent, operation: 5}]
+  - name: metadata_fields
+    operation: RedactMetadata
+    durationPolicy: parent_and_children
+    metadata: '{"cwd":"PRIVATE","git":{"remote":"PRIVATE","branch":"PRIVATE","worktree":"PRIVATE","tracking":"PRIVATE"},"diagnostics":{"warnings":[{"location":"PRIVATE","message":"PRIVATE"}]}}'
+    metadataOutput: '{"cwd":"<SAFE>","git":{"remote":"<SAFE>","branch":"<SAFE>","worktree":"<SAFE>","tracking":"<SAFE>"},"diagnostics":{"warnings":[{"location":"<SAFE>","message":"<SAFE>"}]}}'
+    total: 7
+    status: 1
+    events:
+      - *empty
+      - {<<: *text, callid: 3}
+      - {<<: *empty, callid: 4}
+      - {<<: *text, callid: 5}
+      - {<<: *text, callid: 6}
+      - {<<: *text, callid: 7}
+      - {<<: *text, callid: 8}
+      - {<<: *empty, callid: 9}
+      - {<<: *empty, callid: 10}
+      - {<<: *text, callid: 11}
+      - {<<: *text, callid: 12}
+      - {<<: *parent, operation: 5, contextualreplacements: {coverage: 0, diagnostic: 1}}
