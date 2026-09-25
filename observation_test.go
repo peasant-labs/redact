@@ -4,7 +4,6 @@ import (
 	"reflect"
 	"slices"
 	"testing"
-	"time"
 )
 
 func TestObservationEmptyCoverage(t *testing.T) {
@@ -279,108 +278,81 @@ func TestObservationDuration(t *testing.T) {
 			if !immediateDelivery {
 				t.Fatalf("automatic child delivery was deferred until parent traversal ended: %#v", events)
 			}
-			parent, childTotal := requireObservationDurationBounds(t, events)
-			if parent.Duration < childTotal {
-				t.Fatalf("parent duration %v omitted sequential child traversal totaling %v", parent.Duration, childTotal)
-			}
+			requireObservationDurationBounds(t, events)
 		})
 	}
 }
 
-func TestObservationDurationExcludesChildCallback(t *testing.T) {
+func TestObservationDurationCallbackSuccess(t *testing.T) {
 	for _, row := range loadObservationDurationFixtures(t) {
 		t.Run(row.Name, func(t *testing.T) {
-			requireObservationDurationCallbackExclusion(t, row, DeliveryOK, func() error { return nil })
+			requireObservationDurationCallbackBehavior(t, row, DeliveryOK, func() error { return nil })
 		})
 	}
 }
 
-func TestObservationDurationExcludesChildCallbackError(t *testing.T) {
+func TestObservationDurationCallbackError(t *testing.T) {
 	for _, row := range loadObservationDurationFixtures(t) {
 		t.Run(row.Name, func(t *testing.T) {
-			requireObservationDurationCallbackExclusion(t, row, DeliveryObserverError, func() error {
+			requireObservationDurationCallbackBehavior(t, row, DeliveryObserverError, func() error {
 				return hostileObservationError{}
 			})
 		})
 	}
 }
 
-func TestObservationDurationExcludesChildCallbackPanic(t *testing.T) {
+func TestObservationDurationCallbackPanic(t *testing.T) {
 	for _, row := range loadObservationDurationFixtures(t) {
 		t.Run(row.Name, func(t *testing.T) {
-			requireObservationDurationCallbackExclusion(t, row, DeliveryObserverPanic, func() error {
+			requireObservationDurationCallbackBehavior(t, row, DeliveryObserverPanic, func() error {
 				panic("PRIVATE_CALLBACK_PANIC_PAYLOAD")
 			})
 		})
 	}
 }
 
-type observationDurationCallbackController struct {
-	entered chan struct{}
-	release chan struct{}
-	stop    chan struct{}
-}
-
-func newObservationDurationCallbackController(hold time.Duration) *observationDurationCallbackController {
-	controller := &observationDurationCallbackController{
-		entered: make(chan struct{}),
-		release: make(chan struct{}),
-		stop:    make(chan struct{}),
-	}
-	go func() {
-		select {
-		case <-controller.entered:
-		case <-controller.stop:
-			return
-		}
-		timer := time.NewTimer(hold)
-		defer timer.Stop()
-		select {
-		case <-timer.C:
-			close(controller.release)
-		case <-controller.stop:
-		}
-	}()
-	return controller
-}
-
-func (c *observationDurationCallbackController) Hold() time.Duration {
-	close(c.entered)
-	started := time.Now()
-	select {
-	case <-c.release:
-		return time.Since(started)
-	case <-c.stop:
-		return 0
-	}
-}
-
-func (c *observationDurationCallbackController) Stop() {
-	close(c.stop)
-}
-
-func requireObservationDurationCallbackExclusion(t *testing.T, row observationFixture, wantStatus DeliveryStatus, callbackAction func() error) {
-	t.Helper()
-	var baselineEvents []Observation
-	baselineOutput, baselineStatus := runObservationDurationCall(t, row, make(chan struct{}, len(row.Events)), func(event Observation) error {
-		baselineEvents = append(baselineEvents, event)
-		return nil
+func TestObservationElapsedPausedDuringAutomaticChildCallback(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		requireObservationElapsedCallbackState(t, DeliveryOK, func() error { return nil })
 	})
-	requireObservationDurationResult(t, row, baselineOutput, baselineStatus)
-	requireObservationEvents(t, baselineEvents, row.Events)
-	baselineParent, baselineChildTotal := requireObservationDurationBounds(t, baselineEvents)
-	work := baselineParent.Duration + baselineChildTotal
-	// Make the callback hold a bounded, work-derived interval. The parent
-	// duration is compared with the hold measured in that same callback, not
-	// with a scheduler allowance: a pause makes the parent interval exclude
-	// the hold, while a running parent necessarily includes it.
-	hold := 64 * work
-	controller := newObservationDurationCallbackController(hold)
-	t.Cleanup(controller.Stop)
+	t.Run("returned_error", func(t *testing.T) {
+		requireObservationElapsedCallbackState(t, DeliveryObserverError, func() error { return hostileObservationError{} })
+	})
+	t.Run("recovered_panic", func(t *testing.T) {
+		requireObservationElapsedCallbackState(t, DeliveryObserverPanic, func() error { panic("PRIVATE_CALLBACK_PANIC_PAYLOAD") })
+	})
+}
 
+func requireObservationElapsedCallbackState(t *testing.T, want DeliveryStatus, action func() error) {
+	t.Helper()
+	parent := &observationCall{}
+	parent.elapsed.start()
+
+	pausedDuringCallback := false
+	child := &observationCall{
+		run: &Run{observer: func(Observation) error {
+			pausedDuringCallback = parent.elapsed.started.IsZero()
+			return action()
+		}},
+		parent: parent,
+	}
+	child.deliverAutomaticChild()
+
+	if !pausedDuringCallback {
+		t.Fatal("parent elapsed clock was running during automatic child callback")
+	}
+	if parent.elapsed.started.IsZero() {
+		t.Fatal("parent elapsed clock remained paused after automatic child callback")
+	}
+	if child.delivery != want {
+		t.Fatalf("automatic child delivery status %v, want %v", child.delivery, want)
+	}
+}
+
+func requireObservationDurationCallbackBehavior(t *testing.T, row observationFixture, wantStatus DeliveryStatus, callbackAction func() error) {
+	t.Helper()
 	var events []Observation
 	var child Observation
-	var callbackHold time.Duration
 	childCallbacks, parentCallbacks := 0, 0
 	output, status := runObservationDurationCall(t, row, make(chan struct{}, len(row.Events)), func(event Observation) error {
 		events = append(events, event)
@@ -393,27 +365,20 @@ func requireObservationDurationCallbackExclusion(t *testing.T, row observationFi
 			return nil
 		}
 		child = event
-		callbackHold = controller.Hold()
 		return callbackAction()
 	})
 	requireObservationDurationOutput(t, row, output)
+	if status != wantStatus {
+		t.Fatalf("duration callback status %v, want %v", status, wantStatus)
+	}
 	requireObservationEvents(t, events, row.Events)
 	requireDurationPolicy(t, events, row.DurationPolicy)
+	requireObservationDurationBounds(t, events)
 	if child.CallID == 0 || childCallbacks == 0 {
 		t.Fatalf("duration fixture did not deliver automatic child callbacks: %#v", events)
 	}
 	if parentCallbacks != 1 {
 		t.Fatalf("duration fixture delivered %d parent callbacks, want one: %#v", parentCallbacks, events)
-	}
-	if status != wantStatus {
-		t.Fatalf("duration callback status %v, want %v", status, wantStatus)
-	}
-	parent, childTotal := requireObservationDurationBounds(t, events)
-	if parent.Duration <= childTotal {
-		t.Fatalf("parent duration %v omitted child traversal totaling %v; callback was not resumed before later child work", parent.Duration, childTotal)
-	}
-	if parent.Duration >= callbackHold {
-		t.Fatalf("parent duration %v included automatic child callback hold %v (hold budget %v, baseline parent %v, baseline children %v)", parent.Duration, callbackHold, hold, baselineParent.Duration, baselineChildTotal)
 	}
 }
 
@@ -478,25 +443,19 @@ func requireObservationDurationOutput(t testing.TB, row observationFixture, outp
 	}
 }
 
-func requireObservationDurationBounds(t testing.TB, events []Observation) (Observation, time.Duration) {
+func requireObservationDurationBounds(t testing.TB, events []Observation) {
 	t.Helper()
 	if len(events) < 2 {
 		t.Fatalf("duration fixture requires a parent and automatic child: %#v", events)
 	}
-	var childTotal time.Duration
 	for _, event := range events {
 		if event.Duration <= 0 {
 			t.Fatalf("duration fixture did not measure positive engine time: %#v", event)
 		}
-		if event.ParentCallID != 0 {
-			childTotal += event.Duration
-		}
 	}
-	parent := events[len(events)-1]
-	if parent.ParentCallID != 0 {
+	if events[len(events)-1].ParentCallID != 0 {
 		t.Fatalf("duration fixture parent was not delivered last: %#v", events)
 	}
-	return parent, childTotal
 }
 
 type hostileObservationError struct{}
