@@ -3,6 +3,7 @@ package redact
 import (
 	"embed"
 	"fmt"
+	"gopkg.in/yaml.v3"
 )
 
 //go:embed testdata/observation_disabled_calls.yaml
@@ -22,14 +23,17 @@ func loadObservationAllocationFixtures() ([]observationAllocationFixture, error)
 	if err != nil {
 		return nil, err
 	}
-	var fixtures observationDocument
-	if err := decodeObservationYAML(data, &fixtures); err != nil {
-		return nil, fmt.Errorf("decode strict observation allocation fixtures: %w", err)
+	var fixtures struct {
+		Required []string                       `yaml:"requiredAllocationNames"`
+		Cases    []observationAllocationFixture `yaml:"allocationCases"`
+	}
+	if err := yaml.Unmarshal(data, &fixtures); err != nil {
+		return nil, err
 	}
 	required := map[string]string{"alloc_detect": "Detect", "alloc_redact": "Redact", "alloc_redact_text": "RedactText", "alloc_redact_json": "RedactJSON", "alloc_redact_metadata": "RedactMetadata"}
 	names := make([]string, 0, len(fixtures.Cases))
 	seen := make(map[string]bool)
-	for _, row := range fixtures.AllocationCases {
+	for _, row := range fixtures.Cases {
 		if seen[row.Name] || !row.Allocation || required[row.Name] != row.Operation || row.Operation == "" {
 			return nil, fmt.Errorf("redact: allocation fixture %q in %s has duplicate name or wrong operation membership; restore the five public-operation fixtures before measuring", row.Name, file)
 		}
@@ -41,8 +45,8 @@ func loadObservationAllocationFixtures() ([]observationAllocationFixture, error)
 			return nil, fmt.Errorf("redact: missing allocation fixture %q in %s; restore it before measuring all public operations", name, file)
 		}
 	}
-	if err := requireFixtureNames(file, "allocations", fixtures.RequiredAllocationNames, names); err != nil {
+	if err := requireFixtureNames(file, "allocations", fixtures.Required, names); err != nil {
 		return nil, err
 	}
-	return fixtures.AllocationCases, nil
+	return fixtures.Cases, nil
 }

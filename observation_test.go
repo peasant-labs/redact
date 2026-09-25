@@ -370,12 +370,11 @@ func requireObservationDurationCallbackExclusion(t *testing.T, row observationFi
 	requireObservationEvents(t, baselineEvents, row.Events)
 	baselineParent, baselineChildTotal := requireObservationDurationBounds(t, baselineEvents)
 	work := baselineParent.Duration + baselineChildTotal
-	// Keep the hold twice the scheduler allowance. The held run is compared with
-	// an adjacent unheld run using a bounded, work-derived margin, so scheduler
-	// load does not decide the callback boundary. Without pausing, the measured
-	// hold alone exceeds that margin before ordinary engine work is considered.
+	// Make the callback hold a bounded, work-derived interval. The parent
+	// duration is compared with the hold measured in that same callback, not
+	// with a scheduler allowance: a pause makes the parent interval exclude
+	// the hold, while a running parent necessarily includes it.
 	hold := 64 * work
-	schedulerMargin := 32 * work
 	controller := newObservationDurationCallbackController(hold)
 	t.Cleanup(controller.Stop)
 
@@ -409,19 +408,12 @@ func requireObservationDurationCallbackExclusion(t *testing.T, row observationFi
 	if status != wantStatus {
 		t.Fatalf("duration callback status %v, want %v", status, wantStatus)
 	}
-	parent, _ := requireObservationDurationBounds(t, events)
-
-	var pairedEvents []Observation
-	pairedOutput, pairedStatus := runObservationDurationCall(t, row, make(chan struct{}, len(row.Events)), func(event Observation) error {
-		pairedEvents = append(pairedEvents, event)
-		return nil
-	})
-	requireObservationDurationResult(t, row, pairedOutput, pairedStatus)
-	requireObservationEvents(t, pairedEvents, row.Events)
-	pairedParent, _ := requireObservationDurationBounds(t, pairedEvents)
-	pairedBound := max(baselineParent.Duration, pairedParent.Duration) + schedulerMargin
-	if parent.Duration >= pairedBound {
-		t.Fatalf("parent duration %v included automatic child callback hold %v against same-condition bound %v (pre-hold parent %v, post-hold parent %v, work %v, hold budget %v, scheduler margin %v)", parent.Duration, callbackHold, pairedBound, baselineParent.Duration, pairedParent.Duration, work, hold, schedulerMargin)
+	parent, childTotal := requireObservationDurationBounds(t, events)
+	if parent.Duration <= childTotal {
+		t.Fatalf("parent duration %v omitted child traversal totaling %v; callback was not resumed before later child work", parent.Duration, childTotal)
+	}
+	if parent.Duration >= callbackHold {
+		t.Fatalf("parent duration %v included automatic child callback hold %v (hold budget %v, baseline parent %v, baseline children %v)", parent.Duration, callbackHold, hold, baselineParent.Duration, baselineChildTotal)
 	}
 }
 
