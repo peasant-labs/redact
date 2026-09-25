@@ -257,10 +257,14 @@ func TestObservationDuration(t *testing.T) {
 		t.Run(row.Name, func(t *testing.T) {
 			filterEntered := make(chan struct{}, len(row.Events))
 			var events []Observation
+			// Latch the first matching child: later queued callbacks must not
+			// overwrite the result observed by that callback.
+			firstPositiveCallback := false
 			immediateDelivery := false
 			output, status := runObservationDurationCall(t, row, filterEntered, func(event Observation) error {
 				events = append(events, event)
-				if event.ParentCallID != 0 && event.RegexDetected.Value > 0 && !immediateDelivery {
+				if event.ParentCallID != 0 && event.RegexDetected.Value > 0 && !firstPositiveCallback {
+					firstPositiveCallback = true
 					select {
 					case <-filterEntered:
 					default:
@@ -286,43 +290,125 @@ func TestObservationDuration(t *testing.T) {
 func TestObservationDurationExcludesChildCallback(t *testing.T) {
 	for _, row := range loadObservationDurationFixtures(t) {
 		t.Run(row.Name, func(t *testing.T) {
-			var baselineEvents []Observation
-			baselineOutput, baselineStatus := runObservationDurationCall(t, row, make(chan struct{}, len(row.Events)), func(event Observation) error {
-				baselineEvents = append(baselineEvents, event)
-				return nil
-			})
-			requireObservationDurationResult(t, row, baselineOutput, baselineStatus)
-			requireObservationEvents(t, baselineEvents, row.Events)
-			baselineParent, baselineChildTotal := requireObservationDurationBounds(t, baselineEvents)
-			hold := 2 * (baselineParent.Duration + baselineChildTotal)
-
-			var events []Observation
-			var child Observation
-			var callbackHold time.Duration
-			output, status := runObservationDurationCall(t, row, make(chan struct{}, len(row.Events)), func(event Observation) error {
-				events = append(events, event)
-				if event.ParentCallID == 0 || event.RegexDetected.Value == 0 || child.CallID != 0 {
-					return nil
-				}
-				child = event
-				started := time.Now()
-				holdTimer := time.NewTimer(hold)
-				<-holdTimer.C
-				callbackHold = time.Since(started)
-				return nil
-			})
-			requireObservationDurationResult(t, row, output, status)
-			requireObservationEvents(t, events, row.Events)
-			requireDurationPolicy(t, events, row.DurationPolicy)
-			parent, _ := requireObservationDurationBounds(t, events)
-			if callbackHold < hold {
-				t.Fatalf("callback hold %v was shorter than the relative gate %v", callbackHold, hold)
-			}
-			callbackIndependentBound := child.Duration + callbackHold
-			if parent.Duration >= callbackIndependentBound {
-				t.Fatalf("parent duration %v included automatic child callback hold %v", parent.Duration, callbackHold)
-			}
+			requireObservationDurationCallbackExclusion(t, row, DeliveryOK, func() error { return nil })
 		})
+	}
+}
+
+func TestObservationDurationExcludesChildCallbackError(t *testing.T) {
+	for _, row := range loadObservationDurationFixtures(t) {
+		t.Run(row.Name, func(t *testing.T) {
+			requireObservationDurationCallbackExclusion(t, row, DeliveryObserverError, func() error {
+				return hostileObservationError{}
+			})
+		})
+	}
+}
+
+func TestObservationDurationExcludesChildCallbackPanic(t *testing.T) {
+	for _, row := range loadObservationDurationFixtures(t) {
+		t.Run(row.Name, func(t *testing.T) {
+			requireObservationDurationCallbackExclusion(t, row, DeliveryObserverPanic, func() error {
+				panic("PRIVATE_CALLBACK_PANIC_PAYLOAD")
+			})
+		})
+	}
+}
+
+type observationDurationCallbackController struct {
+	entered chan struct{}
+	release chan struct{}
+	stop    chan struct{}
+}
+
+func newObservationDurationCallbackController(hold time.Duration) *observationDurationCallbackController {
+	controller := &observationDurationCallbackController{
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+		stop:    make(chan struct{}),
+	}
+	go func() {
+		select {
+		case <-controller.entered:
+		case <-controller.stop:
+			return
+		}
+		timer := time.NewTimer(hold)
+		defer timer.Stop()
+		select {
+		case <-timer.C:
+			close(controller.release)
+		case <-controller.stop:
+		}
+	}()
+	return controller
+}
+
+func (c *observationDurationCallbackController) Hold() time.Duration {
+	close(c.entered)
+	started := time.Now()
+	select {
+	case <-c.release:
+		return time.Since(started)
+	case <-c.stop:
+		return 0
+	}
+}
+
+func (c *observationDurationCallbackController) Stop() {
+	close(c.stop)
+}
+
+func requireObservationDurationCallbackExclusion(t *testing.T, row observationFixture, wantStatus DeliveryStatus, callbackAction func() error) {
+	t.Helper()
+	var baselineEvents []Observation
+	baselineOutput, baselineStatus := runObservationDurationCall(t, row, make(chan struct{}, len(row.Events)), func(event Observation) error {
+		baselineEvents = append(baselineEvents, event)
+		return nil
+	})
+	requireObservationDurationResult(t, row, baselineOutput, baselineStatus)
+	requireObservationEvents(t, baselineEvents, row.Events)
+	baselineParent, baselineChildTotal := requireObservationDurationBounds(t, baselineEvents)
+	// Make the measured hold dominate this fixture's relative work budget; this
+	// keeps unrelated scheduler pauses from deciding the callback boundary.
+	hold := 8 * (baselineParent.Duration + baselineChildTotal)
+	controller := newObservationDurationCallbackController(hold)
+	t.Cleanup(controller.Stop)
+
+	var events []Observation
+	var child Observation
+	var callbackHold time.Duration
+	childCallbacks, parentCallbacks := 0, 0
+	output, status := runObservationDurationCall(t, row, make(chan struct{}, len(row.Events)), func(event Observation) error {
+		events = append(events, event)
+		if event.ParentCallID == 0 {
+			parentCallbacks++
+			return nil
+		}
+		childCallbacks++
+		if event.RegexDetected.Value == 0 || child.CallID != 0 {
+			return nil
+		}
+		child = event
+		callbackHold = controller.Hold()
+		return callbackAction()
+	})
+	requireObservationDurationOutput(t, row, output)
+	requireObservationEvents(t, events, row.Events)
+	requireDurationPolicy(t, events, row.DurationPolicy)
+	if child.CallID == 0 || childCallbacks == 0 {
+		t.Fatalf("duration fixture did not deliver automatic child callbacks: %#v", events)
+	}
+	if parentCallbacks != 1 {
+		t.Fatalf("duration fixture delivered %d parent callbacks, want one: %#v", parentCallbacks, events)
+	}
+	if status != wantStatus {
+		t.Fatalf("duration callback status %v, want %v", status, wantStatus)
+	}
+	parent, _ := requireObservationDurationBounds(t, events)
+	parentCallbackIndependentBound := baselineParent.Duration + callbackHold
+	if parent.Duration >= parentCallbackIndependentBound {
+		t.Fatalf("parent duration %v included automatic child callback hold %v against paired baseline %v (baseline children %v, hold budget %v)", parent.Duration, callbackHold, baselineParent.Duration, baselineChildTotal, hold)
 	}
 }
 
@@ -372,6 +458,11 @@ func requireObservationDurationResult(t testing.TB, row observationFixture, outp
 	if status != row.Status {
 		t.Fatalf("duration fixture %s returned status %v, want %v", row.Name, status, row.Status)
 	}
+	requireObservationDurationOutput(t, row, output)
+}
+
+func requireObservationDurationOutput(t testing.TB, row observationFixture, output any) {
+	t.Helper()
 	if row.MetadataOutput != "" {
 		_, golden := observationValue(t, observationFixture{Metadata: row.MetadataOutput})
 		if !reflect.DeepEqual(output, golden) {
