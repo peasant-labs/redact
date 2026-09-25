@@ -369,9 +369,13 @@ func requireObservationDurationCallbackExclusion(t *testing.T, row observationFi
 	requireObservationDurationResult(t, row, baselineOutput, baselineStatus)
 	requireObservationEvents(t, baselineEvents, row.Events)
 	baselineParent, baselineChildTotal := requireObservationDurationBounds(t, baselineEvents)
-	// Make the measured hold dominate this fixture's relative work budget; this
-	// keeps unrelated scheduler pauses from deciding the callback boundary.
-	hold := 8 * (baselineParent.Duration + baselineChildTotal)
+	work := baselineParent.Duration + baselineChildTotal
+	// Keep the hold twice the scheduler allowance. The held run is compared with
+	// an adjacent unheld run using a bounded, work-derived margin, so scheduler
+	// load does not decide the callback boundary. Without pausing, the measured
+	// hold alone exceeds that margin before ordinary engine work is considered.
+	hold := 64 * work
+	schedulerMargin := 32 * work
 	controller := newObservationDurationCallbackController(hold)
 	t.Cleanup(controller.Stop)
 
@@ -406,8 +410,18 @@ func requireObservationDurationCallbackExclusion(t *testing.T, row observationFi
 		t.Fatalf("duration callback status %v, want %v", status, wantStatus)
 	}
 	parent, _ := requireObservationDurationBounds(t, events)
-	if parent.Duration >= callbackHold {
-		t.Fatalf("parent duration %v included automatic child callback hold %v against paired baseline %v (baseline children %v, hold budget %v)", parent.Duration, callbackHold, baselineParent.Duration, baselineChildTotal, hold)
+
+	var pairedEvents []Observation
+	pairedOutput, pairedStatus := runObservationDurationCall(t, row, make(chan struct{}, len(row.Events)), func(event Observation) error {
+		pairedEvents = append(pairedEvents, event)
+		return nil
+	})
+	requireObservationDurationResult(t, row, pairedOutput, pairedStatus)
+	requireObservationEvents(t, pairedEvents, row.Events)
+	pairedParent, _ := requireObservationDurationBounds(t, pairedEvents)
+	pairedBound := max(baselineParent.Duration, pairedParent.Duration) + schedulerMargin
+	if parent.Duration >= pairedBound {
+		t.Fatalf("parent duration %v included automatic child callback hold %v against same-condition bound %v (pre-hold parent %v, post-hold parent %v, work %v, hold budget %v, scheduler margin %v)", parent.Duration, callbackHold, pairedBound, baselineParent.Duration, pairedParent.Duration, work, hold, schedulerMargin)
 	}
 }
 

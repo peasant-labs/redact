@@ -193,7 +193,9 @@ type observationCall struct {
 
 // observationElapsed is enabled-only clock state. It pauses only while an
 // automatic child callback runs so parent traversal remains measurable without
-// charging child callback latency to the parent.
+// charging child callback latency to the parent. A parent's elapsed state is
+// touched only on the parent goroutine because automatic child delivery is
+// synchronous; asynchronous delivery would require different state ownership.
 type observationElapsed struct {
 	started     time.Time
 	accumulated time.Duration

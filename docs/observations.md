@@ -57,14 +57,19 @@ Changing the exported rule table concurrently with use remains unsupported.
 Records describe **direct work only**, never work already reported by children.
 Each enabled record also contains `Duration`, a monotonic elapsed `time.Duration` for
 that operation. Timing starts after enabled observation setup and immediately before
-the engine operation. A parent's duration covers the parent operation including its
-automatic JSON or metadata child traversal; it is not the sum of child durations.
-Each child records its own duration. The parent timer pauses while an automatic child
-callback runs and resumes after the callback returns, returns an error, or panics, so
-callback latency is not included in the parent duration. The child's own duration is
-fixed before its callback runs, and the root callback runs after the root duration is
-fixed. The value is elapsed time, not a wall-clock timestamp, and adds no content or
-identity beyond the fields already documented here.
+the engine operation. Every delivered enabled record contains a measured elapsed value;
+a disabled binding emits no observation record and therefore no duration. A duration
+at or below the host clock's resolution may read as zero.
+
+Parent and child intervals overlap. A parent's duration covers the parent operation
+including its automatic JSON or metadata child engine work; it is not the sum of child
+durations. Callers must not sum `Duration` across the records in one record set: use
+the root duration for per-operation cost. Each child records its own duration. The
+parent timer pauses while an automatic child callback runs and resumes after the callback
+returns, returns an error, or panics, so callback latency is not included in the parent
+duration. The child's own duration is fixed before its callback runs, and the root callback
+runs after the root duration is fixed. The value is elapsed time, not a wall-clock
+timestamp, and adds no content or identity beyond the fields already documented here.
 
 | Operation | RegexDetected | RegexApplied | ContextualReplacements |
 |---|---|---|---|
