@@ -4,8 +4,6 @@ import (
 	"reflect"
 	"slices"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 func TestObservationEmptyCoverage(t *testing.T) {
@@ -13,14 +11,11 @@ func TestObservationEmptyCoverage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var file struct {
-		Required []string             `yaml:"requiredCoverageNames"`
-		Cases    []observationFixture `yaml:"coverageCases"`
-	}
-	if err := yaml.Unmarshal(data, &file); err != nil {
+	var file observationDocument
+	if err := decodeObservationYAML(data, &file); err != nil {
 		t.Fatal(err)
 	}
-	names := fixtureNames(file.Cases, func(row observationFixture) string { return row.Name })
+	names := fixtureNames(file.CoverageCases, func(row observationFixture) string { return row.Name })
 	seen := make(map[string]bool)
 	for _, name := range names {
 		if seen[name] {
@@ -28,7 +23,7 @@ func TestObservationEmptyCoverage(t *testing.T) {
 		}
 		seen[name] = true
 	}
-	if err := requireFixtureNames("observation_disabled_calls.yaml", "coverage", file.Required, names); err != nil {
+	if err := requireFixtureNames("observation_disabled_calls.yaml", "coverage", file.RequiredCoverageNames, names); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"empty_detect", "no_match_detect", "empty_redact", "empty_text", "no_match_text", "empty_json_array", "empty_json_map", "empty_metadata", "empty_ids"} {
@@ -36,7 +31,7 @@ func TestObservationEmptyCoverage(t *testing.T) {
 			t.Fatalf("missing pinned coverage fixture %s", name)
 		}
 	}
-	for _, row := range file.Cases {
+	for _, row := range file.CoverageCases {
 		t.Run(row.Name, func(t *testing.T) {
 			engine, legacy := observationEngine(t), observationEngine(t)
 			var events []Observation
@@ -138,21 +133,13 @@ func TestObservationConstructor(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var file struct {
-		Required []string `yaml:"requiredConstructorNames"`
-		Cases    []struct {
-			Name    string `yaml:"name"`
-			Typed   bool   `yaml:"typed"`
-			Enabled bool   `yaml:"enabled"`
-			Error   string `yaml:"error"`
-		} `yaml:"constructorCases"`
-	}
-	if err := yaml.Unmarshal(data, &file); err != nil {
+	var file observationDocument
+	if err := decodeObservationYAML(data, &file); err != nil {
 		t.Fatal(err)
 	}
 	var names []string
 	seen := map[string]bool{}
-	for _, row := range file.Cases {
+	for _, row := range file.ConstructorCases {
 		if seen[row.Name] {
 			t.Fatal("duplicate constructor fixture")
 		}
@@ -174,7 +161,7 @@ func TestObservationConstructor(t *testing.T) {
 			}
 		})
 	}
-	if err := requireFixtureNames("observation_disabled_calls.yaml", "constructors", file.Required, names); err != nil {
+	if err := requireFixtureNames("observation_disabled_calls.yaml", "constructors", file.RequiredConstructorNames, names); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"nil_interface_disabled", "nil_interface_enabled", "typed_nil_disabled", "typed_nil_enabled"} {

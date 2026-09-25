@@ -7,8 +7,6 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 type observationPreviewResidue struct{}
@@ -126,11 +124,8 @@ func TestObservationClosedSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var fixture struct {
-		Schema map[string][]string `yaml:"schema"`
-		Enums  map[string][]int    `yaml:"enums"`
-	}
-	if err := yaml.Unmarshal(data, &fixture); err != nil {
+	var fixture observationDocument
+	if err := decodeObservationYAML(data, &fixture); err != nil {
 		t.Fatal(err)
 	}
 	// These are type/enum membership manifests, not inline scenario cases.

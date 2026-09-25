@@ -1,9 +1,11 @@
 package redact
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 
@@ -46,6 +48,40 @@ type observationFixture struct {
 	TitleCategories  []CategoryString         `yaml:"titleCategories"`
 }
 
+type observationConstructorFixture struct {
+	Name    string `yaml:"name"`
+	Typed   bool   `yaml:"typed"`
+	Enabled bool   `yaml:"enabled"`
+	Error   string `yaml:"error"`
+}
+
+type observationDocument struct {
+	RequiredAllocationNames  []string                        `yaml:"requiredAllocationNames"`
+	AllocationCases          []observationAllocationFixture  `yaml:"allocationCases"`
+	RequiredNames            []string                        `yaml:"requiredNames"`
+	Cases                    []observationFixture            `yaml:"cases"`
+	RequiredExternalNames    []string                        `yaml:"requiredExternalNames"`
+	ExternalCases            []map[string]any                `yaml:"externalCases"`
+	RequiredTitleNames       []string                        `yaml:"requiredTitleNames"`
+	TitleCases               []observationFixture            `yaml:"titleCases"`
+	RequiredCoverageNames    []string                        `yaml:"requiredCoverageNames"`
+	First                    Observation                     `yaml:"first"`
+	Second                   Observation                     `yaml:"second"`
+	Detect                   Observation                     `yaml:"detect"`
+	Text                     Observation                     `yaml:"text"`
+	Empty                    Observation                     `yaml:"empty"`
+	Recovered                Observation                     `yaml:"recovered"`
+	Panic                    Observation                     `yaml:"panic"`
+	Root                     Observation                     `yaml:"root"`
+	Parent                   Observation                     `yaml:"parent"`
+	CoverageCases            []observationFixture            `yaml:"coverageCases"`
+	RequiredConstructorNames []string                        `yaml:"requiredConstructorNames"`
+	NilError                 string                          `yaml:"nilError"`
+	ConstructorCases         []observationConstructorFixture `yaml:"constructorCases"`
+	Schema                   map[string][]string             `yaml:"schema"`
+	Enums                    map[string][]int                `yaml:"enums"`
+}
+
 type observationRuleFixture struct {
 	ID          string         `yaml:"id"`
 	Category    Category       `yaml:"category"`
@@ -55,6 +91,22 @@ type observationRuleFixture struct {
 	Filter      string         `yaml:"filter"`
 }
 
+func decodeObservationYAML(data []byte, out any) error {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(out); err != nil {
+		return err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("observation fixture must contain exactly one YAML document")
+		}
+		return err
+	}
+	return nil
+}
+
 func loadObservationFixtures(t testing.TB, family string, pinned ...string) []observationFixture {
 	t.Helper()
 	path := "testdata/observation_" + family + ".yaml"
@@ -62,11 +114,8 @@ func loadObservationFixtures(t testing.TB, family string, pinned ...string) []ob
 	if err != nil {
 		t.Fatal(err)
 	}
-	var file struct {
-		Required []string             `yaml:"requiredNames"`
-		Cases    []observationFixture `yaml:"cases"`
-	}
-	if err := yaml.Unmarshal(data, &file); err != nil {
+	var file observationDocument
+	if err := decodeObservationYAML(data, &file); err != nil {
 		t.Fatal(err)
 	}
 	names := make([]string, 0, len(file.Cases))
@@ -84,7 +133,7 @@ func loadObservationFixtures(t testing.TB, family string, pinned ...string) []ob
 			validateObservationEnums(t, event)
 		}
 	}
-	if err := requireFixtureNames(path, "observations", file.Required, names); err != nil {
+	if err := requireFixtureNames(path, "observations", file.RequiredNames, names); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range pinned {

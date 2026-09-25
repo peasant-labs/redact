@@ -4,8 +4,6 @@ import (
 	"regexp"
 	"slices"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
 
 func TestObservationTitleParity(t *testing.T) {
@@ -13,14 +11,11 @@ func TestObservationTitleParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var file struct {
-		Required []string             `yaml:"requiredTitleNames"`
-		Cases    []observationFixture `yaml:"titleCases"`
-	}
-	if err := yaml.Unmarshal(data, &file); err != nil {
+	var file observationDocument
+	if err := decodeObservationYAML(data, &file); err != nil {
 		t.Fatal(err)
 	}
-	names := fixtureNames(file.Cases, func(row observationFixture) string { return row.Name })
+	names := fixtureNames(file.TitleCases, func(row observationFixture) string { return row.Name })
 	seen := make(map[string]bool)
 	for _, name := range names {
 		if seen[name] {
@@ -28,7 +23,7 @@ func TestObservationTitleParity(t *testing.T) {
 		}
 		seen[name] = true
 	}
-	if err := requireFixtureNames("observation_disabled_calls.yaml", "title", file.Required, names); err != nil {
+	if err := requireFixtureNames("observation_disabled_calls.yaml", "title", file.RequiredTitleNames, names); err != nil {
 		t.Fatal(err)
 	}
 	for _, name := range []string{"title_overlap_parity", "title_backreference_parity", "title_sensitive_category_parity"} {
@@ -36,7 +31,7 @@ func TestObservationTitleParity(t *testing.T) {
 			t.Fatalf("missing pinned title fixture %s", name)
 		}
 	}
-	for _, row := range file.Cases {
+	for _, row := range file.TitleCases {
 		t.Run(row.Name, func(t *testing.T) {
 			old := Rules
 			t.Cleanup(func() { Rules = old })

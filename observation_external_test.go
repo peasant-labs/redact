@@ -1,7 +1,10 @@
 package redact_test
 
 import (
+	"bytes"
 	"embed"
+	"errors"
+	"io"
 	"reflect"
 	"testing"
 
@@ -50,6 +53,72 @@ type externalObservationFixture struct {
 	Length   int             `yaml:"length"`
 }
 
+func decodeExternalObservationYAML(data []byte, out any) error {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	var document yaml.Node
+	if err := decoder.Decode(&document); err != nil {
+		return err
+	}
+	var trailing yaml.Node
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return errors.New("external observation fixture must contain exactly one YAML document")
+		}
+		return err
+	}
+	if len(document.Content) != 1 || document.Content[0].Kind != yaml.MappingNode {
+		return errors.New("external observation fixture must contain one YAML mapping document")
+	}
+	allowed := map[string]bool{
+		"requiredAllocationNames": true, "allocationCases": true, "requiredNames": true, "cases": true,
+		"requiredExternalNames": true, "externalCases": true, "requiredTitleNames": true, "titleCases": true,
+		"requiredCoverageNames": true, "detect": true, "text": true, "parent": true, "coverageCases": true,
+		"requiredConstructorNames": true, "nilError": true, "constructorCases": true,
+	}
+	var externalCases, requiredNames yaml.Node
+	for i := 0; i < len(document.Content[0].Content); i += 2 {
+		key, value := document.Content[0].Content[i].Value, document.Content[0].Content[i+1]
+		if !allowed[key] {
+			return errors.New("external observation fixture contains an unknown top-level key")
+		}
+		switch key {
+		case "externalCases":
+			externalCases = *value
+		case "requiredExternalNames":
+			requiredNames = *value
+		}
+	}
+	file, ok := out.(*struct {
+		Required []string                     `yaml:"requiredExternalNames"`
+		Cases    []externalObservationFixture `yaml:"externalCases"`
+	})
+	if !ok {
+		return errors.New("external observation decoder target has an unexpected shape")
+	}
+	requiredBytes, err := yaml.Marshal(&requiredNames)
+	if err != nil {
+		return err
+	}
+	requiredDecoder := yaml.NewDecoder(bytes.NewReader(requiredBytes))
+	requiredDecoder.KnownFields(true)
+	if err := requiredDecoder.Decode(&file.Required); err != nil {
+		return err
+	}
+	if externalCases.Kind == 0 {
+		return nil
+	}
+	caseBytes, err := yaml.Marshal(&externalCases)
+	if err != nil {
+		return err
+	}
+	caseDecoder := yaml.NewDecoder(bytes.NewReader(caseBytes))
+	caseDecoder.KnownFields(true)
+	if err := caseDecoder.Decode(&file.Cases); err != nil {
+		return err
+	}
+	return nil
+}
+
 func TestObservationExternalCompatibility(t *testing.T) {
 	data, err := externalObservationFixtures.ReadFile("testdata/observation_disabled_calls.yaml")
 	if err != nil {
@@ -59,7 +128,7 @@ func TestObservationExternalCompatibility(t *testing.T) {
 		Required []string                     `yaml:"requiredExternalNames"`
 		Cases    []externalObservationFixture `yaml:"externalCases"`
 	}
-	if err := yaml.Unmarshal(data, &file); err != nil {
+	if err := decodeExternalObservationYAML(data, &file); err != nil {
 		t.Fatal(err)
 	}
 	pinned := map[string]bool{"legacy_interface_implementation": false, "disabled_external_forwarding": false, "enabled_external_rejected": false, "public_unkeyed_rule_match": false}
