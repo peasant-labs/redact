@@ -65,9 +65,9 @@ type DefaultRedactor struct {
 	astAnonymizer       ASTAnonymizer   // AST code anonymization (v2, Maximum only)
 	residueDetector     ResidueDetector // post-redaction advisory scanner (v2)
 	userRules           []Rule          // v3: compiled from userPatterns at construction; read-only after init
-	configuredRuleCount int             // source boundary before generated XDG rules
 	lastMatches         []Match         // matches from the last Detect() call (last-call-only, not accumulated)
 	scannerConfig       scannerConfig   // immutable JSONL scanner defaults supplied at construction
+	configuredRuleCount int             // source boundary before generated XDG rules
 }
 
 // XDGPaths holds resolved XDG base directory paths for custom path redaction.
