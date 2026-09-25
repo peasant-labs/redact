@@ -85,9 +85,9 @@ type RuleDetection struct {
 // Observation contains no content, offsets, paths, matches, or error payloads.
 // RunID, CorrelationID and rule IDs are caller-authorized metadata: do not put
 // private content in these fields. Counts exclude work reported by children.
-// Duration is the monotonic elapsed time for this operation, excluding observer
-// delivery. A parent includes automatic child traversal; it is not a sum of
-// child durations.
+// Duration is the monotonic elapsed engine time for this operation. A parent
+// includes automatic child traversal, but pauses while a child callback runs;
+// it is not a sum of child durations.
 type Observation struct {
 	RunID                  string
 	CorrelationID          string
@@ -130,9 +130,9 @@ func (r *Run) Detect(callID string, input string) (matches []Match, status Deliv
 	if r.observer == nil {
 		return r.legacy.Detect(input), DeliveryDisabled
 	}
-	started := time.Now()
 	call := r.newCall(callID, OperationDetect, 0)
-	defer call.finish(&status, started)
+	defer call.finish(&status)
+	call.elapsed.start()
 	return r.engine.detect(input, call), DeliveryOK
 }
 
@@ -141,9 +141,9 @@ func (r *Run) Redact(callID string, input string, matches []Match) (output strin
 	if r.observer == nil {
 		return r.legacy.Redact(input, matches), DeliveryDisabled
 	}
-	started := time.Now()
 	call := r.newCall(callID, OperationRedact, 0)
-	defer call.finish(&status, started)
+	defer call.finish(&status)
+	call.elapsed.start()
 	return r.engine.Redact(input, matches), DeliveryOK
 }
 
@@ -152,9 +152,9 @@ func (r *Run) RedactText(callID string, input string) (output string, status Del
 	if r.observer == nil {
 		return r.legacy.RedactText(input), DeliveryDisabled
 	}
-	started := time.Now()
 	call := r.newCall(callID, OperationRedactText, 0)
-	defer call.finish(&status, started)
+	defer call.finish(&status)
+	call.elapsed.start()
 	return r.engine.redactText(input, call), DeliveryOK
 }
 
@@ -163,9 +163,9 @@ func (r *Run) RedactJSON(callID string, value any) (output any, status DeliveryS
 	if r.observer == nil {
 		return r.legacy.RedactJSON(value), DeliveryDisabled
 	}
-	started := time.Now()
 	call := r.newCall(callID, OperationRedactJSON, 0)
-	defer call.finish(&status, started)
+	defer call.finish(&status)
+	call.elapsed.start()
 	return r.engine.redactJSON(value, call), DeliveryOK
 }
 
@@ -174,21 +174,49 @@ func (r *Run) RedactMetadata(callID string, meta *schema.UnifiedMetadata) (outpu
 	if r.observer == nil {
 		return r.legacy.RedactMetadata(meta), DeliveryDisabled
 	}
-	started := time.Now()
 	call := r.newCall(callID, OperationRedactMetadata, 0)
 	if meta != nil {
 		call.record.ContextualReplacements = unavailableCount(DiagnosticNotMeasured)
 	}
-	defer call.finish(&status, started)
+	defer call.finish(&status)
+	call.elapsed.start()
 	return r.engine.redactMetadata(meta, call), DeliveryOK
 }
 
 type observationCall struct {
 	run      *Run
 	parent   *observationCall
-	pending  []Observation
+	elapsed  observationElapsed
 	record   Observation
 	delivery DeliveryStatus
+}
+
+// observationElapsed is enabled-only clock state. It pauses only while an
+// automatic child callback runs so parent traversal remains measurable without
+// charging child callback latency to the parent.
+type observationElapsed struct {
+	started     time.Time
+	accumulated time.Duration
+}
+
+func (e *observationElapsed) start() {
+	e.started = time.Now()
+}
+
+func (e *observationElapsed) pause() {
+	e.accumulated += time.Since(e.started)
+	e.started = time.Time{}
+}
+
+func (e *observationElapsed) resume() {
+	e.started = time.Now()
+}
+
+func (e *observationElapsed) duration() time.Duration {
+	if e.started.IsZero() {
+		return e.accumulated
+	}
+	return e.accumulated + time.Since(e.started)
 }
 
 func unavailableCount(reason DiagnosticCode) ObservedCount {
@@ -226,9 +254,9 @@ func (c *observationCall) failed(reason DiagnosticCode) {
 
 // finish is deferred by the public boundary, outside the text recovery helper.
 // The engine panic is preserved; only the callback has a swallowing recovery.
-func (c *observationCall) finish(status *DeliveryStatus, started time.Time) {
+func (c *observationCall) finish(status *DeliveryStatus) {
 	panicValue := recover()
-	c.record.Duration = time.Since(started)
+	c.record.Duration = c.elapsed.duration()
 	if panicValue != nil {
 		c.failed(DiagnosticEnginePanicked)
 	}
@@ -241,22 +269,24 @@ func (c *observationCall) finish(status *DeliveryStatus, started time.Time) {
 	}
 	c.record.Rules = rules
 	if c.parent != nil {
-		c.parent.pending = append(c.parent.pending, c.record)
+		c.deliverAutomaticChild()
 		*status = c.delivery
 		if panicValue != nil {
 			panic(panicValue)
 		}
 		return
 	}
-	// Child callbacks are delivered after the parent engine traversal so callback
-	// latency is outside the parent duration as well as each child's duration.
-	for _, child := range c.pending {
-		c.delivery = combineDelivery(c.delivery, deliverObservation(c.run.observer, child))
-	}
 	*status = combineDelivery(c.delivery, deliverObservation(c.run.observer, c.record))
 	if panicValue != nil {
 		panic(panicValue)
 	}
+}
+
+func (c *observationCall) deliverAutomaticChild() {
+	c.parent.elapsed.pause()
+	defer c.parent.elapsed.resume()
+	c.delivery = deliverObservation(c.run.observer, c.record)
+	c.parent.delivery = combineDelivery(c.parent.delivery, c.delivery)
 }
 
 func deliverObservation(observer Observer, record Observation) (status DeliveryStatus) {
@@ -295,10 +325,10 @@ func (r *DefaultRedactor) redactTextChild(input string, parent *observationCall)
 }
 
 func (r *DefaultRedactor) redactTextChildObserved(input string, parent *observationCall) string {
-	started := time.Now()
 	child := parent.run.newCall(parent.record.CorrelationID, OperationRedactText, parent.record.CallID)
 	child.parent = parent
 	var status DeliveryStatus
-	defer child.finish(&status, started)
+	defer child.finish(&status)
+	child.elapsed.start()
 	return r.redactText(input, child)
 }

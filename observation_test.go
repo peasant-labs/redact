@@ -253,86 +253,154 @@ func TestObservationNested(t *testing.T) {
 }
 
 func TestObservationDuration(t *testing.T) {
-	rows := loadObservationFixtures(t, "nested_calls", "json_string")
-	var row observationFixture
-	for _, candidate := range rows {
-		if candidate.Name == "json_string" {
-			row = candidate
-			break
-		}
+	for _, row := range loadObservationDurationFixtures(t) {
+		t.Run(row.Name, func(t *testing.T) {
+			filterEntered := make(chan struct{}, len(row.Events))
+			var events []Observation
+			immediateDelivery := false
+			output, status := runObservationDurationCall(t, row, filterEntered, func(event Observation) error {
+				events = append(events, event)
+				if event.ParentCallID != 0 && event.RegexDetected.Value > 0 && !immediateDelivery {
+					select {
+					case <-filterEntered:
+					default:
+					}
+					immediateDelivery = len(filterEntered) == 0
+				}
+				return nil
+			})
+			requireObservationDurationResult(t, row, output, status)
+			requireObservationEvents(t, events, row.Events)
+			requireDurationPolicy(t, events, row.DurationPolicy)
+			if !immediateDelivery {
+				t.Fatalf("automatic child delivery was deferred until parent traversal ended: %#v", events)
+			}
+			parent, childTotal := requireObservationDurationBounds(t, events)
+			if parent.Duration < childTotal {
+				t.Fatalf("parent duration %v omitted sequential child traversal totaling %v", parent.Duration, childTotal)
+			}
+		})
 	}
-	if row.Name == "" {
-		t.Fatal("missing json_string duration fixture")
-	}
+}
 
+func TestObservationDurationExcludesChildCallback(t *testing.T) {
+	for _, row := range loadObservationDurationFixtures(t) {
+		t.Run(row.Name, func(t *testing.T) {
+			var baselineEvents []Observation
+			baselineOutput, baselineStatus := runObservationDurationCall(t, row, make(chan struct{}, len(row.Events)), func(event Observation) error {
+				baselineEvents = append(baselineEvents, event)
+				return nil
+			})
+			requireObservationDurationResult(t, row, baselineOutput, baselineStatus)
+			requireObservationEvents(t, baselineEvents, row.Events)
+			baselineParent, baselineChildTotal := requireObservationDurationBounds(t, baselineEvents)
+			hold := 2 * (baselineParent.Duration + baselineChildTotal)
+
+			var events []Observation
+			var child Observation
+			var callbackHold time.Duration
+			output, status := runObservationDurationCall(t, row, make(chan struct{}, len(row.Events)), func(event Observation) error {
+				events = append(events, event)
+				if event.ParentCallID == 0 || event.RegexDetected.Value == 0 || child.CallID != 0 {
+					return nil
+				}
+				child = event
+				started := time.Now()
+				holdTimer := time.NewTimer(hold)
+				<-holdTimer.C
+				callbackHold = time.Since(started)
+				return nil
+			})
+			requireObservationDurationResult(t, row, output, status)
+			requireObservationEvents(t, events, row.Events)
+			requireDurationPolicy(t, events, row.DurationPolicy)
+			parent, _ := requireObservationDurationBounds(t, events)
+			if callbackHold < hold {
+				t.Fatalf("callback hold %v was shorter than the relative gate %v", callbackHold, hold)
+			}
+			callbackIndependentBound := child.Duration + callbackHold
+			if parent.Duration >= callbackIndependentBound {
+				t.Fatalf("parent duration %v included automatic child callback hold %v", parent.Duration, callbackHold)
+			}
+		})
+	}
+}
+
+func loadObservationDurationFixtures(t testing.TB) []observationFixture {
+	t.Helper()
+	rows := loadObservationFixtures(t, "nested_calls", "json_nested", "metadata_fields")
+	return slices.DeleteFunc(rows, func(row observationFixture) bool { return row.Name != "json_nested" && row.Name != "metadata_fields" })
+}
+
+func runObservationDurationCall(t testing.TB, row observationFixture, filterEntered chan struct{}, observer Observer) (any, DeliveryStatus) {
+	t.Helper()
 	engine := observationEngine(t).(*DefaultRedactor)
-	entered := make(chan struct{}, 1)
-	release := make(chan struct{})
+	filterReached := make(chan struct{}, 1)
+	filterRelease := make(chan struct{})
+	go func() {
+		<-filterReached
+		close(filterRelease)
+	}()
 	engine.userRules[0].FilterFn = func(string, string, int) bool {
 		select {
-		case entered <- struct{}{}:
+		case filterReached <- struct{}{}:
 		default:
 		}
-		<-release
+		filterEntered <- struct{}{}
+		<-filterRelease
 		return true
 	}
 
-	var events []Observation
-	run, err := NewRun(engine, "run", func(event Observation) error {
-		events = append(events, event)
-		return nil
-	})
+	run, err := NewRun(engine, "run", observer)
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, _ := observationValue(t, row)
-	result := make(chan struct {
-		output any
-		status DeliveryStatus
-	}, 1)
-	go func() {
-		output, status := run.RedactJSON("call", value)
-		result <- struct {
-			output any
-			status DeliveryStatus
-		}{output: output, status: status}
-	}()
+	value, meta := observationValue(t, row)
+	switch row.Operation {
+	case "RedactJSON":
+		return run.RedactJSON("call", value)
+	case "RedactMetadata":
+		return run.RedactMetadata("call", meta)
+	default:
+		t.Fatalf("duration fixture %s has unsupported operation %q", row.Name, row.Operation)
+		return nil, DeliveryDisabled
+	}
+}
 
-	enteredTimer := time.NewTimer(time.Second)
-	select {
-	case <-entered:
-		if !enteredTimer.Stop() {
-			<-enteredTimer.C
-		}
-	case <-enteredTimer.C:
-		close(release)
-		t.Fatal("JSON redaction did not reach the fixture filter")
+func requireObservationDurationResult(t testing.TB, row observationFixture, output any, status DeliveryStatus) {
+	t.Helper()
+	if status != row.Status {
+		t.Fatalf("duration fixture %s returned status %v, want %v", row.Name, status, row.Status)
 	}
-	close(release)
+	if row.MetadataOutput != "" {
+		_, golden := observationValue(t, observationFixture{Metadata: row.MetadataOutput})
+		if !reflect.DeepEqual(output, golden) {
+			t.Fatalf("duration fixture %s changed metadata output", row.Name)
+		}
+	} else if observationOutput(t, output) != row.Output {
+		t.Fatalf("duration fixture %s returned %q, want %q", row.Name, observationOutput(t, output), row.Output)
+	}
+}
 
-	resultTimer := time.NewTimer(time.Second)
-	var got struct {
-		output any
-		status DeliveryStatus
+func requireObservationDurationBounds(t testing.TB, events []Observation) (Observation, time.Duration) {
+	t.Helper()
+	if len(events) < 2 {
+		t.Fatalf("duration fixture requires a parent and automatic child: %#v", events)
 	}
-	select {
-	case got = <-result:
-		if !resultTimer.Stop() {
-			<-resultTimer.C
-		}
-	case <-resultTimer.C:
-		t.Fatal("JSON redaction did not complete after releasing the fixture filter")
-	}
-	if got.status != row.Status || observationOutput(t, got.output) != row.Output {
-		t.Fatalf("duration test changed JSON result/status: %#v %v", got.output, got.status)
-	}
-	requireObservationEvents(t, events, row.Events)
-	requireDurationPolicy(t, events, row.DurationPolicy)
+	var childTotal time.Duration
 	for _, event := range events {
 		if event.Duration <= 0 {
-			t.Fatalf("enabled operation did not record a positive duration: %#v", event)
+			t.Fatalf("duration fixture did not measure positive engine time: %#v", event)
+		}
+		if event.ParentCallID != 0 {
+			childTotal += event.Duration
 		}
 	}
+	parent := events[len(events)-1]
+	if parent.ParentCallID != 0 {
+		t.Fatalf("duration fixture parent was not delivered last: %#v", events)
+	}
+	return parent, childTotal
 }
 
 type hostileObservationError struct{}

@@ -56,11 +56,14 @@ Changing the exported rule table concurrently with use remains unsupported.
 
 Records describe **direct work only**, never work already reported by children.
 Each enabled record also contains `Duration`, a monotonic elapsed `time.Duration` for
-that operation. A parent's duration covers the parent operation including its
+that operation. Timing starts after enabled observation setup and immediately before
+the engine operation. A parent's duration covers the parent operation including its
 automatic JSON or metadata child traversal; it is not the sum of child durations.
-Each child records its own duration. Observer delivery happens after the operation
-has been measured, so callback latency is not included in the record's duration.
-The value is elapsed time, not a wall-clock timestamp, and adds no content or
+Each child records its own duration. The parent timer pauses while an automatic child
+callback runs and resumes after the callback returns, returns an error, or panics, so
+callback latency is not included in the parent duration. The child's own duration is
+fixed before its callback runs, and the root callback runs after the root duration is
+fixed. The value is elapsed time, not a wall-clock timestamp, and adds no content or
 identity beyond the fields already documented here.
 
 | Operation | RegexDetected | RegexApplied | ContextualReplacements |
@@ -84,14 +87,16 @@ warnings. They are not exact applied replacement counts. The legacy cumulative
 report retains its detected-count and first-ID category behavior; replacement
 selection retains its last-ID behavior. The observation API does not change them.
 
-JSON emits one text child per string leaf, then the parent. Container recursion
-has no separate record and map order is unspecified. Metadata emits a text child
-for each existing text invocation, including empty fields, then the parent.
-Children inherit correlation/run IDs, get distinct call IDs, and point to the
-root parent. Text's internal detection/application phases are not separate calls.
-`Duration` measures the enabled public operation and the automatic traversal;
-it does not turn the parent into a total of child timings. Exact application,
-contextual replacement counts, and stage timing remain outside this field.
+JSON emits one text child per string leaf immediately when that child finishes, then
+emits the parent. Container recursion has no separate record and map order is
+unspecified. Metadata emits a text child immediately for each existing text
+invocation, including empty fields, then emits the parent. Children inherit
+correlation/run IDs, get distinct call IDs, and point to the root parent. Text's
+internal detection/application phases are not separate calls. `Duration` measures
+the enabled public operation and the automatic traversal, excluding automatic child
+callback latency; it does not turn the parent into a total of child timings. Exact
+application, contextual replacement counts, and stage timing remain outside this
+field.
 
 ## Recovery and delivery
 
@@ -107,8 +112,10 @@ delivery return in that case.
 The callback runs outside all report locks and outside text recovery. Returning
 an error or panicking changes only the closed delivery status. Error text and
 panic values are not formatted. There is no retry, recursive failure callback,
-automatic observer disable, new fallback, or report adjustment. Duration is fixed
-before this delivery boundary, so callback work is not reported as redaction time.
+automatic observer disable, new fallback, or report adjustment. A child fixes its
+own duration before delivery, and the parent timer is paused for that delivery.
+The root fixes its own duration before root delivery, so callback work is not
+reported as redaction time.
 
 Root delivery combines errors/panics from automatic children and its own
 callback. A child error plus parent panic produces `DeliveryObserverErrorAndPanic`.
