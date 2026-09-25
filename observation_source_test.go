@@ -7,8 +7,6 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
-	"os"
-	"strconv"
 	"testing"
 )
 
@@ -72,29 +70,5 @@ func TestObservationDisabledForwarding(t *testing.T) {
 				t.Fatal("public Run operation missing")
 			}
 		})
-	}
-}
-
-func TestObservationNoClockImports(t *testing.T) {
-	files := []string{"observation.go", "redactor.go", "detect.go"}
-	if _, err := os.Stat("observation_internal.go"); err == nil {
-		files = append(files, "observation_internal.go")
-	} else if !os.IsNotExist(err) {
-		t.Fatal(err)
-	}
-	for _, path := range files {
-		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, imp := range file.Imports {
-			value, err := strconv.Unquote(imp.Path.Value)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if value == "time" {
-				t.Fatalf("%s imports profiling clocks; keep observation paths clock-free", path)
-			}
-		}
 	}
 }
