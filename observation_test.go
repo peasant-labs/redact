@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 )
 
 func TestObservationEmptyCoverage(t *testing.T) {
@@ -60,10 +61,14 @@ func TestObservationEmptyCoverage(t *testing.T) {
 func requireObservationEvents(t *testing.T, got, want []Observation) {
 	t.Helper()
 	// Nil and empty rule slices both mean no rule facts; compare their contents.
-	for i := range got {
-		validateObservationEnums(t, got[i])
-		if len(got[i].Rules) == 0 {
-			got[i].Rules = nil
+	// Duration is measured at runtime, so fixture records intentionally leave it
+	// at zero. Validate it above, then compare the stable public facts only.
+	normalized := slices.Clone(got)
+	for i := range normalized {
+		validateObservationEnums(t, normalized[i])
+		normalized[i].Duration = 0
+		if len(normalized[i].Rules) == 0 {
+			normalized[i].Rules = nil
 		}
 	}
 	for i := range want {
@@ -71,8 +76,38 @@ func requireObservationEvents(t *testing.T, got, want []Observation) {
 			want[i].Rules = nil
 		}
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("completion records differ\ngot: %#v\nwant: %#v", got, want)
+	if !reflect.DeepEqual(normalized, want) {
+		t.Fatalf("completion records differ\ngot: %#v\nwant: %#v", normalized, want)
+	}
+}
+
+func requireDurationPolicy(t *testing.T, events []Observation, policy string) {
+	t.Helper()
+	switch policy {
+	case "parent":
+		if len(events) != 1 || events[0].ParentCallID != 0 {
+			t.Fatalf("duration policy %q requires one root observation: %#v", policy, events)
+		}
+	case "parent_and_children":
+		if len(events) < 2 {
+			t.Fatalf("duration policy %q requires a parent and child observations: %#v", policy, events)
+		}
+		parent := events[len(events)-1]
+		if parent.ParentCallID != 0 {
+			t.Fatalf("duration policy %q requires the final event to be the root: %#v", policy, events)
+		}
+		for _, event := range events[:len(events)-1] {
+			if event.ParentCallID != parent.CallID {
+				t.Fatalf("duration policy %q has an unrelated child: %#v", policy, event)
+			}
+		}
+	default:
+		t.Fatalf("unknown observation duration policy %q", policy)
+	}
+	for _, event := range events {
+		if event.Duration < 0 {
+			t.Fatalf("duration policy %q has a negative duration: %#v", policy, event)
+		}
 	}
 }
 
@@ -197,6 +232,7 @@ func TestObservationNested(t *testing.T) {
 				}
 			}
 			requireObservationEvents(t, events, row.Events)
+			requireDurationPolicy(t, events, row.DurationPolicy)
 			requireObservationReport(t, engine.Report(), legacy.Report())
 			if engine.Report().TotalRedactions != row.Total {
 				t.Fatalf("total %d want %d", engine.Report().TotalRedactions, row.Total)
@@ -213,6 +249,89 @@ func TestObservationNested(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestObservationDuration(t *testing.T) {
+	rows := loadObservationFixtures(t, "nested_calls", "json_string")
+	var row observationFixture
+	for _, candidate := range rows {
+		if candidate.Name == "json_string" {
+			row = candidate
+			break
+		}
+	}
+	if row.Name == "" {
+		t.Fatal("missing json_string duration fixture")
+	}
+
+	engine := observationEngine(t).(*DefaultRedactor)
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
+	engine.userRules[0].FilterFn = func(string, string, int) bool {
+		select {
+		case entered <- struct{}{}:
+		default:
+		}
+		<-release
+		return true
+	}
+
+	var events []Observation
+	run, err := NewRun(engine, "run", func(event Observation) error {
+		events = append(events, event)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, _ := observationValue(t, row)
+	result := make(chan struct {
+		output any
+		status DeliveryStatus
+	}, 1)
+	go func() {
+		output, status := run.RedactJSON("call", value)
+		result <- struct {
+			output any
+			status DeliveryStatus
+		}{output: output, status: status}
+	}()
+
+	enteredTimer := time.NewTimer(time.Second)
+	select {
+	case <-entered:
+		if !enteredTimer.Stop() {
+			<-enteredTimer.C
+		}
+	case <-enteredTimer.C:
+		close(release)
+		t.Fatal("JSON redaction did not reach the fixture filter")
+	}
+	close(release)
+
+	resultTimer := time.NewTimer(time.Second)
+	var got struct {
+		output any
+		status DeliveryStatus
+	}
+	select {
+	case got = <-result:
+		if !resultTimer.Stop() {
+			<-resultTimer.C
+		}
+	case <-resultTimer.C:
+		t.Fatal("JSON redaction did not complete after releasing the fixture filter")
+	}
+	if got.status != row.Status || observationOutput(t, got.output) != row.Output {
+		t.Fatalf("duration test changed JSON result/status: %#v %v", got.output, got.status)
+	}
+	requireObservationEvents(t, events, row.Events)
+	requireDurationPolicy(t, events, row.DurationPolicy)
+	for _, event := range events {
+		if event.Duration <= 0 {
+			t.Fatalf("enabled operation did not record a positive duration: %#v", event)
+		}
 	}
 }
 

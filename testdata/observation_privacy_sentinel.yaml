@@ -1,6 +1,6 @@
 requiredNames: [builtin_configured_collision, configured_collision, configured_runtime_collision, filtered_inactive_rules, text_single_scan, forbidden_payloads, forged_match]
 schema:
-  Observation: [RunID, CorrelationID, CallID, ParentCallID, Operation, RegexDetected, RegexApplied, ContextualReplacements, Rules, Diagnostic]
+  Observation: [RunID, CorrelationID, CallID, ParentCallID, Operation, RegexDetected, RegexApplied, ContextualReplacements, Rules, Diagnostic, Duration]
   ObservedCount: [Value, Coverage, Diagnostic]
   RuleDetection: [Rule, Category, Count]
   RuleIdentity: [ID, Origin, Index]

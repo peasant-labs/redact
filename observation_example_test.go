@@ -12,7 +12,7 @@ func ExampleNewRun() {
 		panic(err)
 	}
 	run, err := redact.NewRun(engine, "batch-17", func(o redact.Observation) error {
-		fmt.Printf("run=%s call=%s detected=%d\n", o.RunID, o.CorrelationID, o.RegexDetected.Value)
+		fmt.Printf("run=%s call=%s detected=%d duration_recorded=%t\n", o.RunID, o.CorrelationID, o.RegexDetected.Value, o.Duration >= 0)
 		return nil
 	})
 	if err != nil {
@@ -21,6 +21,6 @@ func ExampleNewRun() {
 	output, delivery := run.RedactText("item-42", "hello")
 	fmt.Println(output, delivery == redact.DeliveryOK)
 	// Output:
-	// run=batch-17 call=item-42 detected=0
+	// run=batch-17 call=item-42 detected=0 duration_recorded=true
 	// hello true
 }

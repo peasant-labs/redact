@@ -24,6 +24,7 @@ parent: &parent
 cases:
   - name: json_string
     operation: RedactJSON
+    durationPolicy: parent_and_children
     json: '"PRIVATE"'
     output: '<SAFE>'
     total: 1
@@ -31,6 +32,7 @@ cases:
     events: [*text, *parent]
   - name: json_nested
     operation: RedactJSON
+    durationPolicy: parent_and_children
     json: '["PRIVATE",["PRIVATE",9007199254740993],{"private-key":"PRIVATE"}]'
     output: '["<SAFE>",["<SAFE>",9007199254740993],{"private-key":"<SAFE>"}]'
     total: 3
@@ -38,18 +40,21 @@ cases:
     events: [*text, {<<: *text, callid: 3}, {<<: *text, callid: 4}, *parent]
   - name: json_number
     operation: RedactJSON
+    durationPolicy: parent
     json: '9007199254740993'
     output: '9007199254740993'
     status: 1
     events: [*parent]
   - name: metadata_nil
     operation: RedactMetadata
+    durationPolicy: parent
     metadata: 'null'
     output: 'null'
     status: 1
     events: [{<<: *parent, operation: 5}]
   - name: metadata_fields
     operation: RedactMetadata
+    durationPolicy: parent_and_children
     metadata: '{"cwd":"PRIVATE","git":{"remote":"PRIVATE","branch":"PRIVATE","worktree":"PRIVATE","tracking":"PRIVATE"},"diagnostics":{"warnings":[{"location":"PRIVATE","message":"PRIVATE"}]}}'
     metadataOutput: '{"cwd":"<SAFE>","git":{"remote":"<SAFE>","branch":"<SAFE>","worktree":"<SAFE>","tracking":"<SAFE>"},"diagnostics":{"warnings":[{"location":"<SAFE>","message":"<SAFE>"}]}}'
     total: 7

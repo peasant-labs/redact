@@ -46,6 +46,7 @@ type observationFixture struct {
 	ReportCounts     map[string]int           `yaml:"reportCounts"`
 	ReportCategories []string                 `yaml:"reportCategories"`
 	TitleCategories  []CategoryString         `yaml:"titleCategories"`
+	DurationPolicy   string                   `yaml:"durationPolicy"`
 }
 
 type observationConstructorFixture struct {
@@ -146,6 +147,9 @@ func loadObservationFixtures(t testing.TB, family string, pinned ...string) []ob
 
 func validateObservationEnums(t testing.TB, event Observation) {
 	t.Helper()
+	if event.Duration < 0 {
+		t.Fatal("observation has a negative duration")
+	}
 	if event.Operation < OperationDetect || event.Operation > OperationRedactMetadata || event.Diagnostic > DiagnosticEnginePanicked {
 		t.Fatal("observation has an unknown operation or diagnostic")
 	}
