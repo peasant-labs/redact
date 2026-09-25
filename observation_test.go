@@ -406,8 +406,7 @@ func requireObservationDurationCallbackExclusion(t *testing.T, row observationFi
 		t.Fatalf("duration callback status %v, want %v", status, wantStatus)
 	}
 	parent, _ := requireObservationDurationBounds(t, events)
-	parentCallbackIndependentBound := baselineParent.Duration + callbackHold
-	if parent.Duration >= parentCallbackIndependentBound {
+	if parent.Duration >= callbackHold {
 		t.Fatalf("parent duration %v included automatic child callback hold %v against paired baseline %v (baseline children %v, hold budget %v)", parent.Duration, callbackHold, baselineParent.Duration, baselineChildTotal, hold)
 	}
 }
