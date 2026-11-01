@@ -64,7 +64,7 @@ func (r *DefaultRedactor) detect(input string, call *observationCall) []Match {
 	if call != nil {
 		accepted = func(index int) { call.record.Rules[index].Count++; call.record.RegexDetected.Value++ }
 	}
-	matches := detectWithRulesInto(input, activeRules, accepted)
+	matches := detectWithRulesInto(input, activeRules, r.patterns, accepted)
 
 	if len(matches) == 0 {
 		// Record nil as the last detect result (last-call-only semantics).
@@ -84,17 +84,18 @@ func (r *DefaultRedactor) detect(input string, call *observationCall) []Match {
 
 // detectWithRules is the pure canonical regex detector. Reporting and
 // last-call state remain the responsibility of DefaultRedactor.Detect.
-func detectWithRules(input string, rules []Rule) []Match {
-	return detectWithRulesInto(input, rules, nil)
+func detectWithRules(input string, rules []Rule, patterns compiledPatterns) []Match {
+	return detectWithRulesInto(input, rules, patterns, nil)
 }
 
-func detectWithRulesInto(input string, rules []Rule, accepted func(ruleIndex int)) []Match {
+func detectWithRulesInto(input string, rules []Rule, patterns compiledPatterns, accepted func(ruleIndex int)) []Match {
 	var matches []Match
 	for index, rule := range rules {
-		if rule.Pattern == nil {
+		pattern := patterns.lookup(rule.Pattern)
+		if pattern == nil {
 			continue
 		}
-		for _, loc := range rule.Pattern.FindAllStringIndex(input, -1) {
+		for _, loc := range pattern.FindAllStringIndex(input, -1) {
 			match := Match{Rule: rule.ID, Offset: loc[0], Length: loc[1] - loc[0], Category: rule.Category, MatchedText: input[loc[0]:loc[1]]}
 			if rule.FilterFn == nil || rule.FilterFn(match.MatchedText, input, match.Offset) {
 				matches = append(matches, match)
@@ -124,13 +125,13 @@ func (r *DefaultRedactor) Redact(input string, matches []Match) string {
 	rules := make([]Rule, 0, len(Rules)+len(r.userRules))
 	rules = append(rules, Rules...)
 	rules = append(rules, r.userRules...)
-	output, _ := redactWithRules(input, matches, rules)
+	output, _ := redactWithRules(input, matches, rules, r.patterns)
 	return output
 }
 
 // redactWithRules is the pure canonical overlap and replacement engine. The
 // returned matches are exactly those whose non-overlapping spans were applied.
-func redactWithRules(input string, matches []Match, rules []Rule) (string, []Match) {
+func redactWithRules(input string, matches []Match, rules []Rule, patterns compiledPatterns) (string, []Match) {
 	if len(matches) == 0 {
 		return input, nil
 	}
@@ -168,7 +169,7 @@ func redactWithRules(input string, matches []Match, rules []Rule) (string, []Mat
 		appliedReplacement := replacement
 		if replacement != "" && containsBackref(replacement) {
 			if ok && rule.Pattern != nil {
-				appliedReplacement = rule.Pattern.ReplaceAllString(input[m.Offset:end], replacement)
+				appliedReplacement = patterns.lookup(rule.Pattern).ReplaceAllString(input[m.Offset:end], replacement)
 			}
 		}
 		out = append(out, appliedReplacement...)
