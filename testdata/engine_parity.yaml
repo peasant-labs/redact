@@ -18,6 +18,9 @@ cases:
     input: token
     output: '<FIRST>'
     rules: [first, second]
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 2, counts: {first: 1, second: 1}}
     patterns:
       - {id: first, category: secrets, pattern: token, replacement: '<FIRST>'}
       - {id: second, category: secrets, pattern: token, replacement: '<SECOND>'}
@@ -25,6 +28,12 @@ cases:
     input: token suffix
     output: '<LONG>'
     rules: [long, contained]
+    # Legacy Report counts accepted detections, including overlap losers.
+    # The second snapshot is a repeated RedactText call on the same redactor.
+    required_report_names: [first_call, repeated_call]
+    reports:
+      - {name: first_call, total: 2, counts: {long: 1, contained: 1}}
+      - {name: repeated_call, total: 4, counts: {long: 2, contained: 2}}
     patterns:
       - {id: long, category: secrets, pattern: 'token suffix', replacement: '<LONG>'}
       - {id: contained, category: secrets, pattern: suffix, replacement: '<SHORT>'}
@@ -32,46 +41,95 @@ cases:
     input: pair=ab:cd
     output: pair=cd-ab
     rules: [pair]
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 1, counts: {pair: 1}}
     patterns:
       - {id: pair, category: secrets, pattern: '(ab):(cd)', replacement: '$2-${1}'}
   - name: literal_dollars
     input: token
     output: 'cost $$ and $literal'
     rules: [literal]
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 1, counts: {literal: 1}}
     patterns:
       - {id: literal, category: secrets, pattern: token, replacement: 'cost $$ and $literal'}
   - name: no_match
     input: ordinary prose
     output: ordinary prose
     rules: []
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 0, counts: {}}
   - name: empty_input
     input: ''
     output: ''
     rules: []
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 0, counts: {}}
   - name: uri_credentials_keep_host
     input: 'https://alice:password@internal.test/path'
     output: 'https://<BASIC_AUTH_URI>@internal.test/path'
     rules: [basic_auth_uri, email]
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 2, counts: {basic_auth_uri: 1, email: 1}}
   - name: aws_boundary_backreference
     input: 'aws_secret_access_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" next'
     output: 'aws_secret_access_key="<AWS_SECRET_KEY>" next'
     rules: [aws_secret_key]
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 1, counts: {aws_secret_key: 1}}
   - name: slack_webhook
     input: 'https://hooks.slack.com/services/T123/B456/abc789'
     output: '<SLACK_WEBHOOK_URL>'
     rules: [slack_webhook_url]
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 1, counts: {slack_webhook_url: 1}}
   - name: dashed_credit_card_filter
     input: 'card: 4111-1111-1111-1112'
     output: 'card: 4111-1111-1111-1112'
     rules: []
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 0, counts: {}}
   - name: ssh_email_filter
     input: 'git@github.com:org/repo.git'
     output: 'git@github.com:org/repo.git'
     rules: []
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 0, counts: {}}
   - name: unicode_offsets
     input: '你好 🦊 user@example.com /data/alice/config'
     output: '你好 🦊 <EMAIL> /data/<USER>/config'
     rules: [email, xdg_data_home]
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 2, counts: {email: 1, xdg_data_home: 1}}
+
+required_raw_names: [invalid_utf8_between_ascii]
+raw_cases:
+  - name: invalid_utf8_between_ascii
+    # a, invalid UTF-8 byte, b. Do not normalize or replace the byte in the loader.
+    input_hex: 61ff62
+    pattern: '.'
+    replacement: '<RAW>'
+    known_gap: >-
+      Stdlib dot matches the invalid byte as RuneError. go-re2 dot leaves the
+      invalid byte unmatched while still matching ASCII on both sides. Keep this
+      difference visible until an explicit policy precedes a default switch.
+    expected:
+      go-regexp:
+        spans: [[0, 1], [1, 2], [2, 3]]
+        output_hex: 3c5241573e3c5241573e3c5241573e
+      go-re2:
+        spans: [[0, 1], [2, 3]]
+        output_hex: 3c5241573eff3c5241573e
 
 literal_replacement: '$1${2}$$'
 invalid_pattern: '('

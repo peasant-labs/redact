@@ -1,0 +1,8 @@
+engines: [go-regexp, go-re2]
+required_names: [stdlib_identity, re2_identity, unknown_identity, empty_identity]
+cases:
+  - {name: stdlib_identity, value: go-regexp, want: go-regexp}
+  - {name: re2_identity, value: go-re2, want: go-re2}
+  - {name: unknown_identity, value: re2, error: true}
+  - {name: empty_identity, value: '', error: true}
+residue_only_pattern: 'residue-only-construction-probe'

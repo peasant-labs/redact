@@ -52,7 +52,7 @@ func newTitlePipelineWithEngine(e engine) (*TitlePipeline, error) {
 			rules = append(rules, rule)
 		}
 	}
-	patterns, err := compileRulePatterns(e, rules, nil)
+	patterns, err := compileRulePatterns(e, rules, nil, nil)
 	if err != nil {
 		return nil, err
 	}
