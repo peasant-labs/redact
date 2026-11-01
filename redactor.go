@@ -68,6 +68,8 @@ type DefaultRedactor struct {
 	lastMatches         []Match         // matches from the last Detect() call (last-call-only, not accumulated)
 	scannerConfig       scannerConfig   // immutable JSONL scanner defaults supplied at construction
 	configuredRuleCount int             // source boundary before generated XDG rules
+	patterns            compiledPatterns
+	engineName          engineName
 }
 
 // XDGPaths holds resolved XDG base directory paths for custom path redaction.
@@ -100,6 +102,10 @@ type XDGPaths struct {
 // ASTAnonymizer is not used at Standard/Minimal; fenced code remains intact and
 // the level-gated rules scan it like any other text.
 func NewRedactor(level RedactionLevel, userPatterns []UserPattern, xdg XDGPaths, opts ...Option) (Redactor, error) {
+	return newRedactorWithEngine(selectEngine(), level, userPatterns, xdg, opts...)
+}
+
+func newRedactorWithEngine(e engine, level RedactionLevel, userPatterns []UserPattern, xdg XDGPaths, opts ...Option) (Redactor, error) {
 	cfg := defaultScannerConfig()
 	for i, opt := range opts {
 		if opt == nil {
@@ -137,6 +143,10 @@ func NewRedactor(level RedactionLevel, userPatterns []UserPattern, xdg XDGPaths,
 	configuredRuleCount := len(userRules)
 	xdgRules := buildXDGRules(xdg)
 	userRules = append(userRules, xdgRules...)
+	patterns, err := compileRulePatterns(e, Rules, userRules)
+	if err != nil {
+		return nil, err
+	}
 
 	var anon ASTAnonymizer
 	if level == Maximum {
@@ -152,10 +162,12 @@ func NewRedactor(level RedactionLevel, userPatterns []UserPattern, xdg XDGPaths,
 		report:              RedactionReport{Counts: make(map[string]int)},
 		categories:          make(map[string]bool),
 		astAnonymizer:       anon,
-		residueDetector:     NewResidueDetector(),
+		residueDetector:     &DefaultResidueDetector{patterns: patterns},
 		userRules:           userRules,
 		configuredRuleCount: configuredRuleCount,
 		scannerConfig:       cfg,
+		patterns:            patterns,
+		engineName:          e.Identity(),
 	}, nil
 }
 
