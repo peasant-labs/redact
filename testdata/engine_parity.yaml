@@ -1,0 +1,82 @@
+# Additional synthetic engine boundaries. The differential also consumes the
+# existing rule, project, redactor, residue, false-positive, and title fixtures.
+required_names:
+  - same_span_rule_order
+  - overlapping_matches
+  - replacement_backreferences
+  - literal_dollars
+  - no_match
+  - empty_input
+  - uri_credentials_keep_host
+  - aws_boundary_backreference
+  - slack_webhook
+  - dashed_credit_card_filter
+  - ssh_email_filter
+  - unicode_offsets
+cases:
+  - name: same_span_rule_order
+    input: token
+    output: '<FIRST>'
+    rules: [first, second]
+    patterns:
+      - {id: first, category: secrets, pattern: token, replacement: '<FIRST>'}
+      - {id: second, category: secrets, pattern: token, replacement: '<SECOND>'}
+  - name: overlapping_matches
+    input: token suffix
+    output: '<LONG>'
+    rules: [long, contained]
+    patterns:
+      - {id: long, category: secrets, pattern: 'token suffix', replacement: '<LONG>'}
+      - {id: contained, category: secrets, pattern: suffix, replacement: '<SHORT>'}
+  - name: replacement_backreferences
+    input: pair=ab:cd
+    output: pair=cd-ab
+    rules: [pair]
+    patterns:
+      - {id: pair, category: secrets, pattern: '(ab):(cd)', replacement: '$2-${1}'}
+  - name: literal_dollars
+    input: token
+    output: 'cost $$ and $literal'
+    rules: [literal]
+    patterns:
+      - {id: literal, category: secrets, pattern: token, replacement: 'cost $$ and $literal'}
+  - name: no_match
+    input: ordinary prose
+    output: ordinary prose
+    rules: []
+  - name: empty_input
+    input: ''
+    output: ''
+    rules: []
+  - name: uri_credentials_keep_host
+    input: 'https://alice:password@internal.test/path'
+    output: 'https://<BASIC_AUTH_URI>@internal.test/path'
+    rules: [basic_auth_uri, email]
+  - name: aws_boundary_backreference
+    input: 'aws_secret_access_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" next'
+    output: 'aws_secret_access_key="<AWS_SECRET_KEY>" next'
+    rules: [aws_secret_key]
+  - name: slack_webhook
+    input: 'https://hooks.slack.com/services/T123/B456/abc789'
+    output: '<SLACK_WEBHOOK_URL>'
+    rules: [slack_webhook_url]
+  - name: dashed_credit_card_filter
+    input: 'card: 4111-1111-1111-1112'
+    output: 'card: 4111-1111-1111-1112'
+    rules: []
+  - name: ssh_email_filter
+    input: 'git@github.com:org/repo.git'
+    output: 'git@github.com:org/repo.git'
+    rules: []
+  - name: unicode_offsets
+    input: '你好 🦊 user@example.com /data/alice/config'
+    output: '你好 🦊 <EMAIL> /data/<USER>/config'
+    rules: [email, xdg_data_home]
+
+literal_replacement: '$1${2}$$'
+invalid_pattern: '('
+xdg_data_home: /data/alice/share
+routing_input: /home/alice/project
+title_routing_input: user@example.com
+required_operations: [Detect, Redact, RedactText, RedactJSON, RedactMetadata, RedactJSONLBytes, RedactJSONDocBytes, Generate, Sanitize, Scan]
+operations: [Detect, Redact, RedactText, RedactJSON, RedactMetadata, RedactJSONLBytes, RedactJSONDocBytes, Generate, Sanitize, Scan]
