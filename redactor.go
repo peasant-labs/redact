@@ -69,7 +69,6 @@ type DefaultRedactor struct {
 	scannerConfig       scannerConfig   // immutable JSONL scanner defaults supplied at construction
 	configuredRuleCount int             // source boundary before generated XDG rules
 	patterns            compiledPatterns
-	engineName          engineName
 }
 
 // XDGPaths holds resolved XDG base directory paths for custom path redaction.
@@ -167,7 +166,6 @@ func newRedactorWithEngine(e engine, level RedactionLevel, userPatterns []UserPa
 		configuredRuleCount: configuredRuleCount,
 		scannerConfig:       cfg,
 		patterns:            patterns,
-		engineName:          e.Identity(),
 	}, nil
 }
 

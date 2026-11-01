@@ -182,6 +182,10 @@ func engineCorpus(t *testing.T) []engineParityCase {
 }
 
 func TestEngineRuleParity(t *testing.T) {
+	e := goRE2Engine{}
+	if e.Identity() != engineGoRE2 {
+		t.Fatal("go-re2 adapter reports the wrong engine identity")
+	}
 	fixtures := loadEngineParityFixtures(t)
 	corpus := engineCorpus(t)
 	for _, rule := range Rules {
@@ -232,9 +236,6 @@ func newEngineTestRedactor(t *testing.T, e engine, patterns []UserPattern) Redac
 	r, err := newRedactorWithEngine(e, Standard, patterns, XDGPaths{DataHome: fixtures.XDGDataHome})
 	if err != nil {
 		t.Fatal(err)
-	}
-	if r.(*DefaultRedactor).engineName != e.Identity() {
-		t.Fatal("constructor lost engine identity")
 	}
 	return r
 }
