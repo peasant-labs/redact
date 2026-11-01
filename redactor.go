@@ -143,7 +143,7 @@ func newRedactorWithEngine(e engine, level RedactionLevel, userPatterns []UserPa
 	configuredRuleCount := len(userRules)
 	xdgRules := buildXDGRules(xdg)
 	userRules = append(userRules, xdgRules...)
-	patterns, err := compileRulePatterns(e, Rules, userRules)
+	patterns, err := compileRulePatterns(e, Rules, userRules, ResidueRules)
 	if err != nil {
 		return nil, err
 	}
