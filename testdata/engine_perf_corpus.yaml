@@ -29,6 +29,12 @@ corpora:
         text: " alice@example.test "
         redacted: " <EMAIL> "
         rule: email
+      # Straddles the 64 MiB window boundary at 67108864: 8 bytes in the first
+      # window, 13 in the second. Production scans must find it exactly once.
+      - offset: 67108856
+        text: " alice@example.test "
+        redacted: " <EMAIL> "
+        rule: email
       - offset: 67109000
         text: " AKIAIOSFODNN7EXAMPLE "
         redacted: " <AWS_ACCESS_KEY> "
