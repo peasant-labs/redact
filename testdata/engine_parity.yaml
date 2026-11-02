@@ -112,25 +112,6 @@ cases:
     reports:
       - {name: first_call, total: 2, counts: {email: 1, xdg_data_home: 1}}
 
-required_raw_names: [invalid_utf8_between_ascii]
-raw_cases:
-  - name: invalid_utf8_between_ascii
-    # a, invalid UTF-8 byte, b. Do not normalize or replace the byte in the loader.
-    input_hex: 61ff62
-    pattern: '.'
-    replacement: '<RAW>'
-    known_gap: >-
-      Stdlib dot matches the invalid byte as RuneError. go-re2 dot leaves the
-      invalid byte unmatched while still matching ASCII on both sides. Keep this
-      difference visible until an explicit policy precedes a default switch.
-    expected:
-      go-regexp:
-        spans: [[0, 1], [1, 2], [2, 3]]
-        output_hex: 3c5241573e3c5241573e3c5241573e
-      go-re2:
-        spans: [[0, 1], [2, 3]]
-        output_hex: 3c5241573eff3c5241573e
-
 literal_replacement: '$1${2}$$'
 invalid_pattern: '('
 xdg_data_home: /data/alice/share

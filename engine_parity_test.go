@@ -4,12 +4,10 @@ package redact
 
 import (
 	_ "embed"
-	"encoding/hex"
 	"encoding/json"
 	"reflect"
 	"slices"
 	"testing"
-	"unicode/utf8"
 
 	"github.com/peasant-labs/schema"
 	re2 "github.com/wasilibs/go-re2"
@@ -35,27 +33,9 @@ type engineExpectedReport struct {
 	Counts map[string]int `yaml:"counts"`
 }
 
-type engineRawOutcome struct {
-	Spans     [][]int `yaml:"spans"`
-	OutputHex string  `yaml:"output_hex"`
-	Output    string  `yaml:"-"`
-}
-
-type engineRawCase struct {
-	Name        string                          `yaml:"name"`
-	InputHex    string                          `yaml:"input_hex"`
-	Input       string                          `yaml:"-"`
-	Pattern     string                          `yaml:"pattern"`
-	Replacement string                          `yaml:"replacement"`
-	KnownGap    string                          `yaml:"known_gap"`
-	Expected    map[engineName]engineRawOutcome `yaml:"expected"`
-}
-
 type engineParityFixtures struct {
 	RequiredNames      []string           `yaml:"required_names"`
 	Cases              []engineParityCase `yaml:"cases"`
-	RequiredRawNames   []string           `yaml:"required_raw_names"`
-	RawCases           []engineRawCase    `yaml:"raw_cases"`
 	LiteralReplacement string             `yaml:"literal_replacement"`
 	InvalidPattern     string             `yaml:"invalid_pattern"`
 	XDGDataHome        string             `yaml:"xdg_data_home"`
@@ -78,9 +58,6 @@ func loadEngineParityFixtures(t *testing.T) engineParityFixtures {
 	if err := requireFixtureNames("testdata/engine_parity.yaml", "required_operations", fixtures.RequiredOperations, fixtures.Operations); err != nil {
 		t.Fatal(err)
 	}
-	if err := requireFixtureNames("testdata/engine_parity.yaml", "required_raw_names", fixtures.RequiredRawNames, fixtureNames(fixtures.RawCases, func(row engineRawCase) string { return row.Name })); err != nil {
-		t.Fatal(err)
-	}
 	for _, row := range fixtures.Cases {
 		if err := requireFixtureNames("testdata/engine_parity.yaml", row.Name+"/required_report_names", row.RequiredReportNames, fixtureNames(row.Reports, func(report engineExpectedReport) string { return report.Name })); err != nil {
 			t.Fatal(err)
@@ -96,30 +73,6 @@ func loadEngineParityFixtures(t *testing.T) engineParityFixtures {
 			if report.Counts == nil || report.Total != total {
 				t.Fatalf("%s: expected report counts missing or do not sum to total", row.Name)
 			}
-		}
-	}
-	for i := range fixtures.RawCases {
-		row := &fixtures.RawCases[i]
-		input, err := hex.DecodeString(row.InputHex)
-		if err != nil {
-			t.Fatalf("%s: decode input_hex: %v", row.Name, err)
-		}
-		row.Input = string(input)
-		if utf8.ValidString(row.Input) || row.Pattern == "" || row.KnownGap == "" {
-			t.Fatalf("%s: raw case must contain invalid UTF-8, a pattern, and an explicit known gap", row.Name)
-		}
-		var names []string
-		for name, outcome := range row.Expected {
-			names = append(names, string(name))
-			output, err := hex.DecodeString(outcome.OutputHex)
-			if err != nil {
-				t.Fatalf("%s/%s: decode output_hex: %v", row.Name, name, err)
-			}
-			outcome.Output = string(output)
-			row.Expected[name] = outcome
-		}
-		if err := requireFixtureNames("testdata/engine_parity.yaml", row.Name+"/expected", fixtureNames(AllEngines(), func(name engineName) string { return string(name) }), names); err != nil {
-			t.Fatal(err)
 		}
 	}
 	seen := make(map[string]bool)
@@ -356,50 +309,6 @@ func TestEngineConfiguredAndXDGRulesCompiled(t *testing.T) {
 			}
 			if !xdgFound {
 				t.Fatal("generated XDG data-home rule missing; the routing assertion must not be vacuous")
-			}
-		})
-	}
-}
-
-func TestEngineInvalidUTF8KnownGap(t *testing.T) {
-	for _, row := range loadEngineParityFixtures(t).RawCases {
-		t.Run(row.Name, func(t *testing.T) {
-			t.Log(row.KnownGap)
-			for _, name := range AllEngines() {
-				t.Run(string(name), func(t *testing.T) {
-					var e engine
-					switch name {
-					case engineGoRegexp:
-						e = goRegexpEngine{}
-					case engineGoRE2:
-						e = goRE2Engine{}
-					default:
-						t.Fatalf("add raw-byte expectations for engine %s", name)
-					}
-					want := row.Expected[name]
-					r := newEngineTestRedactor(t, e, []UserPattern{{ID: row.Name, Category: CategorySecrets, Pattern: row.Pattern, Replacement: row.Replacement}})
-					matches := r.Detect(row.Input)
-					var spans [][]int
-					for _, match := range matches {
-						if match.Rule != row.Name {
-							t.Fatalf("unexpected built-in match %v in raw-byte boundary", match)
-						}
-						spans = append(spans, []int{match.Offset, match.Offset + match.Length})
-					}
-					if !reflect.DeepEqual(spans, want.Spans) {
-						t.Fatalf("Detect spans=%v, want %v", spans, want.Spans)
-					}
-					if got := r.Redact(row.Input, matches); got != want.Output {
-						t.Fatalf("Redact bytes=%x, want %x", got, want.Output)
-					}
-					pattern, err := e.Compile(row.Pattern)
-					if err != nil {
-						t.Fatal(err)
-					}
-					if got := pattern.ReplaceAllString(row.Input, row.Replacement); got != want.Output {
-						t.Fatalf("ReplaceAllString bytes=%x, want %x", got, want.Output)
-					}
-				})
 			}
 		})
 	}

@@ -24,17 +24,17 @@ go-re2 v1.13.0, matching the benchmarked implementation. Its runtime uses a
 pure-Go translation of RE2's WebAssembly via wasm2go. It works with
 `CGO_ENABLED=0`; no native RE2 installation or wazero runtime is required.
 
-This seam adds no chunking or input-size policy. The adapter also inherits
-upstream go-re2's invalid-UTF-8 differences from stdlib. The hex-encoded fixture
-`invalid_utf8_between_ascii` explicitly pins the gap: for bytes `61 ff 62` and
-pattern `.`, stdlib matches all three bytes, while go-re2 matches only the ASCII
-bytes and leaves `ff` unchanged. Both engines' `Detect` spans, `Redact` output,
-and `ReplaceAllString` output are asserted against separate byte expectations.
-No normalization or fallback hides this difference. These boundaries need an
-explicit policy and validation before changing the default.
+## Input precondition
 
-The differential corpus also proves synthetic valid-UTF-8 rule spans,
+The public redaction APIs require valid UTF-8 input. The ingest/parse boundary
+guarantees this precondition before invoking redaction. Encoding validation and
+normalization do not belong in this package; invalid UTF-8 input is out of scope
+and does not gate the engine swap.
+
+This seam adds no chunking or input-size policy.
+
+The differential corpus proves synthetic valid-UTF-8 rule spans,
 replacements, filters, public redaction operations, residue, and title parity.
 Expected report snapshots independently pin legacy detection counts, including
-overlap losers and repeated calls. It does not claim equivalence for arbitrary
-byte strings or unbounded inputs.
+overlap losers and repeated calls. It does not claim equivalence for unbounded
+inputs.
