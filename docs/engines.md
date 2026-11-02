@@ -19,11 +19,10 @@ stdlib patterns, independently of the normal-path engine. Title markup cleanup
 and contextual path normalization also remain unchanged.
 
 The go-re2 adapter is included unless built with `-tags no_re2`, but it is not
-selected by any public constructor. go-re2 v1.12.0 declares Go 1.25.0, so this
-module retains its Go 1.25.5 minimum. Its default runtime uses a pure-Go
-translation of RE2's WebAssembly via wasm2go; upstream also offers an optional
-`re2_wazero` build tag. It works with `CGO_ENABLED=0`; no native RE2 installation
-is required.
+selected by any public constructor. The module requires Go 1.26.0 and pins
+go-re2 v1.13.0, matching the benchmarked implementation. Its runtime uses a
+pure-Go translation of RE2's WebAssembly via wasm2go. It works with
+`CGO_ENABLED=0`; no native RE2 installation or wazero runtime is required.
 
 This seam adds no chunking or input-size policy. The adapter also inherits
 upstream go-re2's invalid-UTF-8 differences from stdlib. The hex-encoded fixture
