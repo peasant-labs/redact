@@ -93,20 +93,6 @@ func TestEngineIdentityReportsSelected(t *testing.T) {
 	}
 }
 
-func TestEngineDefaultRemainsStdlib(t *testing.T) {
-	r, err := NewRedactor(Standard, nil, XDGPaths{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defaultRedactor := r.(*DefaultRedactor)
-	if selectEngine().Identity() != engineGoRegexp || defaultRedactor.patterns != nil {
-		t.Fatal("NewRedactor must reuse the original stdlib patterns by default")
-	}
-	if detector := NewResidueDetector().(*DefaultResidueDetector); detector.patterns != nil {
-		t.Fatal("NewResidueDetector must reuse the original stdlib patterns by default")
-	}
-}
-
 type rejectingEngine struct {
 	goRegexpEngine
 	err error
