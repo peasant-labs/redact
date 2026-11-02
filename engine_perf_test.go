@@ -83,7 +83,7 @@ func (c enginePerfCorpus) build() (string, string) {
 
 func TestEnginePerfCorpusParity(t *testing.T) {
 	if os.Getenv("REDACT_PERF") == "1" && selectEngine().Identity() != engineGoRE2 {
-		t.Fatal("make perf prices go-re2; remove no_re2 from GOFLAGS before comparing its baseline")
+		t.Fatal("make perf prices go-re2; clear GOFLAGS build tags before comparing its baseline")
 	}
 	for _, c := range loadEnginePerfFixtures(t).Corpora {
 		t.Run(c.Name, func(t *testing.T) {
