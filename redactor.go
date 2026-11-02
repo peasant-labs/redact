@@ -69,6 +69,7 @@ type DefaultRedactor struct {
 	scannerConfig       scannerConfig   // immutable JSONL scanner defaults supplied at construction
 	configuredRuleCount int             // source boundary before generated XDG rules
 	patterns            compiledPatterns
+	scans               *patternScanner
 }
 
 // XDGPaths holds resolved XDG base directory paths for custom path redaction.
@@ -115,6 +116,9 @@ func newRedactorWithEngine(e engine, level RedactionLevel, userPatterns []UserPa
 	if err := validateScannerConfig("NewRedactor", cfg); err != nil {
 		return nil, err
 	}
+	if err := cfg.inputPolicy.Validate(); err != nil {
+		return nil, err
+	}
 	if !level.IsValid() {
 		return nil, &actionableError{
 			what:  fmt.Sprintf("redaction level %q is invalid", level),
@@ -156,16 +160,18 @@ func newRedactorWithEngine(e engine, level RedactionLevel, userPatterns []UserPa
 	} else {
 		anon = NewRegexAnonymizer()
 	}
+	scans := newPatternScanner(cfg.inputPolicy, e, Rules, userRules, ResidueRules)
 	return &DefaultRedactor{
 		level:               level,
 		report:              RedactionReport{Counts: make(map[string]int)},
 		categories:          make(map[string]bool),
 		astAnonymizer:       anon,
-		residueDetector:     &DefaultResidueDetector{patterns: patterns},
+		residueDetector:     &DefaultResidueDetector{patterns: patterns, scans: scans},
 		userRules:           userRules,
 		configuredRuleCount: configuredRuleCount,
 		scannerConfig:       cfg,
 		patterns:            patterns,
+		scans:               scans,
 	}, nil
 }
 
@@ -493,6 +499,27 @@ func (r *DefaultRedactor) RedactText(input string) (output string) {
 }
 
 func (r *DefaultRedactor) redactText(input string, call *observationCall) (output string) {
+	output, err := r.redactTextChecked(input, call)
+	if err != nil {
+		r.recordInputRefusal(err)
+		if call != nil {
+			call.failed(DiagnosticInputRefused)
+		}
+		return "<REDACTED>"
+	}
+	return output
+}
+
+// RedactTextChecked returns no output on a size or ambiguous-split refusal.
+// Callers must not publish their original input when an error is returned.
+func (r *DefaultRedactor) RedactTextChecked(input string) (string, error) {
+	return r.redactTextChecked(input, nil)
+}
+
+func (r *DefaultRedactor) redactTextChecked(input string, call *observationCall) (output string, err error) {
+	if err := r.inputPolicy().check(len(input)); err != nil {
+		return "", err
+	}
 	defer func() {
 		if rec := recover(); rec != nil {
 			// Fail-closed: apply maximum redaction as fallback.
@@ -532,7 +559,10 @@ func (r *DefaultRedactor) redactText(input string, call *observationCall) (outpu
 	// This is a documented behavioral change from v3: previously Report().Matches
 	// was only populated by explicit Detect() calls; now RedactText also records
 	// the filtered matches it used.
-	stepMatches := r.detect(out, call)
+	stepMatches, err := r.detectChecked(out, call)
+	if err != nil {
+		return "", err
+	}
 	if len(stepMatches) > 0 {
 		out = r.Redact(out, stepMatches)
 		// Record redaction counts per rule.
@@ -552,7 +582,15 @@ func (r *DefaultRedactor) redactText(input string, call *observationCall) (outpu
 
 	// Residue scan: advisory, appends warnings to report. Never modifies content.
 	if r.residueDetector != nil {
-		warnings := r.residueDetector.Scan(out)
+		var warnings []ResidueWarning
+		if detector, ok := r.residueDetector.(*DefaultResidueDetector); ok {
+			warnings, err = detector.scanChecked(out)
+			if err != nil {
+				return "", err
+			}
+		} else {
+			warnings = r.residueDetector.Scan(out)
+		}
 		if len(warnings) > 0 {
 			// defer is intentionally not used here: the lock covers only the
 			// append loop, and we want to release as soon as the loop exits
@@ -568,7 +606,7 @@ func (r *DefaultRedactor) redactText(input string, call *observationCall) (outpu
 		}
 	}
 
-	return out
+	return out, nil
 }
 
 // RedactJSON recursively descends through a JSON-decoded value and redacts strings.
@@ -578,26 +616,48 @@ func (r *DefaultRedactor) RedactJSON(value any) any {
 	return r.redactJSON(value, nil)
 }
 
+// RedactJSONChecked recursively redacts string values and returns no value if
+// any leaf is refused. The caller must discard the original on error.
+func (r *DefaultRedactor) RedactJSONChecked(value any) (any, error) {
+	return r.walkJSON(value, nil, true)
+}
+
 func (r *DefaultRedactor) redactJSON(value any, call *observationCall) any {
+	output, _ := r.walkJSON(value, call, false)
+	return output
+}
+
+func (r *DefaultRedactor) walkJSON(value any, call *observationCall, checked bool) (any, error) {
 	switch v := value.(type) {
 	case string:
-		return r.redactTextChild(v, call)
+		if checked {
+			return r.redactTextChecked(v, call)
+		}
+		return r.redactTextChild(v, call), nil
 	case json.Number:
-		return value
+		return value, nil
 	case []any:
 		result := make([]any, len(v))
 		for i, elem := range v {
-			result[i] = r.redactJSON(elem, call)
+			redacted, err := r.walkJSON(elem, call, checked)
+			if err != nil {
+				return nil, err
+			}
+			result[i] = redacted
 		}
-		return result
+		return result, nil
 	case map[string]any:
 		result := make(map[string]any, len(v))
 		for key, val := range v {
-			result[key] = r.redactJSON(val, call)
+			redacted, err := r.walkJSON(val, call, checked)
+			if err != nil {
+				return nil, err
+			}
+			result[key] = redacted
 		}
-		return result
+		return result, nil
 	default:
-		return value
+		return value, nil
 	}
 }
 
@@ -1065,8 +1125,9 @@ func WithScannerBufSize(initBuf, maxLine int) Option {
 type RedactJSONLBytesOption func(*scannerConfig)
 
 type scannerConfig struct {
-	initBuf int
-	maxLine int
+	initBuf     int
+	maxLine     int
+	inputPolicy MaxInputBytesPolicy
 }
 
 // WithRedactScannerBufSize overrides the default buffer sizes for RedactJSONLBytes.

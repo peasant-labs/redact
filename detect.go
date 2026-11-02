@@ -35,8 +35,31 @@ func (r *DefaultRedactor) Detect(input string) []Match {
 }
 
 func (r *DefaultRedactor) detect(input string, call *observationCall) []Match {
+	matches, err := r.detectChecked(input, call)
+	if err != nil {
+		r.recordInputRefusal(err)
+		if call != nil {
+			call.failed(DiagnosticInputRefused)
+		}
+		// The legacy API cannot return an error. A full-input match makes
+		// Detect -> Redact fail closed instead of returning no matches.
+		return []Match{{Rule: inputRefusalRule, Offset: 0, Length: len(input), Category: CategorySecrets, MatchedText: input}}
+	}
+	return matches
+}
+
+// DetectChecked returns an actionable error rather than a synthetic masking
+// match when the input cannot be scanned safely.
+func (r *DefaultRedactor) DetectChecked(input string) ([]Match, error) {
+	return r.detectChecked(input, nil)
+}
+
+func (r *DefaultRedactor) detectChecked(input string, call *observationCall) ([]Match, error) {
+	if err := r.inputPolicy().check(len(input)); err != nil {
+		return nil, err
+	}
 	if input == "" {
-		return nil
+		return nil, nil
 	}
 
 	activeRules := make([]Rule, 0, len(Rules)+len(r.userRules))
@@ -64,14 +87,17 @@ func (r *DefaultRedactor) detect(input string, call *observationCall) []Match {
 	if call != nil {
 		accepted = func(index int) { call.record.Rules[index].Count++; call.record.RegexDetected.Value++ }
 	}
-	matches := detectWithRulesInto(input, activeRules, r.patterns, accepted)
+	matches, err := detectWithRulesChecked(input, activeRules, r.patterns, r.scans, accepted)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(matches) == 0 {
 		// Record nil as the last detect result (last-call-only semantics).
 		r.mu.Lock()
 		r.lastMatches = nil
 		r.mu.Unlock()
-		return nil
+		return nil, nil
 	}
 
 	// Store as last-detect result (last-call-only, not accumulated).
@@ -79,7 +105,7 @@ func (r *DefaultRedactor) detect(input string, call *observationCall) []Match {
 	r.lastMatches = matches
 	r.mu.Unlock()
 
-	return matches
+	return matches, nil
 }
 
 // detectWithRules is the pure canonical regex detector. Reporting and
@@ -89,13 +115,25 @@ func detectWithRules(input string, rules []Rule, patterns compiledPatterns) []Ma
 }
 
 func detectWithRulesInto(input string, rules []Rule, patterns compiledPatterns, accepted func(ruleIndex int)) []Match {
+	matches, err := detectWithRulesChecked(input, rules, patterns, nil, accepted)
+	if err != nil {
+		return []Match{{Rule: inputRefusalRule, Length: len(input), Category: CategorySecrets, MatchedText: input}}
+	}
+	return matches
+}
+
+func detectWithRulesChecked(input string, rules []Rule, patterns compiledPatterns, scans *patternScanner, accepted func(ruleIndex int)) ([]Match, error) {
 	var matches []Match
 	for index, rule := range rules {
 		pattern := patterns.lookup(rule.Pattern)
 		if pattern == nil {
 			continue
 		}
-		for _, loc := range pattern.FindAllStringIndex(input, -1) {
+		locations, err := scans.scan(input, rule.Pattern, pattern)
+		if err != nil {
+			return nil, err
+		}
+		for _, loc := range locations {
 			match := Match{Rule: rule.ID, Offset: loc[0], Length: loc[1] - loc[0], Category: rule.Category, MatchedText: input[loc[0]:loc[1]]}
 			if rule.FilterFn == nil || rule.FilterFn(match.MatchedText, input, match.Offset) {
 				matches = append(matches, match)
@@ -106,10 +144,10 @@ func detectWithRulesInto(input string, rules []Rule, patterns compiledPatterns, 
 		}
 	}
 	if len(matches) == 0 {
-		return nil
+		return nil, nil
 	}
 	sort.Slice(matches, func(i, j int) bool { return matches[i].Offset < matches[j].Offset })
-	return matches
+	return matches, nil
 }
 
 // Redact replaces the byte spans identified by matches in input with their rule
@@ -122,6 +160,10 @@ func detectWithRulesInto(input string, rules []Rule, patterns compiledPatterns, 
 //
 // The output string is built in a single pass from left to right.
 func (r *DefaultRedactor) Redact(input string, matches []Match) string {
+	if err := r.inputPolicy().check(len(input)); err != nil {
+		r.recordInputRefusal(err)
+		return "<REDACTED>"
+	}
 	rules := make([]Rule, 0, len(Rules)+len(r.userRules))
 	rules = append(rules, Rules...)
 	rules = append(rules, r.userRules...)
@@ -132,6 +174,12 @@ func (r *DefaultRedactor) Redact(input string, matches []Match) string {
 // redactWithRules is the pure canonical overlap and replacement engine. The
 // returned matches are exactly those whose non-overlapping spans were applied.
 func redactWithRules(input string, matches []Match, rules []Rule, patterns compiledPatterns) (string, []Match) {
+	for _, match := range matches {
+		// A configured ID or replacement must not override refusal masking.
+		if match.Rule == inputRefusalRule {
+			return "<REDACTED>", nil
+		}
+	}
 	if len(matches) == 0 {
 		return input, nil
 	}

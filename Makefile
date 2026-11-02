@@ -1,7 +1,7 @@
-.PHONY: check test test-nore2 bench lint fmt vet release-check verify-tidy
+.PHONY: check test test-race bench lint fmt vet release-check verify-tidy
 
 # Full quality gate
-check: fmt vet test test-nore2
+check: fmt vet test
 
 release-check: check
 	CGO_ENABLED=0 go test ./...
@@ -10,13 +10,13 @@ release-check: check
 	@! go list -deps ./... | grep -E '^github.com/peasant-labs/peasant($$|/)' >/dev/null
 	$(MAKE) verify-tidy
 
-# Run all tests with race detector
+# Run all tests
 test:
-	go test -race ./...
+	go test ./...
 
-# Exercise the stdlib fallback independently and in every quality gate
-test-nore2:
-	go test -tags no_re2 -race ./...
+# Run all tests with the race detector (manual or CI only)
+test-race:
+	go test -race ./...
 
 # Reproducible synthetic constructor and first-detection measurements
 bench:

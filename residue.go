@@ -170,6 +170,7 @@ var ResidueRules = []ResidueRule{
 // DefaultResidueDetector is the production implementation of ResidueDetector.
 type DefaultResidueDetector struct {
 	patterns compiledPatterns
+	scans    *patternScanner
 }
 
 // Compile-time guard: DefaultResidueDetector must implement ResidueDetector.
@@ -185,13 +186,24 @@ func NewResidueDetector() ResidueDetector {
 // deduplicated results should filter by RuleID/Location.
 // The input string is never modified.
 func (d *DefaultResidueDetector) Scan(redactedText string) []ResidueWarning {
+	warnings, err := d.scanChecked(redactedText)
+	if err != nil {
+		return []ResidueWarning{{RuleID: inputRefusalRule, Preview: "input refused; use a checked redaction method"}}
+	}
+	return warnings
+}
+
+func (d *DefaultResidueDetector) scanChecked(redactedText string) ([]ResidueWarning, error) {
 	if len(redactedText) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	var warnings []ResidueWarning
 	for _, rule := range ResidueRules {
-		matches := d.patterns.lookup(rule.Pattern).FindAllStringIndex(redactedText, -1)
+		matches, err := d.scans.scan(redactedText, rule.Pattern, d.patterns.lookup(rule.Pattern))
+		if err != nil {
+			return nil, err
+		}
 		for _, loc := range matches {
 			start := loc[0]
 			preview := safePreview(redactedText, start, PreviewMaxLength)
@@ -202,7 +214,7 @@ func (d *DefaultResidueDetector) Scan(redactedText string) []ResidueWarning {
 			})
 		}
 	}
-	return warnings
+	return warnings, nil
 }
 
 // safePreview extracts up to maxLen bytes of context around the byte offset,
