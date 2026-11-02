@@ -8,7 +8,8 @@ GOTOOLCHAIN=go1.26.0 make perf
 GOTOOLCHAIN=go1.26.0 make bench
 ```
 
-`make perf` needs Go and Python 3's standard library only. The exact measurement
+`make perf` needs the Go toolchain only: the gate is `go run ./cmd/engine-perf`,
+which parses and compares the benchmark output in-process. The exact measurement
 command is printed before execution:
 
 ```sh
@@ -59,13 +60,12 @@ output against a literal golden built from the fixture's replacement strings.
 The oracle does not call the engine. The ordinary test suite checks the small
 cases and budget coverage; `make perf` also checks the large case. The existing
 differential engine fixtures run in the same command, so dropping any rule's
-reviewed behavior fails before its timing is accepted. The fallback also remains
-mandatory via `make check`.
+reviewed behavior fails before its timing is accepted.
 
 ## Budgets and CI
 
-`testdata/engine_perf_budget.yaml` uses JSON syntax (valid YAML) to avoid a Python
-YAML dependency. It records medians, not machine-independent promises. The initial
+`testdata/engine_perf_budget.yaml` is a YAML fixture read with the same
+`yaml.v3` dependency the rest of `testdata/` uses. It records medians, not machine-independent promises. The initial
 reference machine is Linux/amd64, AMD Ryzen 9 7950X3D, Go 1.26.0, one benchmark
 CPU. A timing regression above **2x** the recorded median fails the local gate.
 Allocations above **1.25x plus 512 bytes / 8 allocations per operation** also fail;
@@ -86,7 +86,7 @@ pass for that evidence. No release workflow silently records a new baseline.
 For an approved intentional cost change, use the explicit maintainer command:
 
 ```sh
-GOTOOLCHAIN=go1.26.0 python3 scripts/engine-perf.py --record
+GOTOOLCHAIN=go1.26.0 go run ./cmd/engine-perf --record
 GOTOOLCHAIN=go1.26.0 make perf
 ```
 
@@ -119,12 +119,12 @@ does not replace the synthetic budget or parity proof. Do not commit its data.
 
 Parity executes the public library path; benchmark stages execute the existing
 detector and residue scanner directly, not copied implementations. A direct
-fixture test catches lost redactions, and small direct Python fixture tests catch
-budget/parser regressions. Only timing needs the Go benchmark process. There are
-no shared temporary files, services, or screenshot scans. Python launches one
-`go test` command, which builds/runs the test binary. The binary has Go's
-10-minute timeout and the launcher has Python's 11-minute timeout. If the launcher
-is killed, the test binary still has its own timeout; the corpus is in memory
+fixture test catches lost redactions, and small direct fixture tests catch budget/parser
+regressions. Only timing needs the benchmark process. There are no shared
+temporary files, services, or screenshot scans. `go run ./cmd/engine-perf`
+launches one `go test` command, which builds and runs the test binary. The binary
+has Go's 10-minute timeout and the launcher has an 11-minute context. If the
+launcher is killed, the test binary still has its own timeout; the corpus is in memory
 only and dies with that process. Expected runtime is minutes, not a default-suite
 tax. Simplify the timing harness if Go gains a portable cross-host cost metric;
 retain the literal parity and allocation checks.

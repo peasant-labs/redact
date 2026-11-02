@@ -25,8 +25,7 @@ bench:
 # Timings are a required local release gate; CI uses allocation-only budgets
 # because routed runners do not share a stable CPU (see docs/performance.md).
 perf:
-	python3 -m unittest discover -s scripts -p '*_test.py'
-	python3 scripts/engine-perf.py $(PERF_ARGS)
+	go run ./cmd/engine-perf $(PERF_ARGS)
 
 # Run go vet
 vet:
