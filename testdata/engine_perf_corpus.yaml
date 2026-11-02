@@ -1,0 +1,35 @@
+# Generated synthetic text only. Offsets are bytes; no file or HOME input.
+required_names: [metadata_192b, tool_8kib, large_64mib_plus_1kib]
+corpora:
+  - name: metadata_192b
+    bytes: 192
+    filler: "synthetic metadata field; "
+    plants:
+      - offset: 32
+        text: " alice@example.test "
+        redacted: " <EMAIL> "
+        rule: email
+  - name: tool_8kib
+    bytes: 8192
+    filler: "synthetic build succeeded; output line.\n"
+    plants:
+      - offset: 128
+        text: " alice@example.test "
+        redacted: " <EMAIL> "
+        rule: email
+      - offset: 4096
+        text: " AKIAIOSFODNN7EXAMPLE "
+        redacted: " <AWS_ACCESS_KEY> "
+        rule: aws_access_key
+  - name: large_64mib_plus_1kib
+    bytes: 67109888
+    filler: "synthetic build succeeded; output line.\n"
+    plants:
+      - offset: 128
+        text: " alice@example.test "
+        redacted: " <EMAIL> "
+        rule: email
+      - offset: 67109000
+        text: " AKIAIOSFODNN7EXAMPLE "
+        redacted: " <AWS_ACCESS_KEY> "
+        rule: aws_access_key
