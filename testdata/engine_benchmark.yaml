@@ -1,0 +1,5 @@
+# Fixed synthetic valid-UTF-8 input; no developer files or private corpus.
+input: |-
+  Synthetic transcript 🦊: contact user@example.test.
+  Working directory: /home/alice/project; remote https://github.com/example/project.git.
+  Callback: https://alice:password@internal.test/path.

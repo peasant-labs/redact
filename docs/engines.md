@@ -47,3 +47,33 @@ counts are required; no fixture expectations change with engine selection.
 Expected report snapshots independently pin legacy detection counts, including
 overlap losers and repeated calls. It does not claim equivalence for unbounded
 inputs.
+
+## Maintained gates and measurements
+
+`make check` runs both `go test -race ./...` and
+`go test -tags no_re2 -race ./...`. The fallback can also be checked alone with
+`make test-nore2`. `make release-check` depends on `check`, so CI and release
+checks exercise both engines.
+
+Run the synthetic benchmarks with Go 1.26.0:
+
+```sh
+GOTOOLCHAIN=go1.26.0 make bench
+# Equivalent command:
+GOTOOLCHAIN=go1.26.0 go test -run '^$' -bench 'Benchmark(RedactorConstruction|FirstDetection)$' -benchmem -count=6
+```
+
+Both benchmarks compare explicit `go-regexp` and `go-re2` constructors in the
+same normal-build process, with Standard level, no user patterns, and empty XDG
+paths. `BenchmarkRedactorConstruction` measures a new redactor per iteration,
+including go-re2 compilation of the built-in and residue patterns; stdlib reuses
+the patterns compiled at package initialization. `BenchmarkFirstDetection`
+includes that construction plus one `Detect` call on the fixed synthetic input
+in `testdata/engine_benchmark.yaml`: three lines of prose containing an emoji,
+an email address, a Unix home path, a git remote, and a credential-bearing URL.
+Fixture decoding is outside the measured loop. Both report time, bytes, and
+allocations per operation.
+
+These repeated in-process measurements do not measure cold process startup,
+package initialization, or binary size. They set no performance threshold and
+are not a benchmark budget gate.
