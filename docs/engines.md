@@ -1,12 +1,15 @@
 # Internal regexp engines
 
-`NewRedactor` and `NewTitlePipeline` still select Go's standard `regexp`
-implementation. Existing redactor interfaces, `Rule.Pattern` (`*regexp.Regexp`),
-rule tables, replacements, and the rule-set version are unchanged.
+`NewRedactor` and `NewTitlePipeline` select go-re2 by default. Building with
+`-tags no_re2` selects Go's standard `regexp` fallback and excludes go-re2 and its
+dependency from the build. Selection is build-tagged, not mutable runtime state;
+there is no silent runtime fallback. Existing redactor interfaces,
+`Rule.Pattern` (`*regexp.Regexp`), rule tables, replacements, and the rule-set
+version are unchanged.
 `AllEngines` enumerates `go-regexp` then `go-re2`; `NewEngineName` validates an
 identity against that closed registry without selecting it as the default.
 
-The private constructors accept an `engine`. The alternative adapter compiles
+The private constructors accept an `engine`. The go-re2 adapter compiles
 each rule's `Pattern.String()` at construction, then shares an immutable pattern
 lookup across detection, back-reference replacement, title rule application, and
 residue scanning. Configured and generated XDG rules use the same lookup.
@@ -18,8 +21,7 @@ Panic recovery and residue preview scrubbing deliberately retain the original
 stdlib patterns, independently of the normal-path engine. Title markup cleanup
 and contextual path normalization also remain unchanged.
 
-The go-re2 adapter is included unless built with `-tags no_re2`, but it is not
-selected by any public constructor. The module requires Go 1.26.0 and pins
+The module requires Go 1.26.0 and pins
 go-re2 v1.13.0, matching the benchmarked implementation. Its runtime uses a
 pure-Go translation of RE2's WebAssembly via wasm2go. It works with
 `CGO_ENABLED=0`; no native RE2 installation or wazero runtime is required.
@@ -35,6 +37,13 @@ This seam adds no chunking or input-size policy.
 
 The differential corpus proves synthetic valid-UTF-8 rule spans,
 replacements, filters, public redaction operations, residue, and title parity.
+It reuses redactor behavior cases at their declared levels, detect-secrets rule
+cases, schema redaction examples, false-positive cases, metadata path cases,
+residue triggers, and title fixtures. Explicit stdlib constructors remain the
+comparison baseline even though the public constructors now select go-re2.
+The full suite also runs against both build defaults, including JSONL/document
+and metadata output expectations. Byte-identical outputs and per-rule report
+counts are required; no fixture expectations change with engine selection.
 Expected report snapshots independently pin legacy detection counts, including
 overlap losers and repeated calls. It does not claim equivalence for unbounded
 inputs.

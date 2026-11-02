@@ -19,6 +19,7 @@ var engineParityData []byte
 
 type engineParityCase struct {
 	Name                string                 `yaml:"name"`
+	Level               RedactionLevel         `yaml:"level"`
 	Input               string                 `yaml:"input"`
 	Output              string                 `yaml:"output"`
 	Rules               []string               `yaml:"rules"`
@@ -97,8 +98,24 @@ func engineCorpus(t *testing.T) []engineParityCase {
 	behavior := loadRedactorBehaviorFixtures(t)
 	for _, family := range [][]textRedactionFixture{behavior.Secrets, behavior.PII, behavior.Paths} {
 		for _, row := range family {
-			corpus = append(corpus, engineParityCase{Name: "redactor/" + row.ID, Input: row.Input})
+			corpus = append(corpus, engineParityCase{Name: "redactor/" + row.ID, Level: row.Level, Input: row.Input})
 		}
+	}
+	for _, row := range behavior.Parity {
+		corpus = append(corpus, engineParityCase{Name: "parity/" + row.ID, Level: row.Level, Input: row.Input})
+	}
+	for _, row := range behavior.CodeBlocks {
+		corpus = append(corpus, engineParityCase{Name: "code_blocks/" + row.ID, Input: row.Input})
+	}
+	for _, row := range behavior.CodePipeline {
+		corpus = append(corpus, engineParityCase{Name: "code_pipeline/" + row.ID, Level: row.Level, Input: row.Input})
+	}
+	conformance, err := schema.LoadRedactionExamples()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range conformance {
+		corpus = append(corpus, engineParityCase{Name: "conformance/" + row.Name, Level: RedactionLevel(row.Level), Input: row.OriginalText})
 	}
 	rules := mustLoadRuleFixtures(t)
 	for _, family := range rules.Rules {
@@ -129,7 +146,7 @@ func engineCorpus(t *testing.T) []engineParityCase {
 		t.Fatal(err)
 	}
 	for _, row := range falsePositives {
-		corpus = append(corpus, engineParityCase{Name: row.Name, Input: row.Input})
+		corpus = append(corpus, engineParityCase{Name: row.Name, Level: row.Level, Input: row.Input})
 	}
 	return corpus
 }
@@ -205,10 +222,29 @@ func assertEngineReports(t *testing.T, actual, baseline RedactionReport) {
 }
 
 func TestEnginePublicTextParity(t *testing.T) {
-	baseline := newEngineTestRedactor(t, goRegexpEngine{}, nil)
-	actual := newEngineTestRedactor(t, goRE2Engine{}, nil)
+	baselines, actuals := make(map[RedactionLevel]Redactor), make(map[RedactionLevel]Redactor)
 	for _, row := range engineCorpus(t) {
 		t.Run(row.Name, func(t *testing.T) {
+			level := row.Level
+			if level == "" {
+				level = Standard
+			}
+			if level == Maximum && !MaximumAvailable {
+				t.Skip("Maximum mechanics require cgo; exercised by the cgo-enabled parity run")
+			}
+			if baselines[level] == nil {
+				var err error
+				baselines[level], err = newRedactorWithEngine(goRegexpEngine{}, level, nil, XDGPaths{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				actuals[level], err = newRedactorWithEngine(goRE2Engine{}, level, nil, XDGPaths{})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			baseline, actual := baselines[level], actuals[level]
+			t.Logf("level=%s input=%q", level, row.Input)
 			wantMatches, gotMatches := baseline.Detect(row.Input), actual.Detect(row.Input)
 			if !reflect.DeepEqual(gotMatches, wantMatches) {
 				t.Fatalf("Detect = %v, stdlib = %v", gotMatches, wantMatches)
@@ -218,6 +254,26 @@ func TestEnginePublicTextParity(t *testing.T) {
 			}
 			if got, want := actual.RedactText(row.Input), baseline.RedactText(row.Input); got != want {
 				t.Fatalf("RedactText = %q, stdlib = %q", got, want)
+			}
+			assertEngineReports(t, actual.Report(), baseline.Report())
+		})
+	}
+}
+
+func TestEngineMetadataPathParity(t *testing.T) {
+	for _, row := range loadRedactorBehaviorFixtures(t).MetadataPaths {
+		t.Run(row.ID, func(t *testing.T) {
+			actual, err := newRedactorWithEngine(goRE2Engine{}, row.Level, nil, XDGPaths{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			baseline, err := newRedactorWithEngine(goRegexpEngine{}, row.Level, nil, XDGPaths{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, want := actual.RedactMetadata(metadataPathInput(row)), baseline.RedactMetadata(metadataPathInput(row))
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("level=%s RedactMetadata = %#v, stdlib = %#v", row.Level, got, want)
 			}
 			assertEngineReports(t, actual.Report(), baseline.Report())
 		})
@@ -364,7 +420,7 @@ func TestEngineTitleParity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	baseline, err := NewTitlePipeline()
+	baseline, err := newTitlePipelineWithEngine(goRegexpEngine{})
 	if err != nil {
 		t.Fatal(err)
 	}
