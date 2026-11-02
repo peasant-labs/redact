@@ -1,11 +1,9 @@
-//go:build !no_re2
-
 package redact
 
 import re2 "github.com/wasilibs/go-re2"
 
 // goRE2Engine uses the dependency's pure-Go WASM translation; it does not
-// require cgo. no_re2 excludes the adapter and its dependency from the build.
+// require cgo.
 type goRE2Engine struct{}
 
 func selectDefaultEngine() engine { return goRE2Engine{} }
