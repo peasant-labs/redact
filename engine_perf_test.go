@@ -103,7 +103,7 @@ func TestEnginePerfCorpusParity(t *testing.T) {
 				t.Fatalf("%s: counts=%v, planted=%v; a faster scan must not redact less", c.Name, got, counts)
 			}
 			// All 56 rules, including those not active at Standard, are priced.
-			all := detectWithRules(input, Rules, r.(*DefaultRedactor).patterns)
+			all := allTableMatches(t, r.(*DefaultRedactor), input)
 			allCounts := make(map[string]int)
 			for _, m := range all {
 				allCounts[m.Rule]++
@@ -210,6 +210,22 @@ func TestEngineBudgetRealCorpus(t *testing.T) {
 	t.Logf("approved local corpus: files=%d bytes=%d wall=%s ns/byte=%.4f (diagnostic only; no private content logged)", files, total, elapsed, float64(elapsed.Nanoseconds())/float64(total))
 }
 
+// allTableMatches scans the built-in rule table through the redactor's own
+// scanner. detectWithRules would take the zero-value scanner path, which
+// deliberately runs stdlib regexp, so above the chunk size it would price a
+// different engine than production.
+func allTableMatches(tb testing.TB, r *DefaultRedactor, input string, rules ...Rule) []Match {
+	tb.Helper()
+	if len(rules) == 0 {
+		rules = Rules
+	}
+	matches, err := detectWithRulesChecked(input, rules, r.patterns, r.scans, nil)
+	if err != nil {
+		tb.Fatalf("whole-table scan failed: %v", err)
+	}
+	return matches
+}
+
 var (
 	perfText     string
 	perfMatches  []Match
@@ -240,7 +256,7 @@ func BenchmarkEnginePerf(b *testing.B) {
 				b.ReportAllocs()
 				b.SetBytes(int64(len(input)))
 				for b.Loop() {
-					perfMatches = detectWithRules(input, Rules, r.patterns)
+					perfMatches = allTableMatches(b, r, input)
 				}
 				b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N)/float64(len(input)), "ns/byte")
 			})
@@ -268,7 +284,7 @@ func BenchmarkEnginePerf(b *testing.B) {
 						b.ReportAllocs()
 						b.SetBytes(int64(len(input)))
 						for b.Loop() {
-							perfMatches = detectWithRules(input, []Rule{rule}, r.patterns)
+							perfMatches = allTableMatches(b, r, input, rule)
 						}
 						b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N)/float64(len(input)), "ns/byte")
 					})
