@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- The minimum Go version is now `1.26.0` for the internal `go-re2 v1.13.0` adapter, which uses the pure-Go wasm2go runtime. The standard `regexp` engine remains the default, and the rule set is unchanged.
+
 ## v0.1.6
 
 ### Added
