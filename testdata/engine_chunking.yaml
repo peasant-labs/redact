@@ -1,0 +1,185 @@
+required_names:
+  - engine_chunk_exact_boundary
+  - engine_chunk_crossing_literal
+  - engine_chunk_crossing_email
+  - chunk_offsets_are_absolute
+  - chunk_filterfn_sees_whole_input
+  - chunked_output_is_identical
+  - chunk_no_duplicate_matches
+  - chunk_nonoverlapping_selection
+  - chunk_word_and_line_boundaries
+  - chunk_text_anchors
+  - chunk_unicode_boundaries
+  - chunk_unfinished_prefix_refused
+  - chunk_empty_pattern_refused
+  - chunk_pending_literal_at_window_edge
+  - chunk_anchors_across_real_windows
+  - engine_preserves_matches_200_mib
+  - engine_preserves_matches_200_mib_16_mib_windows
+cases:
+  - name: engine_chunk_exact_boundary
+    input: ' alice@example.test '
+    chunk_bytes: 20
+    pattern: 'alice@example\.test'
+    expected_offsets: [1]
+  - name: engine_chunk_crossing_literal
+    input: '      alice@example.test                  '
+    chunk_bytes: 12
+    pattern: 'alice@example\.test'
+    expected_offsets: [6]
+  - name: engine_chunk_crossing_email
+    input: '      alice@example.test                  '
+    chunk_bytes: 12
+    pattern: '[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}'
+    expected_offsets: [6]
+  - name: chunk_offsets_are_absolute
+    input: '........................................secret...................'
+    chunk_bytes: 16
+    pattern: 'secret'
+    expected_offsets: [40]
+  - name: chunk_filterfn_sees_whole_input
+    input: 'context:       secret       secret       secret'
+    chunk_bytes: 16
+    pattern: 'secret'
+    filter: true
+    expected_offsets: [15, 28, 41]
+  - name: chunked_output_is_identical
+    input: 'first secret, another secret, last secret!'
+    chunk_bytes: 10
+    pattern: 'secret'
+    expected_offsets: [6, 22, 35]
+  - name: chunk_no_duplicate_matches
+    input: 'secret secret secret secret secret'
+    chunk_bytes: 8
+    pattern: 'secret'
+    expected_offsets: [0, 7, 14, 21, 28]
+  - name: chunk_nonoverlapping_selection
+    input: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    chunk_bytes: 7
+    pattern: 'aaa'
+    expected_offsets: [0, 3, 6, 9, 12, 15, 18, 21, 24, 27]
+  - name: chunk_word_and_line_boundaries
+    input: "one\nsecret secretive\nsecret!\nsecret\n"
+    chunk_bytes: 8
+    pattern: '(?m)^secret\b|\bsecret!'
+    expected_offsets: [4, 21, 29]
+  - name: chunk_text_anchors
+    input: 'secret secret secret secret'
+    chunk_bytes: 8
+    pattern: '\Asecret|secret\z'
+    expected_offsets: [0, 21]
+  - name: chunk_unicode_boundaries
+    input: '🦊🦊 secret 🦊 secret 🦊🦊'
+    chunk_bytes: 9
+    pattern: '\bsecret\b'
+    expected_offsets: [9, 21]
+  - name: chunk_unfinished_prefix_refused
+    size_bytes: 200000
+    fill: 'x'
+    plants: [{offset: 0, value: 'BEGIN'}]
+    chunk_bytes: 32768
+    pattern: '(?s)BEGIN.*END'
+    refusal: true
+  - name: chunk_empty_pattern_refused
+    input: 'never guess empty-match suppression across a split'
+    chunk_bytes: 8
+    pattern: 'x*'
+    refusal: true
+  - name: chunk_pending_literal_at_window_edge
+    size_bytes: 200000
+    fill: "."
+    plants: [{offset: 98302, value: 'secret'}, {offset: 131070, value: 'secret'}]
+    chunk_bytes: 32768
+    pattern: 'secret'
+    expected_offsets: [98302, 131070]
+  - name: chunk_anchors_across_real_windows
+    size_bytes: 200000
+    fill: "."
+    plants: [{offset: 0, value: 'secret'}, {offset: 32767, value: 'secret'}, {offset: 98304, value: 'secret'}, {offset: 199994, value: 'secret'}]
+    chunk_bytes: 32768
+    pattern: '\Asecret|secret\z'
+    expected_offsets: [0, 199994]
+  - name: engine_preserves_matches_200_mib
+    size_bytes: 209715200
+    fill: "ordinary synthetic prose.\n"
+    plants:
+      - {offset: 67108860, value: 'alice@example.test'}
+      - {offset: 134217720, value: 'alice@example.test'}
+      - {offset: 209715170, value: 'alice@example.test'}
+    chunk_bytes: 67108864
+    pattern: 'alice@example\.test'
+    expected_offsets: [67108860, 134217720, 209715170]
+  - name: engine_preserves_matches_200_mib_16_mib_windows
+    size_bytes: 209715200
+    fill: "ordinary synthetic prose.\n"
+    plants:
+      - {offset: 16777210, value: 'alice@example.test'}
+      - {offset: 134217720, value: 'alice@example.test'}
+      - {offset: 209715170, value: 'alice@example.test'}
+    chunk_bytes: 16777216
+    pattern: 'alice@example\.test'
+    expected_offsets: [16777210, 134217720, 209715170]
+policy_required_names:
+  - policy_rejects_zero_chunk
+  - policy_rejects_negative_chunk
+  - policy_rejects_zero_ceiling
+  - policy_rejects_negative_ceiling
+  - policy_rejects_chunk_above_ceiling
+  - policy_rejects_ceiling_at_wasm_limit
+  - policy_rejects_ceiling_above_wasm_limit
+  - policy_accepts_equal_chunk_ceiling
+  - policy_defaults_match_production_caps
+  - engine_refuses_two_gib
+  - engine_refuses_exact_ceiling
+  - engine_accepts_below_ceiling
+policy_cases:
+  - {name: policy_rejects_zero_chunk, chunk: 0, ceiling: 128, invalid: true}
+  - {name: policy_rejects_negative_chunk, chunk: -1, ceiling: 128, invalid: true}
+  - {name: policy_rejects_zero_ceiling, chunk: 1, ceiling: 0, invalid: true}
+  - {name: policy_rejects_negative_ceiling, chunk: 1, ceiling: -1, invalid: true}
+  - {name: policy_rejects_chunk_above_ceiling, chunk: 129, ceiling: 128, invalid: true}
+  - {name: policy_rejects_ceiling_at_wasm_limit, chunk: 67108864, ceiling: 2147483648, invalid: true}
+  - {name: policy_rejects_ceiling_above_wasm_limit, chunk: 67108864, ceiling: 2147483649, invalid: true}
+  - {name: policy_accepts_equal_chunk_ceiling, chunk: 128, ceiling: 128}
+  - {name: policy_defaults_match_production_caps, chunk: 67108864, ceiling: 2146435072, production: true}
+  - {name: engine_refuses_two_gib, chunk: 67108864, ceiling: 2146435072, input_bytes: 2147483648, refused: true}
+  - {name: engine_refuses_exact_ceiling, chunk: 8, ceiling: 32, input_bytes: 32, refused: true}
+  - {name: engine_accepts_below_ceiling, chunk: 8, ceiling: 32, input_bytes: 31}
+refusal_required_names:
+  - checked_detect_refuses_before_engine
+  - checked_text_refuses_before_engine
+  - checked_json_refuses_nested_leaf
+  - jsonl_refusal_preserves_original_with_error
+  - document_refusal_has_error
+  - legacy_detect_masks_refusal
+  - legacy_text_masks_refusal
+  - legacy_json_masks_refusal
+  - legacy_document_masks_refusal
+  - legacy_redact_masks_oversized_supplied_span
+  - title_generate_refuses_before_engine
+  - title_sanitize_refuses_before_engine
+refusal_input: 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+refusal_chunk: 8
+refusal_ceiling: 32
+refusal_cases:
+  - {name: checked_detect_refuses_before_engine, operation: detect_checked, error: true}
+  - {name: checked_text_refuses_before_engine, operation: text_checked, error: true}
+  - {name: checked_json_refuses_nested_leaf, operation: json_checked, error: true}
+  - {name: jsonl_refusal_preserves_original_with_error, operation: jsonl, error: true}
+  - {name: document_refusal_has_error, operation: document_checked, error: true}
+  - {name: legacy_detect_masks_refusal, operation: detect, output: '<REDACTED>'}
+  - {name: legacy_text_masks_refusal, operation: text, output: '<REDACTED>'}
+  - {name: legacy_json_masks_refusal, operation: json, output: '<REDACTED>'}
+  - {name: legacy_document_masks_refusal, operation: document, output: '"<REDACTED>"'}
+  - {name: legacy_redact_masks_oversized_supplied_span, operation: redact, output: '<REDACTED>'}
+  - {name: title_generate_refuses_before_engine, operation: title_generate, error: true}
+  - {name: title_sanitize_refuses_before_engine, operation: title_sanitize, error: true}
+catalog:
+  name: full_catalog_chunked_parity
+  size_bytes: 200000
+  fill: "ordinary synthetic prose.\n"
+  plants:
+    - {offset: 32760, value: ' alice@example.test '}
+    - {offset: 98300, value: ' /home/alice/project '}
+    - {offset: 131060, value: ' ghp_abcdefghijklmnopqrstuvwxyzABCDEFGHIJ '}
+  chunk_bytes: 32768
