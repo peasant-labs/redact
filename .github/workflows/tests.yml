@@ -48,6 +48,9 @@ jobs:
       - name: Run module quality gate
         run: make release-check
 
+      - name: Engine parity and relative allocation budgets
+        run: make perf PERF_ARGS=--ci
+
   lint:
     name: lint
     needs: determine-runner
