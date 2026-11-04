@@ -1,7 +1,7 @@
-.PHONY: check test lint fmt vet release-check verify-tidy
+.PHONY: check test test-nore2 bench lint fmt vet release-check verify-tidy
 
 # Full quality gate
-check: fmt vet test
+check: fmt vet test test-nore2
 
 release-check: check
 	CGO_ENABLED=0 go test ./...
@@ -13,6 +13,14 @@ release-check: check
 # Run all tests with race detector
 test:
 	go test -race ./...
+
+# Exercise the stdlib fallback independently and in every quality gate
+test-nore2:
+	go test -tags no_re2 -race ./...
+
+# Reproducible synthetic constructor and first-detection measurements
+bench:
+	go test -run '^$$' -bench 'Benchmark(RedactorConstruction|FirstDetection)$$' -benchmem -count=6
 
 # Run go vet
 vet:
