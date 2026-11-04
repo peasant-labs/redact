@@ -62,6 +62,22 @@ type Rule struct {
 	//   offset  — byte offset of matched within input
 	// FilterFn must be safe for concurrent use (stateless).
 	FilterFn func(matched string, input string, offset int) bool
+
+	// RequiredLiterals is a disjunction: any one of the listed literals must
+	// appear somewhere in the value for the rule's pattern to have a chance to
+	// match. A value that holds none of them cannot match, so the detector skips
+	// the regex entirely. Empty means the rule declares no literal gate.
+	//
+	// Declare literals lowercase for a case-insensitive rule (one whose pattern
+	// begins with (?i)); the gate compares case-insensitively for those rules and
+	// byte-exactly for every other rule.
+	RequiredLiterals []string
+
+	// MinMatchBytes is the shortest possible match for this rule, in bytes.
+	// A value shorter than this cannot contain a match, so the detector skips
+	// the regex. Zero means unset. It must never exceed the shortest match the
+	// pattern can actually produce, or the gate would suppress real findings.
+	MinMatchBytes int
 }
 
 // UserPattern is a user-defined regex redaction rule loaded from config.yaml.
@@ -110,12 +126,16 @@ var Rules = []Rule{
 	{
 		// GitHub Personal Access Token. Aligned with detect-secrets/github_token.py:
 		//   (ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36}
-		// Real GitHub tokens are exactly 36 chars after the prefix.
+		// Real GitHub tokens are exactly 36 chars after the prefix. The prefix is
+		// written as a character class so the shared "gh" run leads the pattern
+		// and stays visible to the engine's literal extractor.
 		// ref: https://github.blog/2021-04-05-behind-githubs-new-authentication-token-formats/
-		ID:          "github_pat",
-		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{36}`),
-		Replacement: "<GITHUB_PAT>",
+		ID:               "github_pat",
+		Category:         CategorySecrets,
+		Pattern:          regexp.MustCompile(`gh[puors]_[A-Za-z0-9_]{36}`),
+		Replacement:      "<GITHUB_PAT>",
+		RequiredLiterals: []string{"ghp_", "gho_", "ghu_", "ghs_", "ghr_"},
+		MinMatchBytes:    40,
 	},
 	{
 		// AWS Access Key ID. Superset of detect-secrets' prefix list:
@@ -126,10 +146,17 @@ var Rules = []Rule{
 		// are documented IAM resource ID prefixes per AWS docs:
 		//   https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_identifiers.html
 		// All 11 prefixes are sensitive AWS identifiers worth redacting.
+		// "A" is factored out of the alternation so the shared leading run stays
+		// visible to the engine's literal extractor; the match set is unchanged.
 		ID:          "aws_access_key",
 		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`(?:A3T[A-Z0-9]|ABIA|ACCA|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}`),
+		Pattern:     regexp.MustCompile(`A(?:3T[A-Z0-9]|BIA|CCA|KIA|GPA|IDA|ROA|IPA|NPA|NVA|SIA)[A-Z0-9]{16}`),
 		Replacement: "<AWS_ACCESS_KEY>",
+		RequiredLiterals: []string{
+			"A3T", "ABIA", "ACCA", "AKIA", "AGPA", "AIDA",
+			"AROA", "AIPA", "ANPA", "ANVA", "ASIA",
+		},
+		MinMatchBytes: 20,
 	},
 	{
 		// AWS Secret Key. Pattern matches any 40-char base64 string (with optional
@@ -154,11 +181,15 @@ var Rules = []Rule{
 		// Extended to also cover test keys (sk_test_, rk_test_) which detect-secrets
 		// does not cover — Stripe documents both live and test variants:
 		//   https://docs.stripe.com/keys
-		// Real Stripe keys are exactly 24 chars after the prefix.
-		ID:          "stripe_key",
-		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`(?:r|s)k_(?:live|test)_[0-9a-zA-Z]{24}`),
-		Replacement: "<STRIPE_KEY>",
+		// Real Stripe keys are exactly 24 chars after the prefix. The leading
+		// "rk_"/"sk_" pair has no common literal, so the level literal
+		// ("_live_"/"_test_") is the gate instead of a leading pattern run.
+		ID:               "stripe_key",
+		Category:         CategorySecrets,
+		Pattern:          regexp.MustCompile(`(?:r|s)k_(?:live|test)_[0-9a-zA-Z]{24}`),
+		Replacement:      "<STRIPE_KEY>",
+		RequiredLiterals: []string{"_live_", "_test_"},
+		MinMatchBytes:    32,
 	},
 	{
 		// Twilio Account SID. Aligned with detect-secrets/twilio.py:
@@ -192,20 +223,27 @@ var Rules = []Rule{
 		//   xox(?:a|b|p|o|s|r)-(?:\d+-)+[a-z0-9]+   (case-insensitive)
 		// Requires numeric segments after the type prefix — real Slack tokens
 		// embed workspace/bot/user IDs as digit groups, then end with an
-		// alphanumeric token segment. Case-insensitive per detect-secrets.
-		ID:          "slack_token",
-		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`(?i)xox[abopsr]-(?:\d+-)+[a-z0-9]+`),
-		Replacement: "<SLACK_TOKEN>",
+		// alphanumeric token segment. Case-insensitive per detect-secrets, so the
+		// declared literal is lowercase and the gate folds case.
+		ID:               "slack_token",
+		Category:         CategorySecrets,
+		Pattern:          regexp.MustCompile(`(?i)xox[abopsr]-(?:\d+-)+[a-z0-9]+`),
+		Replacement:      "<SLACK_TOKEN>",
+		RequiredLiterals: []string{"xox"},
+		MinMatchBytes:    8,
 	},
 	{
 		// Slack incoming webhook URL. Aligned with detect-secrets/slack.py
 		// second denylist pattern. Webhook URLs are active credentials — anyone
-		// with the URL can post messages to the channel.
-		ID:          "slack_webhook_url",
-		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`(?i)https://hooks\.slack\.com/services/T[a-zA-Z0-9_]+/B[a-zA-Z0-9_]+/[a-zA-Z0-9_]+`),
-		Replacement: "<SLACK_WEBHOOK_URL>",
+		// with the URL can post messages to the channel. The scheme has to stay in
+		// the match, so the value gate uses the path literal instead of a leading
+		// pattern run. Case-insensitive, like the pattern.
+		ID:               "slack_webhook_url",
+		Category:         CategorySecrets,
+		Pattern:          regexp.MustCompile(`(?i)https://hooks\.slack\.com/services/T[a-zA-Z0-9_]+/B[a-zA-Z0-9_]+/[a-zA-Z0-9_]+`),
+		Replacement:      "<SLACK_WEBHOOK_URL>",
+		RequiredLiterals: []string{"hooks.slack.com/services/"},
+		MinMatchBytes:    40,
 	},
 	{
 		// JWT token. Aligned with detect-secrets/jwt.py regex shape:
@@ -242,6 +280,11 @@ var Rules = []Rule{
 		Category:    CategorySecrets,
 		Pattern:     regexp.MustCompile(`(?:-----BEGIN (?:RSA |EC |DSA |OPENSSH |SSH2 ENCRYPTED )?PRIVATE KEY-----|-----BEGIN PGP PRIVATE KEY BLOCK-----|PuTTY-User-Key-File-2)`),
 		Replacement: "<PRIVATE_KEY>",
+		// The two arms share no leading literal, so the value gate carries the
+		// prefilter. PuTTY has its own arm because its header holds neither
+		// "PRIVATE KEY" nor a PEM frame.
+		RequiredLiterals: []string{"PRIVATE KEY", "PuTTY-User-Key-File-2"},
+		MinMatchBytes:    21,
 	},
 	{
 		// Generic API key in assignment form. No direct detect-secrets equivalent
@@ -315,6 +358,11 @@ var Rules = []Rule{
 		Category:    CategorySecrets,
 		Pattern:     regexp.MustCompile(`(?:^|[\s=:"])AKC[a-zA-Z0-9]{10,}(?:[\s"]|$)`),
 		Replacement: "<ARTIFACTORY_API_TOKEN>",
+		// The leading boundary group is part of the match span, so it cannot move
+		// into FilterFn without changing the redacted output. The gate is the
+		// prefilter instead.
+		RequiredLiterals: []string{"AKC"},
+		MinMatchBytes:    13,
 	},
 	{
 		// AP followed by one uppercase hex digit (0-9, A-F) then 8+ alphanum chars.
@@ -323,6 +371,10 @@ var Rules = []Rule{
 		Category:    CategorySecrets,
 		Pattern:     regexp.MustCompile(`(?:^|[\s=:"])AP[0-9A-F][a-zA-Z0-9]{8,}(?:[\s"]|$)`),
 		Replacement: "<ARTIFACTORY_PASSWORD>",
+		// Two bytes is a weak literal, but it is free and it still skips the regex
+		// for the overwhelming majority of values that never hold "AP".
+		RequiredLiterals: []string{"AP"},
+		MinMatchBytes:    11,
 	},
 	{
 		// Azure Storage AccountKey is exactly 88 base64 chars after "AccountKey=".
@@ -349,8 +401,12 @@ var Rules = []Rule{
 		// equivalent of Python's (?!\w) negative lookahead.
 		ID:          "gitlab_pat",
 		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`(?:glpat|gldt|glft|glsoat|glrt)-[A-Za-z0-9_\-]{20,50}(?:[^A-Za-z0-9_]|$)`),
+		Pattern:     regexp.MustCompile(`gl(?:pat|dt|ft|soat|rt)-[A-Za-z0-9_\-]{20,50}(?:[^A-Za-z0-9_]|$)`),
 		Replacement: "<GITLAB_TOKEN>",
+		// All five token families share the "gl" run, which is factored out of the
+		// alternation in the pattern; the gate lists the full prefixes.
+		RequiredLiterals: []string{"glpat-", "gldt-", "glft-", "glsoat-", "glrt-"},
+		MinMatchBytes:    25,
 	},
 	{
 		// GitLab Runner Registration Token.

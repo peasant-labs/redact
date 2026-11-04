@@ -17,6 +17,7 @@ rules:
       - {name: too_short_after_colon, input: ':AKCxxxxxxxx', shouldFlag: false}
       - {name: wrong_suffix_prefix, input: 'AKDxxxxxxxxxx1234', shouldFlag: false}
       - {name: wrong_first_prefix, input: 'BKCxxxxxxxxxx1234', shouldFlag: false}
+      - {name: minimum_body, input: 'AKCabcdefghij', shouldFlag: true}
 
   - ruleId: artifactory_password
     cases:
@@ -32,6 +33,7 @@ rules:
       - {name: too_short, input: 'AP6xxxxxxx', shouldFlag: false}
       - {name: invalid_hex_suffix, input: 'APGxxxxxxxxxx', shouldFlag: false}
       - {name: wrong_prefix, input: 'BPAxxxxxxxxxx', shouldFlag: false}
+      - {name: minimum_body, input: 'AP1abcdefgh', shouldFlag: true}
 
   - ruleId: azure_storage_key
     cases:
@@ -71,6 +73,7 @@ rules:
       - {name: invalid_prefix, input: 'foo-hello-world80_testin_abcdefghij ', shouldFlag: false}
       - {name: github_token, input: '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', shouldFlag: false}
       - {name: space_in_token, input: 'glpat-hellOWorld380 testin', shouldFlag: false}
+      - {name: minimum_body, input: 'gldt-aaaaaaaaaaaaaaaaaaaa', shouldFlag: true}
 
   - ruleId: gitlab_runner_registration
     cases:
@@ -192,6 +195,54 @@ rules:
       - {name: status_code, input: 'status code: 403', shouldFlag: false}
       - {name: exit_code, input: 'exit code 1', shouldFlag: false}
       - {name: short_verification_code, input: 'verification code: short', shouldFlag: false}
+
+  - ruleId: github_pat
+    cases:
+      - {name: start_of_string, input: 'ghp_000000000000000000000000000000000000', shouldFlag: true}
+      - {name: alternate_prefix, input: 'gho_000000000000000000000000000000000000', shouldFlag: true}
+      - {name: server_prefix, input: 'ghs_000000000000000000000000000000000000', shouldFlag: true}
+      - {name: embedded_in_word, input: 'token=ghp_000000000000000000000000000000000000', shouldFlag: true}
+      - {name: short_body, input: 'ghp_000000', shouldFlag: false}
+      - {name: unknown_letter, input: 'ghz_000000000000000000000000000000000000', shouldFlag: false}
+
+  - ruleId: aws_access_key
+    cases:
+      - {name: akia_prefix, input: 'AKIAIOSFODNN7EXAMPLE', shouldFlag: true}
+      - {name: asia_prefix, input: 'ASIAIOSFODNN7EXAMPLE', shouldFlag: true}
+      - {name: a3t_wildcard_tail, input: 'A3T7IOSFODNN7EXAMPLE', shouldFlag: true}
+      - {name: embedded_in_word, input: 'key=AKIAIOSFODNN7EXAMPLE', shouldFlag: true}
+      - {name: short_body, input: 'AKIAIOSFODNN', shouldFlag: false}
+      - {name: unknown_prefix, input: 'AZZZIOSFODNN7EXAMPLE', shouldFlag: false}
+
+  - ruleId: slack_token
+    cases:
+      - {name: bot_token, input: 'xoxb-34532454-e039d02840a0b9379c', shouldFlag: true}
+      - {name: user_token_case_insensitive, input: 'XOXP-34532454-e039d02840a0b9379c', shouldFlag: true}
+      - {name: prose_without_body, input: 'the xox prefix is not a token', shouldFlag: false}
+      - {name: alphanumeric_segments, input: 'xoxb-abc123-abc123-abc123def456', shouldFlag: false}
+
+  - ruleId: slack_webhook_url
+    cases:
+      - {name: incoming_webhook, input: 'https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX', shouldFlag: true}
+      - {name: uppercase_scheme_and_host, input: 'HTTPS://HOOKS.SLACK.COM/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX', shouldFlag: true}
+      - {name: other_host, input: 'https://example.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX', shouldFlag: false}
+      - {name: missing_services_path, input: 'https://hooks.slack.com/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX', shouldFlag: false}
+
+  - ruleId: stripe_key
+    cases:
+      - {name: secret_live, input: 'sk_live_abcdefghijklmnopqrstuvwx', shouldFlag: true}
+      - {name: restricted_test, input: 'rk_test_abcdefghijklmnopqrstuvwx', shouldFlag: true}
+      - {name: unknown_level, input: 'sk_prod_abcdefghijklmnopqrstuvwx', shouldFlag: false}
+      - {name: short_body, input: 'sk_live_abcdefghij', shouldFlag: false}
+
+  - ruleId: private_key_block
+    cases:
+      - {name: ec_header, input: '-----BEGIN EC PRIVATE KEY-----', shouldFlag: true}
+      - {name: openssh_header, input: '-----BEGIN OPENSSH PRIVATE KEY-----', shouldFlag: true}
+      - {name: generic_pkcs8_header, input: '-----BEGIN PRIVATE KEY-----', shouldFlag: true}
+      - {name: pgp_block_header, input: '-----BEGIN PGP PRIVATE KEY BLOCK-----', shouldFlag: true}
+      - {name: putty_header, input: 'PuTTY-User-Key-File-2', shouldFlag: true}
+      - {name: public_key_header, input: '-----BEGIN PUBLIC KEY-----', shouldFlag: false}
 
 residues:
   - {name: artifactory_api_token, ruleId: residue_artifactory_api_token, input: 'header: AKCshort1234567890'}
