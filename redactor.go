@@ -48,7 +48,14 @@ type RedactionReport struct {
 	TotalRedactions int
 	Counts          map[string]int // rule ID → redaction count
 	Categories      []string       // categories that fired at least once
-	Warnings        []string       // residue detection warnings (v2)
+	// Warnings holds at most DefaultResidueWarningLimit residue detection
+	// warnings (v2). It stays empty when residue scanning is disabled with
+	// WithResidue(false).
+	Warnings []string
+	// WarningsDropped counts residue warnings found but not retained in
+	// Warnings because the cap was reached. It stays zero when residue
+	// scanning is disabled.
+	WarningsDropped int
 	// Matches contains all matches from the last Detect() call.
 	// This is last-call-only (not accumulated across multiple Detect calls).
 	// In-memory only — never serialised to disk or network.
@@ -63,7 +70,8 @@ type DefaultRedactor struct {
 	report              RedactionReport
 	categories          map[string]bool // internal set for O(1) dedup; exported as []string via Report()
 	astAnonymizer       ASTAnonymizer   // AST code anonymization (v2, Maximum only)
-	residueDetector     ResidueDetector // post-redaction advisory scanner (v2)
+	residueDetector     ResidueDetector // post-redaction advisory scanner (v2); nil when disabled
+	residueEnabled      bool            // whether RedactText runs the residue scanner
 	userRules           []Rule          // v3: compiled from userPatterns at construction; read-only after init
 	lastMatches         []Match         // matches from the last Detect() call (last-call-only, not accumulated)
 	scannerConfig       scannerConfig   // immutable JSONL scanner defaults supplied at construction
@@ -99,15 +107,19 @@ type XDGPaths struct {
 // error rather than silently degrading. At Standard/Minimal levels, the
 // ASTAnonymizer is not used at Standard/Minimal; fenced code remains intact and
 // the level-gated rules scan it like any other text.
+//
+// Options configure scanner buffers (WithScannerBufSize) and the advisory
+// residue scan (WithResidue). The residue scan is on by default; callers that
+// never read Report().Warnings can turn it off and skip that work entirely.
 func NewRedactor(level RedactionLevel, userPatterns []UserPattern, xdg XDGPaths, opts ...Option) (Redactor, error) {
-	cfg := defaultScannerConfig()
+	cfg := defaultRedactorConfig()
 	for i, opt := range opts {
 		if opt == nil {
-			return nil, scannerOptionError("NewRedactor", fmt.Sprintf("constructor option at index %d is nil", i), cfg, nil)
+			return nil, scannerOptionError("NewRedactor", fmt.Sprintf("constructor option at index %d is nil", i), cfg.scannerConfig, nil)
 		}
 		opt(&cfg)
 	}
-	if err := validateScannerConfig("NewRedactor", cfg); err != nil {
+	if err := validateScannerConfig("NewRedactor", cfg.scannerConfig); err != nil {
 		return nil, err
 	}
 	if !level.IsValid() {
@@ -147,15 +159,20 @@ func NewRedactor(level RedactionLevel, userPatterns []UserPattern, xdg XDGPaths,
 	} else {
 		anon = NewRegexAnonymizer()
 	}
+	var residueDetector ResidueDetector
+	if cfg.residueEnabled {
+		residueDetector = NewResidueDetector()
+	}
 	return &DefaultRedactor{
 		level:               level,
 		report:              RedactionReport{Counts: make(map[string]int)},
 		categories:          make(map[string]bool),
 		astAnonymizer:       anon,
-		residueDetector:     NewResidueDetector(),
+		residueDetector:     residueDetector,
+		residueEnabled:      cfg.residueEnabled,
 		userRules:           userRules,
 		configuredRuleCount: configuredRuleCount,
-		scannerConfig:       cfg,
+		scannerConfig:       cfg.scannerConfig,
 	}, nil
 }
 
@@ -475,7 +492,9 @@ func maskCodeBlocks(s string) string {
 //  2. Level-gated regex rules: built-ins use category defaults plus optional
 //     per-rule minimums; user-defined rules inherit their category default
 //  3. Entropy detection (Maximum only)
-//  4. Residue scan (advisory — appends to Report().Warnings, never modifies content)
+//  4. Residue scan (advisory — appends to Report().Warnings, never modifies
+//     content). On by default; WithResidue(false) skips it for callers that do
+//     not read warnings.
 //
 // Thread-safe. Fail-closed: panics are recovered and maximum-level rules are applied.
 func (r *DefaultRedactor) RedactText(input string) (output string) {
@@ -541,7 +560,9 @@ func (r *DefaultRedactor) redactText(input string, call *observationCall) (outpu
 	}
 
 	// Residue scan: advisory, appends warnings to report. Never modifies content.
-	if r.residueDetector != nil {
+	// Callers that never read Report().Warnings disable this with
+	// WithResidue(false) and skip the scan entirely.
+	if r.residueEnabled && r.residueDetector != nil {
 		warnings := r.residueDetector.Scan(out)
 		if len(warnings) > 0 {
 			// defer is intentionally not used here: the lock covers only the
@@ -550,10 +571,20 @@ func (r *DefaultRedactor) redactText(input string, call *observationCall) (outpu
 			// func(){...}() scope with defer would work but adds indentation
 			// with no benefit over the explicit Unlock below.
 			r.mu.Lock()
-			for _, w := range warnings {
+			room := DefaultResidueWarningLimit - len(r.report.Warnings)
+			if room < 0 {
+				room = 0
+			}
+			if room > len(warnings) {
+				room = len(warnings)
+			}
+			for _, w := range warnings[:room] {
 				r.report.Warnings = append(r.report.Warnings,
 					fmt.Sprintf("[residue:%s at %d] %s", w.RuleID, w.Location, w.Preview))
 			}
+			// Warnings memory stays bounded on a long-lived redactor; the
+			// dropped count keeps the discarded volume visible.
+			r.report.WarningsDropped += len(warnings) - room
 			r.mu.Unlock()
 		}
 	}
@@ -1032,6 +1063,7 @@ func (r *DefaultRedactor) Report() RedactionReport {
 		Counts:          counts,
 		Categories:      categories,
 		Warnings:        warnings,
+		WarningsDropped: r.report.WarningsDropped,
 		Matches:         matchesCopy,
 	}
 }
@@ -1040,7 +1072,19 @@ func (r *DefaultRedactor) Report() RedactionReport {
 // the specific parameter they override; all other parameters use their defaults.
 type Option func(*redactorConfig)
 
-type redactorConfig = scannerConfig
+// redactorConfig carries the constructor-only settings. The embedded scanner
+// configuration is shared with the JSONL scan APIs.
+type redactorConfig struct {
+	scannerConfig
+	residueEnabled bool
+}
+
+func defaultRedactorConfig() redactorConfig {
+	return redactorConfig{
+		scannerConfig:  defaultScannerConfig(),
+		residueEnabled: true,
+	}
+}
 
 // WithScannerBufSize overrides the default scanner buffer sizes.
 // Default: DefaultScannerInitBuf (64 KiB) and DefaultScannerMaxLine (10 MiB).
@@ -1048,6 +1092,18 @@ func WithScannerBufSize(initBuf, maxLine int) Option {
 	return func(c *redactorConfig) {
 		c.initBuf = initBuf
 		c.maxLine = maxLine
+	}
+}
+
+// WithResidue controls the advisory post-redaction residue scan.
+//
+// The scan runs by default, and its warnings accumulate in
+// RedactionReport.Warnings (capped at DefaultResidueWarningLimit). Callers that
+// never read those warnings can pass WithResidue(false) and skip the work
+// entirely; redacted output is byte-identical either way.
+func WithResidue(enabled bool) Option {
+	return func(c *redactorConfig) {
+		c.residueEnabled = enabled
 	}
 }
 
