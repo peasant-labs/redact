@@ -65,14 +65,28 @@ func selectEngine() engine { return selectDefaultEngine() }
 // is immutable and shared by detection, replacement, and residue scanning.
 type compiledPatterns map[*regexp.Regexp]compiled
 
+// lookup returns the compiled pattern for the selected engine.
+//
+// A nil set means the stdlib build, so it returns the original pattern.
+// A miss on a non-nil set is a programming error, so it panics.
 func (patterns compiledPatterns) lookup(pattern *regexp.Regexp) compiled {
 	if pattern == nil {
 		return nil
 	}
+	if patterns == nil {
+		return pattern
+	}
 	if compiled, ok := patterns[pattern]; ok {
 		return compiled
 	}
-	return pattern
+	panic(&actionableError{
+		what:  fmt.Sprintf("a redaction rule pointer (%p) missed the compiled engine set", pattern),
+		why:   "the rule pointer never went through compileRulePatterns",
+		where: "redact.compiledPatterns.lookup",
+		when:  "resolving a rule pattern to the selected engine before scanning content",
+		means: "the scan cannot run; a stdlib fallback would silently change the engine",
+		fix:   "compile the rule with compileRulePatterns before scanning, or keep a nil set for the stdlib build",
+	})
 }
 
 func compileRulePatterns(e engine, rules []Rule, userRules []Rule, residueRules []ResidueRule) (compiledPatterns, error) {
