@@ -16,7 +16,10 @@ on:
 
 concurrency:
   group: release-pr-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  # A body edit must queue behind a running run instead of cancelling it:
+  # cancelling reruns the cheap validate, and an edit after merge could cancel
+  # the tag job that mints the release. A push still supersedes running gates.
+  cancel-in-progress: ${{ github.event.action != 'edited' }}
 
 permissions:
   contents: read

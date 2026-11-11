@@ -28,8 +28,8 @@ type workflowPolicyFixture struct {
 }
 
 const (
-	workflowPolicyFixtureCount        = 11
-	workflowPolicyLiteralFixtureCount = 4
+	workflowPolicyFixtureCount        = 12
+	workflowPolicyLiteralFixtureCount = 5
 	workflowPolicyGateFixtureCount    = 7
 	workflowPolicyFileGateCount       = 4
 
@@ -39,6 +39,7 @@ const (
 
 var expectedWorkflowPolicyFixtureNames = map[string]struct{}{
 	"release_pr_exact_merge_checkout": {},
+	"release_pr_edited_queues":        {},
 	"release_pr_gate":                 {},
 	"release_pr_tag_gate":             {},
 	"release_tag_exact_checkout":      {},

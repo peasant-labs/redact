@@ -78,3 +78,7 @@
           - name: Checkout only
             uses: actions/checkout@v5
   want: false
+- name: release_pr_edited_queues
+  kind: literal
+  file: .github/workflows/release-pr.yml
+  contains: "cancel-in-progress: ${{ github.event.action != 'edited' }}"
