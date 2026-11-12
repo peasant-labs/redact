@@ -34,6 +34,7 @@ func (r TitleResult) HasSensitiveContent() bool { return len(r.Categories) != 0 
 type TitlePipeline struct {
 	rules    []Rule
 	patterns compiledPatterns
+	scans    *patternScanner
 }
 
 // NewTitlePipeline constructs the fixed baseline-Standard title policy.
@@ -42,6 +43,9 @@ func NewTitlePipeline() (*TitlePipeline, error) {
 }
 
 func newTitlePipelineWithEngine(e engine) (*TitlePipeline, error) {
+	if err := DefaultMaxInputBytesPolicy.Validate(); err != nil {
+		return nil, err
+	}
 	if err := validateRuleActivationMetadata(Rules); err != nil {
 		return nil, &actionableError{what: "the transcript title pipeline could not be constructed", why: "the compiled baseline Standard rule metadata is invalid", where: "redact.NewTitlePipeline", when: "constructing the title pipeline before any title was processed", means: "no title can be generated or validated safely", fix: "restore valid built-in rule categories and activation levels, then construct the pipeline again", cause: err}
 	}
@@ -56,7 +60,7 @@ func newTitlePipelineWithEngine(e engine) (*TitlePipeline, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &TitlePipeline{rules: rules, patterns: patterns}, nil
+	return &TitlePipeline{rules: rules, patterns: patterns, scans: newPatternScanner(DefaultMaxInputBytesPolicy, e, rules, nil, nil)}, nil
 }
 
 // Generate cleans markup owned by the supplied harness, sanitizes the result,
@@ -80,11 +84,14 @@ func (p *TitlePipeline) Generate(firstTurn string, context TitleContext) (TitleR
 	if firstTurn == "" {
 		return TitleResult{Text: ""}, nil
 	}
+	if err := p.inputPolicy().check(len(firstTurn)); err != nil {
+		return TitleResult{}, err
+	}
 	cleaned, err := cleanHarnessTitle(firstTurn, context.Harness)
 	if err != nil {
 		return TitleResult{}, err
 	}
-	return p.process(cleaned, context), nil
+	return p.process(cleaned, context)
 }
 
 // Sanitize never interprets harness markup. It preserves exact input bytes when
@@ -97,7 +104,13 @@ func (p *TitlePipeline) Sanitize(title string, context TitleContext) (TitleResul
 	if title == "" {
 		return TitleResult{Text: ""}, nil
 	}
-	result := p.process(title, context)
+	if err := p.inputPolicy().check(len(title)); err != nil {
+		return TitleResult{}, err
+	}
+	result, err := p.process(title, context)
+	if err != nil {
+		return TitleResult{}, err
+	}
 	if !result.HasSensitiveContent() && len([]rune(title)) <= titleCodePointLimit {
 		result.Text = title
 	}
@@ -162,13 +175,23 @@ func nilTitlePipelineError(method, operation string) error {
 	return &actionableError{what: "the transcript title pipeline receiver is nil", why: "the title method was called before NewTitlePipeline returned a usable pipeline", where: "redact.(*TitlePipeline)." + method, when: operation, means: "the title was not processed and must not be stored as safe", fix: "construct one pipeline with redact.NewTitlePipeline and inject that non-nil value before processing titles"}
 }
 
-func (p *TitlePipeline) process(input string, context TitleContext) TitleResult {
+func (p *TitlePipeline) inputPolicy() MaxInputBytesPolicy {
+	if p.scans != nil {
+		return p.scans.policy
+	}
+	return DefaultMaxInputBytesPolicy
+}
+
+func (p *TitlePipeline) process(input string, context TitleContext) (TitleResult, error) {
 	pathNormalized, pathChanged := normalizeTitlePaths(input, context.ProjectPath)
-	text, detected := redactTitleRules(pathNormalized, p.rules, p.patterns)
+	text, detected, err := redactTitleRulesChecked(pathNormalized, p.rules, p.patterns, p.scans)
+	if err != nil {
+		return TitleResult{}, err
+	}
 	if pathChanged {
 		detected[CategoryStringPath] = struct{}{}
 	}
-	return TitleResult{Text: capTitle(text), Categories: orderedTitleCategories(detected)}
+	return TitleResult{Text: capTitle(text), Categories: orderedTitleCategories(detected)}, nil
 }
 
 // Harness-owned markup wrapper names. A harness injects these blocks into a
@@ -604,15 +627,26 @@ func normalizeOneTitlePath(candidate, projectPath string, windows bool) string {
 }
 
 func redactTitleRules(input string, rules []Rule, patterns compiledPatterns) (string, map[CategoryString]struct{}) {
+	output, categories, err := redactTitleRulesChecked(input, rules, patterns, nil)
+	if err != nil {
+		return "<REDACTED>", map[CategoryString]struct{}{CategoryStringCredential: {}}
+	}
+	return output, categories
+}
+
+func redactTitleRulesChecked(input string, rules []Rule, patterns compiledPatterns, scans *patternScanner) (string, map[CategoryString]struct{}, error) {
 	categories := make(map[CategoryString]struct{})
-	matches := detectWithRules(input, rules, patterns)
+	matches, err := detectWithRulesChecked(input, rules, patterns, scans, nil)
+	if err != nil {
+		return "", nil, err
+	}
 	output, applied := redactWithRules(input, matches, rules, patterns)
 	for _, match := range applied {
 		if category := match.Category.String(); category != "" {
 			categories[category] = struct{}{}
 		}
 	}
-	return output, categories
+	return output, categories, nil
 }
 
 func orderedTitleCategories(set map[CategoryString]struct{}) []CategoryString {

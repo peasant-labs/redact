@@ -61,7 +61,7 @@ func selectEngine() engine { return selectDefaultEngine() }
 
 // compiledPatterns pairs public regexp values with engine-specific patterns.
 // The nil set uses the original stdlib patterns, preserving their configuration
-// and avoiding recompilation on the stdlib fallback path. A constructed go-re2 set
+// and avoiding recompilation on the stdlib baseline path. A constructed go-re2 set
 // is immutable and shared by detection, replacement, and residue scanning.
 type compiledPatterns map[*regexp.Regexp]compiled
 
