@@ -1,0 +1,108 @@
+# Fixtures for the constructor-level residue scan switch and the warning cap.
+#
+# Every family below is guarded by a reviewed name manifest: the loader asserts
+# exact membership in both directions, so a deleted row and an unreviewed new row
+# both fail. There is no bare row count to bump.
+#
+# parity rows run the same input through a default redactor (residue on) and a
+# redactor constructed with WithResidue(false). The redacted output must be
+# byte-identical, and a counting detector proves the disabled redactor never
+# calls Scan. want_residue states whether the input leaves residue warnings
+# after primary redaction at that level.
+
+required_parity_ids:
+  - standard_hex_residue
+  - minimal_hex_residue
+  - maximum_hex_residue
+  - standard_twilio_near_miss
+  - standard_broad_api_key
+  - standard_bare_base64
+  - standard_email_redacted
+  - standard_home_path_redacted
+  - standard_bearer_near_miss
+  - standard_clean_prose
+  - standard_code_fence
+
+parity:
+  - id: standard_hex_residue
+    why: a low-entropy hex string survives primary redaction at Standard and only the residue scanner notices it
+    level: standard
+    input: "hash: aaaabbbbccccddddaaaabbbbccccdddd done"
+    want_residue: true
+  - id: minimal_hex_residue
+    why: residue scanning also runs at Minimal, so turning it off must be level-independent
+    level: minimal
+    input: "hash: aaaabbbbccccddddaaaabbbbccccdddd done"
+    want_residue: true
+  - id: maximum_hex_residue
+    why: Maximum adds entropy detection but must keep the same residue switch and identical output
+    level: maximum
+    input: "hash: aaaabbbbccccddddaaaabbbbccccdddd done"
+    want_residue: true
+  - id: standard_twilio_near_miss
+    why: a near-miss Twilio account SID is caught only by the broader residue rule
+    level: standard
+    input: "token: ACaaaaaaaaaaaaaaaaaaaa auth"
+    want_residue: true
+  - id: standard_broad_api_key
+    why: a malformed sk- token is left by the primary rule but flagged by residue_broad_api_key
+    level: standard
+    input: "api: sk-aabbccddee-ffgghhii done"
+    want_residue: true
+  - id: standard_bare_base64
+    why: context-free base64 is not a primary violation but remains a residue warning
+    level: standard
+    input: "data: dGhpcyBpcyBhIGJhc2U2NCBlbmNvZGVkIHN0cmluZyB0aGF0IGlzIHF1aXRl end"
+    want_residue: true
+  - id: standard_email_redacted
+    why: an email is removed by the primary rule, so residue must stay quiet and the disabled scan must change nothing
+    level: standard
+    input: "contact user@example.com please"
+    want_residue: false
+  - id: standard_home_path_redacted
+    why: a home path is removed by the primary rule, covering the path family of the residue table
+    level: standard
+    input: "file /Users/alice/dev/app/main.go loaded"
+    want_residue: false
+  - id: standard_bearer_near_miss
+    why: a short bearer token is left by the primary length requirement and stays a residue warning, covering the auth family
+    level: standard
+    input: "Authorization: Bearer abcdefghijklmnop"
+    want_residue: true
+  - id: standard_clean_prose
+    why: ordinary text must produce no residue warnings with the scan on
+    level: standard
+    input: "Today is a good day for coding."
+    want_residue: false
+  - id: standard_code_fence
+    why: fenced code stays intact at Standard, so its output must be identical with the scan off
+    level: standard
+    input: "before\n```go\nfunc main() {}\n```\nafter"
+    want_residue: false
+
+# limit rows run the same input `passes` times against one redactor. The report
+# keeps at most DefaultResidueWarningLimit warning strings; every warning beyond
+# that is counted in WarningsDropped instead.
+required_limit_ids:
+  - hex_above_cap_across_two_passes
+  - hex_below_cap_single_pass
+
+limit:
+  - id: hex_above_cap_across_two_passes
+    why: two passes over 300 residue hits must keep the warning slice bounded while the dropped count accumulates both passes
+    level: standard
+    input: "hash: aaaabbbbccccddddaaaabbbbccccdddd"
+    separator: " "
+    repeat: 300
+    passes: 2
+    want_warnings: 256
+    want_warnings_dropped: 344
+  - id: hex_below_cap_single_pass
+    why: a small report keeps every warning and drops nothing
+    level: standard
+    input: "hash: aaaabbbbccccddddaaaabbbbccccdddd"
+    separator: " "
+    repeat: 3
+    passes: 1
+    want_warnings: 3
+    want_warnings_dropped: 0
