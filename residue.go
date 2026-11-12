@@ -168,7 +168,9 @@ var ResidueRules = []ResidueRule{
 }
 
 // DefaultResidueDetector is the production implementation of ResidueDetector.
-type DefaultResidueDetector struct{}
+type DefaultResidueDetector struct {
+	patterns compiledPatterns
+}
 
 // Compile-time guard: DefaultResidueDetector must implement ResidueDetector.
 var _ ResidueDetector = (*DefaultResidueDetector)(nil)
@@ -189,7 +191,7 @@ func (d *DefaultResidueDetector) Scan(redactedText string) []ResidueWarning {
 
 	var warnings []ResidueWarning
 	for _, rule := range ResidueRules {
-		matches := rule.Pattern.FindAllStringIndex(redactedText, -1)
+		matches := d.patterns.lookup(rule.Pattern).FindAllStringIndex(redactedText, -1)
 		for _, loc := range matches {
 			start := loc[0]
 			preview := safePreview(redactedText, start, PreviewMaxLength)
