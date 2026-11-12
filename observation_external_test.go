@@ -158,7 +158,7 @@ func TestObservationExternalCompatibility(t *testing.T) {
 				return
 			}
 			if row.Name == "public_unkeyed_rule_match" {
-				rule := redact.Rule{row.ID, row.Category, "", nil, row.Output, nil}
+				rule := redact.Rule{row.ID, row.Category, "", nil, row.Output, nil, nil, 0}
 				match := redact.Match{row.ID, row.Offset, row.Length, row.Category, row.Input}
 				if rule.ID != row.ID || rule.Category != row.Category || match.MatchedText != row.Input || match.Length != row.Length {
 					t.Fatal("public layout changed")
