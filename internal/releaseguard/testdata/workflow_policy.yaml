@@ -78,3 +78,23 @@
           - name: Checkout only
             uses: actions/checkout@v5
   want: false
+- name: release_pr_merge_group
+  kind: workflow_value
+  file: .github/workflows/release-pr.yml
+  path: concurrency.group
+  value: "release-pr-${{ github.event.pull_request.number }}-${{ github.event.action == 'closed' && 'merge' || 'gates' }}"
+- name: release_pr_no_cancel_on_edit
+  kind: workflow_value
+  file: .github/workflows/release-pr.yml
+  path: concurrency.cancel-in-progress
+  value: "${{ github.event.action != 'closed' && github.event.action != 'edited' }}"
+- name: release_pr_validate_open_only
+  kind: workflow_value
+  file: .github/workflows/release-pr.yml
+  path: jobs.validate.if
+  value: "github.event.action != 'closed' && github.event.pull_request.state == 'open' && startsWith(github.event.pull_request.title, 'release(')"
+- name: release_pr_edited_trigger
+  kind: workflow_value
+  file: .github/workflows/release-pr.yml
+  path: on.pull_request.types
+  value: "edited"

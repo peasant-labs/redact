@@ -23,22 +23,30 @@ type workflowPolicyFixture struct {
 	Job      string `yaml:"job"`
 	Step     string `yaml:"step"`
 	Contains string `yaml:"contains"`
+	Path     string `yaml:"path"`
+	Value    string `yaml:"value"`
 	Workflow string `yaml:"workflow"`
 	Want     bool   `yaml:"want"`
 }
 
 const (
-	workflowPolicyFixtureCount        = 11
+	workflowPolicyFixtureCount        = 15
 	workflowPolicyLiteralFixtureCount = 4
 	workflowPolicyGateFixtureCount    = 7
 	workflowPolicyFileGateCount       = 4
+	workflowPolicyValueFixtureCount   = 4
 
 	workflowPolicyLiteralKind = "literal"
 	workflowPolicyGateKind    = "release_check"
+	workflowPolicyValueKind   = "workflow_value"
 )
 
 var expectedWorkflowPolicyFixtureNames = map[string]struct{}{
 	"release_pr_exact_merge_checkout": {},
+	"release_pr_merge_group":          {},
+	"release_pr_no_cancel_on_edit":    {},
+	"release_pr_validate_open_only":   {},
+	"release_pr_edited_trigger":       {},
 	"release_pr_gate":                 {},
 	"release_pr_tag_gate":             {},
 	"release_tag_exact_checkout":      {},
@@ -102,6 +110,14 @@ func TestWorkflowPolicyFixtures(t *testing.T) {
 				got := len(matches) == 1 && hasExecutableReleaseCheck(matches)
 				if got != fixture.Want {
 					t.Errorf("job %q step %q executable release-check = %v, want %v", fixture.Job, fixture.Step, got, fixture.Want)
+				}
+			case workflowPolicyValueKind:
+				got, err := workflowValueAtPath(contents, fixture.Path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !workflowValueMatches(got, fixture.Value) {
+					t.Errorf("%s path %q = %q, want %q (whitespace-normalized)", fixture.File, fixture.Path, workflowValueString(got), fixture.Value)
 				}
 			default:
 				t.Fatalf("unsupported workflow policy fixture kind %q", fixture.Kind)
@@ -175,6 +191,7 @@ func validateWorkflowPolicyFixtures(fixtures []workflowPolicyFixture) error {
 	seen := make(map[string]struct{}, len(fixtures))
 	literalCount := 0
 	gateCount := 0
+	valueCount := 0
 	fileGateCount := 0
 	fileGateCounts := make(map[string]int)
 	for _, fixture := range fixtures {
@@ -209,6 +226,11 @@ func validateWorkflowPolicyFixtures(fixtures []workflowPolicyFixture) error {
 			} else if fixture.File != "" || fixture.Workflow == "" {
 				return fmt.Errorf("negative release-check workflow policy fixture %q must specify an inline workflow", fixture.Name)
 			}
+		case workflowPolicyValueKind:
+			valueCount++
+			if fixture.File == "" || fixture.Path == "" || fixture.Value == "" || fixture.Workflow != "" || fixture.Job != "" || fixture.Step != "" || fixture.Contains != "" {
+				return fmt.Errorf("workflow-value fixture %q must specify only file, path, and value", fixture.Name)
+			}
 		default:
 			return fmt.Errorf("workflow policy fixture %q has unsupported kind %q", fixture.Name, fixture.Kind)
 		}
@@ -223,6 +245,9 @@ func validateWorkflowPolicyFixtures(fixtures []workflowPolicyFixture) error {
 	}
 	if gateCount != workflowPolicyGateFixtureCount {
 		return fmt.Errorf("workflow policy release-check fixture count = %d, want %d; restore the changed rows", gateCount, workflowPolicyGateFixtureCount)
+	}
+	if valueCount != workflowPolicyValueFixtureCount {
+		return fmt.Errorf("workflow policy workflow-value fixture count = %d, want %d; restore the changed rows", valueCount, workflowPolicyValueFixtureCount)
 	}
 	if fileGateCount != workflowPolicyFileGateCount {
 		return fmt.Errorf("workflow policy file gate count = %d, want %d; restore the changed rows", fileGateCount, workflowPolicyFileGateCount)
@@ -298,4 +323,85 @@ func hasExecutableReleaseCheck(runs []workflowRun) bool {
 		}
 	}
 	return false
+}
+
+// workflowValueAtPath resolves a dotted path (e.g. "concurrency.group") against
+// a GitHub Actions workflow document. It walks yaml.Node mappings so that keys
+// like `on` keep their literal spelling instead of being coerced. A scalar
+// resolves to its string; a sequence resolves to its scalar items, so a fixture
+// can assert membership (e.g. "edited" in on.pull_request.types).
+func workflowValueAtPath(contents []byte, path string) (any, error) {
+	var root yaml.Node
+	if err := yaml.Unmarshal(contents, &root); err != nil {
+		return nil, fmt.Errorf("parse GitHub Actions workflow YAML: %w", err)
+	}
+	if root.Kind != yaml.DocumentNode || len(root.Content) == 0 {
+		return nil, fmt.Errorf("parse GitHub Actions workflow YAML: empty document")
+	}
+	node := root.Content[0]
+	for _, segment := range strings.Split(path, ".") {
+		if node.Kind != yaml.MappingNode {
+			return nil, fmt.Errorf("workflow path %q: %q is not a mapping", path, segment)
+		}
+		found := false
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			if node.Content[i].Value == segment {
+				node = node.Content[i+1]
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("workflow path %q: no key %q", path, segment)
+		}
+	}
+	switch node.Kind {
+	case yaml.ScalarNode:
+		return node.Value, nil
+	case yaml.SequenceNode:
+		values := make([]string, 0, len(node.Content))
+		for _, item := range node.Content {
+			if item.Kind != yaml.ScalarNode {
+				return nil, fmt.Errorf("workflow path %q: non-scalar sequence item", path)
+			}
+			values = append(values, item.Value)
+		}
+		return values, nil
+	default:
+		return nil, fmt.Errorf("workflow path %q: unsupported node kind", path)
+	}
+}
+
+func normalizeWorkflowValue(s string) string {
+	return strings.Join(strings.Fields(s), " ")
+}
+
+// workflowValueMatches compares whitespace-normalized values: exact equality
+// for a scalar, membership for a sequence.
+func workflowValueMatches(got any, want string) bool {
+	want = normalizeWorkflowValue(want)
+	switch v := got.(type) {
+	case string:
+		return normalizeWorkflowValue(v) == want
+	case []string:
+		for _, item := range v {
+			if normalizeWorkflowValue(item) == want {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
+}
+
+func workflowValueString(got any) string {
+	switch v := got.(type) {
+	case string:
+		return v
+	case []string:
+		return "[" + strings.Join(v, ", ") + "]"
+	default:
+		return fmt.Sprintf("%v", got)
+	}
 }
