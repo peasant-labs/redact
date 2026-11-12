@@ -1,0 +1,28 @@
+{
+  "required_names": ["within_budget", "time_regression", "allocation_regression", "missing_row", "unpriced_rule", "ci_retains_allocation_gate", "ci_reports_time_only"],
+  "cases": [
+    {"name": "within_budget", "factor": 1, "timing": true, "fails": false},
+    {"name": "time_regression", "factor": 3, "unit": "ns/op", "timing": true, "fails": true},
+    {"name": "allocation_regression", "factor": 3, "unit": "B/op", "timing": true, "fails": true},
+    {"name": "missing_row", "remove": true, "timing": true, "error": true},
+    {"name": "unpriced_rule", "extra": true, "timing": true, "error": true},
+    {"name": "ci_retains_allocation_gate", "factor": 3, "unit": "allocs/op", "timing": false, "fails": true},
+    {"name": "ci_reports_time_only", "factor": 3, "unit": "ns/op", "timing": false, "fails": false}
+  ],
+  "baseline": {
+    "required_names": ["Construction"],
+    "baselines": {"Construction": {"ns/op": 1000000, "B/op": 10000, "allocs/op": 100}},
+    "time_factor": 2,
+    "allocation_factor": 1.25,
+    "allocation_slack": {"B/op": 512, "allocs/op": 8}
+  },
+  "required_parse_names": ["complete", "empty", "partial", "missing_allocations", "non_finite", "single_cpu_suffix"],
+  "parse_cases": [
+    {"name": "complete", "line": "BenchmarkEnginePerf/Construction-8 10 1000000 ns/op 10000 B/op 100 allocs/op", "samples": 5},
+    {"name": "empty", "line": "PASS", "samples": 5, "error": true},
+    {"name": "partial", "line": "BenchmarkEnginePerf/Construction-8 10 1000000 ns/op 10000 B/op 100 allocs/op", "samples": 4, "error": true},
+    {"name": "missing_allocations", "line": "BenchmarkEnginePerf/Construction-8 10 1000000 ns/op", "samples": 5, "error": true},
+    {"name": "non_finite", "line": "BenchmarkEnginePerf/Construction-8 10 NaN ns/op 10000 B/op 100 allocs/op", "samples": 5, "error": true},
+    {"name": "single_cpu_suffix", "line": "BenchmarkEnginePerf/Construction 10 1000000 ns/op 10000 B/op 100 allocs/op", "samples": 5}
+  ]
+}
