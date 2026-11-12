@@ -14,12 +14,13 @@ on:
     types: [opened, edited, synchronize, reopened, closed]
     branches: [main]
 
+# The merge path has its own group and is never cancelled: a merge run waits as
+# pending while gates finish, and no later event can replace it, so the tag job
+# that mints the release always runs. A body edit queues behind running gates
+# instead of cancelling them. A push still supersedes running gates.
 concurrency:
-  group: release-pr-${{ github.event.pull_request.number }}
-  # A body edit must queue behind a running run instead of cancelling it:
-  # cancelling reruns the cheap validate, and an edit after merge could cancel
-  # the tag job that mints the release. A push still supersedes running gates.
-  cancel-in-progress: ${{ github.event.action != 'edited' }}
+  group: release-pr-${{ github.event.pull_request.number }}-${{ github.event.action == 'closed' && 'merge' || 'gates' }}
+  cancel-in-progress: ${{ github.event.action != 'closed' && github.event.action != 'edited' }}
 
 permissions:
   contents: read
@@ -31,6 +32,7 @@ jobs:
     name: validate release PR
     if: >-
       github.event.action != 'closed' &&
+      github.event.pull_request.state == 'open' &&
       startsWith(github.event.pull_request.title, 'release(')
     runs-on: ubuntu-latest
     timeout-minutes: 10
