@@ -56,13 +56,12 @@ func (goRegexpEngine) Compile(pattern string) (compiled, error) {
 }
 func (goRegexpEngine) Identity() engineName { return engineGoRegexp }
 
-// selectEngine deliberately keeps the stdlib default. Alternative engines are
-// injected at construction, never selected by mutable process-wide state.
-func selectEngine() engine { return goRegexpEngine{} }
+// selectEngine selects the build's default without mutable process-wide state.
+func selectEngine() engine { return selectDefaultEngine() }
 
 // compiledPatterns pairs public regexp values with engine-specific patterns.
 // The nil set uses the original stdlib patterns, preserving their configuration
-// and avoiding recompilation on the default path. A constructed alternative set
+// and avoiding recompilation on the stdlib fallback path. A constructed go-re2 set
 // is immutable and shared by detection, replacement, and residue scanning.
 type compiledPatterns map[*regexp.Regexp]compiled
 
