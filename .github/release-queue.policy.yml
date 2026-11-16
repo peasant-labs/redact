@@ -1,0 +1,14 @@
+# The merge-queue contract names the required checks, the release job that
+# carries out the planner's action, and the bot jobs that may push a branch.
+# Bot branches live in .github/release-intent.yaml under bot_branches; the
+# checker resolves each branch from the release config.
+queue:
+  required:
+    - {context: merge-gate, workflow: tests.yml, job: merge-gate, aggregator: true}
+    - {context: title-guard, workflow: title-guard.yml, job: title-guard, guard: true}
+  release_job:
+    workflow: release-batch.yml
+    job: release
+    pre_tag_steps: []
+  bot_jobs:
+    - {workflow: cut-release.yml, job: cut, kind: cut-release}

@@ -30,11 +30,11 @@ type workflowPolicyFixture struct {
 }
 
 const (
-	workflowPolicyFixtureCount        = 15
-	workflowPolicyLiteralFixtureCount = 4
-	workflowPolicyGateFixtureCount    = 7
-	workflowPolicyFileGateCount       = 4
-	workflowPolicyValueFixtureCount   = 4
+	workflowPolicyFixtureCount        = 8
+	workflowPolicyLiteralFixtureCount = 3
+	workflowPolicyGateFixtureCount    = 5
+	workflowPolicyFileGateCount       = 2
+	workflowPolicyValueFixtureCount   = 0
 
 	workflowPolicyLiteralKind = "literal"
 	workflowPolicyGateKind    = "release_check"
@@ -42,27 +42,19 @@ const (
 )
 
 var expectedWorkflowPolicyFixtureNames = map[string]struct{}{
-	"release_pr_exact_merge_checkout": {},
-	"release_pr_merge_group":          {},
-	"release_pr_no_cancel_on_edit":    {},
-	"release_pr_validate_open_only":   {},
-	"release_pr_edited_trigger":       {},
-	"release_pr_gate":                 {},
-	"release_pr_tag_gate":             {},
-	"release_tag_exact_checkout":      {},
-	"release_tag_gate":                {},
-	"normal_pr_quality_gate":          {},
-	"tag_commit_identity":             {},
-	"tag_ref_identity":                {},
-	"echo_only_release_check":         {},
-	"comment_only_release_check":      {},
-	"missing_release_check":           {},
+	"release_tag_exact_checkout": {},
+	"release_tag_gate":           {},
+	"normal_pr_quality_gate":     {},
+	"tag_commit_identity":        {},
+	"tag_ref_identity":           {},
+	"echo_only_release_check":    {},
+	"comment_only_release_check": {},
+	"missing_release_check":      {},
 }
 
 var requiredWorkflowGateFiles = map[string]struct{}{
-	".github/workflows/release-pr.yml": {},
-	".github/workflows/release.yml":    {},
-	".github/workflows/tests.yml":      {},
+	".github/workflows/release.yml": {},
+	".github/workflows/tests.yml":   {},
 }
 
 type workflowDocument struct {

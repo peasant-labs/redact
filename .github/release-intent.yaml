@@ -1,0 +1,19 @@
+# Release-intent config for github.com/peasant-labs/redact.
+#
+# Titles carry intent only (`type(scope)[level]: subject`); this file is the
+# contract every check compares against. `release-intent check-config`
+# validates it. The release config and the protected set are always read from
+# the base branch, so a PR cannot unprotect a path and edit it in one step.
+# Only the standing bot release PR (head branch `automation/release`) may
+# change the changelog as a whole file. The module has no version file: the
+# release tag is the version, and `RuleSetVersion` stays authored content.
+releases: true
+tag_prefix: v
+automation_author: app/peasant-labs-releaser
+changelog: CHANGELOG.md
+version_files: []
+protected_paths: []
+surfaces: {}
+bot_branches:
+  release: automation/release
+  cut-release: automation/cut-release

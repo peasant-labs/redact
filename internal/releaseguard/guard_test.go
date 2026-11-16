@@ -23,8 +23,8 @@ func TestGuardFixtures(t *testing.T) {
 	if err := yaml.Unmarshal(guardFixtureYAML, &fixtures); err != nil {
 		t.Fatal(err)
 	}
-	if len(fixtures) != 10 {
-		t.Fatalf("fixture count = %d, want 10", len(fixtures))
+	if len(fixtures) != 5 {
+		t.Fatalf("fixture count = %d, want 5", len(fixtures))
 	}
 	seen := map[string]bool{}
 	for _, fixture := range fixtures {
@@ -36,8 +36,6 @@ func TestGuardFixtures(t *testing.T) {
 			var got string
 			var err error
 			switch fixture.Operation {
-			case "title":
-				got, err = VersionFromTitle(fixture.Input)
 			case "tag":
 				var kind Kind
 				var base string

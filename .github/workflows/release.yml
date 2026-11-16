@@ -1,10 +1,30 @@
+# Refresh the GitHub Release notes from the CHANGELOG on every release tag.
+#
+# Trigger: a `vX.Y.Z[-rcN]` annotated tag minted by release-batch.yml on the
+# landed release commit. The tag is computed: titles carry intent only, one
+# serialized job plans the number, and the standing bot release PR is its only
+# writer. The release job only pushes the tag; this workflow creates the
+# GitHub Release for the tag that triggered it, or updates its notes on a
+# re-run.
+#
+# Job graph: `verify`, `notes` and `release` sit behind `guard` via `needs`,
+# and `release` also needs `verify`, so the publish step can never run against
+# an unparsed or unverified tag. Only `release` holds the write-capable default
+# token, so it runs no general step: `notes` builds the notes without the token
+# and hands them over as an artifact.
+#
+#   push vX.Y.Z[-rcN]
+#           |
+#           v
+#         guard  (releaseguard tag; fails closed on a non-matching tag)
+#           |
+#     verify, notes  (release-intent verify-tag on the default branch;
+#           |         changelog section -> notes/notes.md -> artifact)
+#           |
+#           v
+#        release  (artifact -> gh release view, then create or edit)
 name: Release
 
-# Tag-triggered release pipeline for the redact module.
-# Creates a GitHub Release when a version tag is pushed.
-#
-# Simplified vs schema: no OpenAPI assets, no contract gates, no Nix.
-# Just create the release with release notes.
 on:
   push:
     tags:
@@ -15,27 +35,35 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  actions: read
-  contents: write
+  contents: read
 
 jobs:
-  release:
-    name: create GitHub Release
+  guard:
+    name: guard
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
+    permissions:
+      contents: read
     env:
       TAG: ${{ github.ref_name }}
-      GH_TOKEN: ${{ github.token }}
+    # The parsed release kind ("prerelease" | "final") and the changelog path
+    # the release config names. Downstream steps consume these outputs rather
+    # than re-deriving them, and the local tag classifier stays the one
+    # reader of the tag grammar.
+    outputs:
+      kind: ${{ steps.parse.outputs.kind }}
+      changelog: ${{ steps.config.outputs.changelog }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+      - name: Check out the repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
           fetch-tags: true
+          persist-credentials: false
           ref: ${{ github.sha }}
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
@@ -46,34 +74,147 @@ jobs:
           test "$(git rev-list -n 1 "$TAG")" = "$GITHUB_SHA"
           make release-check
 
-      - name: Classify release (rc vs final)
-        id: guard
-        # Finals no longer require a prior rc (matching schema and peasant). The
-        # rc-vs-final classification is kept because the next step uses it to set
-        # --prerelease for -rcN tags; rc remains available, just not mandatory.
-        run: |
-          read -r KIND _ <<EOF
-          $(go run ./cmd/releaseguard tag "$TAG")
-          EOF
-          echo "kind=$KIND" >> "$GITHUB_OUTPUT"
-          echo "Release kind: $KIND"
-
-      - name: Create the GitHub Release
+      # The release config is the one place the changelog path is written. yq
+      # ships on the GitHub-hosted Ubuntu runner; -e fails the step on a
+      # missing key instead of passing on "null".
+      - name: Read the release config
+        id: config
         run: |
           set -euo pipefail
+          changelog="$(yq -e '.changelog' .github/release-intent.yaml)"
+          echo "changelog=${changelog}" >> "$GITHUB_OUTPUT"
 
-          prerelease_flag=""
-          if [ "${{ steps.guard.outputs.kind }}" = prerelease ]; then
-            prerelease_flag="--prerelease"
-            echo "Creating prerelease for ${TAG}"
-          else
-            echo "Creating full release for ${TAG}"
+      - name: Parse and classify the tag
+        id: parse
+        run: |
+          set -euo pipefail
+          read -r kind _ <<EOF
+          $(go run ./cmd/releaseguard tag "$TAG")
+          EOF
+          echo "kind=${kind}" >> "$GITHUB_OUTPUT"
+          echo "Release kind: ${kind}"
+
+  verify:
+    name: verify the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: Check out the repository (full history and tags)
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Check out the release-intent tool
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: peasant-labs/infra
+          ref: 71abaf02f38353fccf747f6467c4101609f6a0d6
+          path: infra-tool
+          sparse-checkout: |
+            tools/release
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: infra-tool/tools/release/go.mod
+          cache: false
+
+      - name: Build release-intent
+        env:
+          GOWORK: "off"
+        run: go build -C infra-tool/tools/release -o "${RUNNER_TEMP}/release-intent" ./cmd/release-intent
+
+      # Pushing a tag needs only the right to write tags, so the tag may name a
+      # commit that never landed. The tool checks the name against the default
+      # branch's release config and that the default branch reaches the tag's
+      # commit; nothing publishes until it passes.
+      - name: Verify the tag is a release tag on the default branch
+        run: '"${RUNNER_TEMP}/release-intent" verify-tag --tag "${GITHUB_REF_NAME}" --branch "origin/${DEFAULT_BRANCH}"'
+
+  notes:
+    name: release notes
+    needs: guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ github.ref_name }}
+      CHANGELOG: ${{ needs.guard.outputs.changelog }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Extract the changelog section for this tag
+        run: |
+          set -euo pipefail
+          mkdir -p notes
+          awk -v heading="## ${TAG}" '
+            $0 == heading { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' "$CHANGELOG" > notes/notes.md
+          if [ ! -s notes/notes.md ]; then
+            echo "::error::${CHANGELOG} has no ${TAG} section; the release PR writes that section, so fix the release content forward"
+            exit 1
           fi
 
-          gh release create "$TAG" \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "$TAG" \
-            --generate-notes \
-            $prerelease_flag
+      - name: Hand the notes to the publish job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-notes
+          path: notes
+          overwrite: true
+          retention-days: 1
 
-          echo "::notice::published GitHub Release ${TAG}"
+  # The publish job holds the write-capable default token, so it runs only
+  # pinned allowed actions and one gh release command per step. The create
+  # passes --verify-tag and names the tag that triggered this run, so this
+  # workflow can only publish a Release for a tag that already exists and
+  # never makes or moves one.
+  release:
+    name: publish GitHub Release
+    needs: [guard, verify, notes]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create/update the GitHub Release
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-notes
+          path: notes
+
+      - name: Look for an existing GitHub Release (idempotent re-run)
+        id: view
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release view "$TAG" --repo "$GITHUB_REPOSITORY"
+
+      - name: Update the notes of the existing GitHub Release
+        if: steps.view.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ needs.guard.outputs.kind == 'prerelease' }}
+          LATEST: ${{ needs.guard.outputs.kind == 'final' }}
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file notes/notes.md --prerelease="$PRERELEASE" --latest="$LATEST"
+
+      - name: Create the GitHub Release
+        if: steps.view.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ needs.guard.outputs.kind == 'prerelease' }}
+          LATEST: ${{ needs.guard.outputs.kind == 'final' }}
+        run: gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --title "$TAG" --notes-file notes/notes.md --prerelease="$PRERELEASE" --latest="$LATEST"
