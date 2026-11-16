@@ -8,18 +8,21 @@ name: Tests
 # workflow maintained in peasant-labs/infra.
 on:
   pull_request:
+  merge_group:
   push:
     branches: [main]
 
 concurrency:
   group: tests-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
   determine-runner:
+    permissions:
+      contents: read
     uses: peasant-labs/infra/.github/workflows/runner-router.yml@71e687cef7eede9a63659be98ce9adac3c563398
     with:
       fallback: '["ubuntu-latest"]'
@@ -31,9 +34,13 @@ jobs:
     needs: determine-runner
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -53,9 +60,13 @@ jobs:
     needs: determine-runner
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -77,3 +88,20 @@ jobs:
             gofmt -l .
             exit 1
           fi
+
+  merge-gate:
+    # The required queue check: it fails if either the test or lint job fails,
+    # and reports on every merge-group build even when an upstream job is
+    # skipped.
+    name: merge-gate
+    needs: [test, lint]
+    if: always()
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require both gate jobs
+        run: |
+          test "${{ needs.test.result }}" = "success"
+          test "${{ needs.lint.result }}" = "success"
