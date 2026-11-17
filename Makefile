@@ -2,7 +2,7 @@
 
 # Static guard against stringly-typed values. Pin the published tool here.
 # The binary it scans with is ast-grep 0.51.2 on PATH.
-UNSTRING ?= go run github.com/peasant-labs/infra/unstring/cmd/unstring@v0.0.3
+UNSTRING ?= go run github.com/peasant-labs/infra/unstring/cmd/unstring@v0.0.4
 
 # Full quality gate. The guard runs last and fails the gate when the tree
 # is not the committed baseline.

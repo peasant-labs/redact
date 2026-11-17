@@ -7,7 +7,7 @@ guard). The module requires `github.com/peasant-labs/schema` at the version in
 
 ## Static guard
 
-`make check-unstring` runs `unstring` v0.0.3 over this module. It needs Go 1.26+
+`make check-unstring` runs `unstring` v0.0.4 over this module. It needs Go 1.26+
 and ast-grep 0.51.2 on `PATH`. `make check` runs that same command and stops
 when the guard fails.
 
@@ -23,4 +23,4 @@ least three words after the em dash. `closed-set-literal` and
 must carry a `Code generated … DO NOT EDIT` header.
 
 The tool contract is
-[infra/unstring/README.md](https://github.com/peasant-labs/infra/blob/unstring/v0.0.3/unstring/README.md).
+[infra/unstring/README.md](https://github.com/peasant-labs/infra/blob/unstring/v0.0.4/unstring/README.md).
