@@ -1,7 +1,12 @@
-.PHONY: check test lint fmt vet release-check verify-tidy
+.PHONY: check test lint fmt vet release-check verify-tidy check-unstring unstring-update
 
-# Full quality gate
-check: fmt vet test
+# Static guard against stringly-typed values. Pin the published tool here.
+# The binary it scans with is ast-grep 0.51.2 on PATH.
+UNSTRING ?= go run github.com/peasant-labs/infra/unstring/cmd/unstring@v0.0.4
+
+# Full quality gate. The guard runs last and fails the gate when the tree
+# is not the committed baseline.
+check: fmt vet test check-unstring
 
 release-check: check
 	CGO_ENABLED=0 go test ./...
@@ -43,6 +48,14 @@ clean:
 # Tidy module
 tidy:
 	go mod tidy
+
+# Compare the tree with the committed unstring baseline.
+check-unstring:
+	$(UNSTRING) check
+
+# Lower a baseline count, drop an empty entry, or follow a rename. Never raises.
+unstring-update:
+	$(UNSTRING) update
 
 # Verify go.sum is current
 verify-tidy:

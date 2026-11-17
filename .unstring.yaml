@@ -1,0 +1,5 @@
+version: 1
+go:
+  roots: [.]
+schema:
+  module: github.com/peasant-labs/schema
