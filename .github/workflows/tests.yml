@@ -52,7 +52,8 @@ jobs:
           # the whole shared cache for an upload over the 10 GB limit.
           cache: ${{ needs.determine-runner.outputs.pool != 'true' }}
 
-      # make check-unstring shells out to ast-grep. The pool image does not
+      # make release-check depends on check, which runs check-unstring.
+      # That target shells out to ast-grep. The pool image does not
       # provide 0.51.2, so install that exact npm binary before the gate.
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -64,9 +65,6 @@ jobs:
 
       - name: Run module quality gate
         run: make release-check
-
-      - name: Static guard
-        run: make check-unstring
 
   lint:
     name: lint

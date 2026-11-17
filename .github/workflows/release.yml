@@ -68,6 +68,17 @@ jobs:
           go-version-file: go.mod
           cache-dependency-path: go.sum
 
+      # make release-check depends on check, which runs check-unstring.
+      # That target shells out to ast-grep. The hosted runner does not
+      # provide 0.51.2, so install that exact npm binary before the gate.
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 26
+
+      - name: Install ast-grep
+        run: npm install --global @ast-grep/cli@0.51.2
+
       - name: Verify tag commit and run release quality gate
         run: |
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"

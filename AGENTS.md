@@ -8,8 +8,9 @@ guard). The module requires `github.com/peasant-labs/schema` at the version in
 ## Static guard
 
 `make check-unstring` runs `unstring` v0.0.4 over this module. It needs Go 1.26+
-and ast-grep 0.51.2 on `PATH`. `make check` runs that same command and stops
-when the guard fails.
+and ast-grep 0.51.2 on `PATH`. This repository has no flake, so a contributor
+outside the workspace dev shell installs that pin with `npm install --global @ast-grep/cli@0.51.2`.
+`make check` runs that same command and stops when the guard fails.
 
 `.unstring-baseline.yaml` is generated. Do not edit it. `make unstring-update`
 lowers it. `.unstring.yaml` sets `schema.module` to
