@@ -332,12 +332,18 @@ func TestEngineConcurrentTextParity(t *testing.T) {
 }
 
 func TestEngineResidueParity(t *testing.T) {
-	patterns, err := compileRulePatterns(goRE2Engine{}, Rules, nil, ResidueRules)
+	patterns, err := compileRulePatterns(goRE2Engine{}, nil, nil, ResidueRules)
 	if err != nil {
 		t.Fatal(err)
 	}
 	actual := &DefaultResidueDetector{patterns: patterns}
-	baseline := NewResidueDetector()
+	// Keep the baseline explicitly on stdlib. NewResidueDetector follows the
+	// build default, so using it here would make the parity test compare go-re2
+	// with itself once the default changes.
+	baseline, err := newResidueDetector(goRegexpEngine{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	seen := make(map[string]bool)
 	for _, row := range engineCorpus(t) {
 		got, want := actual.Scan(row.Input), baseline.Scan(row.Input)

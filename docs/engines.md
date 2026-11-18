@@ -12,7 +12,8 @@ lookup across detection, back-reference replacement, title rule application, and
 residue scanning. Configured and generated XDG rules use the same lookup.
 The stdlib path reuses the original patterns without recompiling them.
 Each constructor supplies its pattern sets explicitly: the redactor includes
-advisory residue rules, while the title pipeline compiles only its own rules.
+advisory residue rules, the title pipeline compiles only its own rules, and
+`NewResidueDetector` compiles the residue rules through the selected engine.
 
 Panic recovery and residue preview scrubbing deliberately retain the original
 stdlib patterns, independently of the normal-path engine. Title markup cleanup

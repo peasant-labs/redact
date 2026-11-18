@@ -175,9 +175,23 @@ type DefaultResidueDetector struct {
 // Compile-time guard: DefaultResidueDetector must implement ResidueDetector.
 var _ ResidueDetector = (*DefaultResidueDetector)(nil)
 
-// NewResidueDetector returns a ResidueDetector that scans for missed patterns.
+// NewResidueDetector returns a ResidueDetector that scans for missed patterns
+// with the build's selected engine. It panics if a built-in residue rule has no
+// form under that engine; that is a build error, not a caller error.
 func NewResidueDetector() ResidueDetector {
-	return &DefaultResidueDetector{}
+	detector, err := newResidueDetector(selectEngine())
+	if err != nil {
+		panic(err)
+	}
+	return detector
+}
+
+func newResidueDetector(e engine) (ResidueDetector, error) {
+	patterns, err := compileRulePatterns(e, nil, nil, ResidueRules)
+	if err != nil {
+		return nil, err
+	}
+	return &DefaultResidueDetector{patterns: patterns}, nil
 }
 
 // Scan examines redactedText for patterns that may indicate missed sensitive data.
