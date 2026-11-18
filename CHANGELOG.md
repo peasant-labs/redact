@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.7
+
+- redact hyphenated cards and cards after an SSN (#100)
+
 ## v0.1.6
 
 ### Added

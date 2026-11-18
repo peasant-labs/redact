@@ -24,6 +24,8 @@ required_pii_ids:
   - phone_us_standard
   - ssn_standard
   - credit_card_standard
+  - credit_card_hyphenated
+  - credit_card_after_ssn
   - ip_address_standard
 required_paths_ids:
   - unix_home_standard
@@ -148,6 +150,8 @@ pii:
   - {id: phone_us_standard, level: standard, input: "+1-555-123-4567", contains: "<PHONE>"}
   - {id: ssn_standard, level: standard, input: "123-45-6789", contains: "<SSN>"}
   - {id: credit_card_standard, level: standard, input: "4111 1111 1111 1111", contains: "<CREDIT_CARD>"}
+  - {id: credit_card_hyphenated, level: standard, input: "4111-1111-1111-1111", contains: "<CREDIT_CARD>"}
+  - {id: credit_card_after_ssn, level: standard, input: "123-45-6789\n4111 1111 1111 1111", contains: "<CREDIT_CARD>", absent: "4111 1111 1111 1111"}
   - {id: ip_address_standard, level: standard, input: "192.168.1.100", contains: "<IP_ADDRESS>"}
 paths:
   - {id: unix_home_standard, level: standard, input: "/Users/alice/projects/foo", contains: "/Users/<USER>/projects/foo"}

@@ -32,11 +32,17 @@ func (r TitleResult) HasSensitiveContent() bool { return len(r.Categories) != 0 
 // TitlePipeline is an immutable, concurrency-safe baseline-Standard title
 // pipeline. Runtime redactor configuration cannot extend its fixed policy.
 type TitlePipeline struct {
-	rules []Rule
+	rules    []Rule
+	patterns compiledPatterns
 }
 
 // NewTitlePipeline constructs the fixed baseline-Standard title policy.
+// Title input must be valid UTF-8; see the package input contract.
 func NewTitlePipeline() (*TitlePipeline, error) {
+	return newTitlePipelineWithEngine(selectEngine())
+}
+
+func newTitlePipelineWithEngine(e engine) (*TitlePipeline, error) {
 	if err := validateRuleActivationMetadata(Rules); err != nil {
 		return nil, &actionableError{what: "the transcript title pipeline could not be constructed", why: "the compiled baseline Standard rule metadata is invalid", where: "redact.NewTitlePipeline", when: "constructing the title pipeline before any title was processed", means: "no title can be generated or validated safely", fix: "restore valid built-in rule categories and activation levels, then construct the pipeline again", cause: err}
 	}
@@ -47,7 +53,11 @@ func NewTitlePipeline() (*TitlePipeline, error) {
 			rules = append(rules, rule)
 		}
 	}
-	return &TitlePipeline{rules: rules}, nil
+	patterns, err := compileRulePatterns(e, rules, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &TitlePipeline{rules: rules, patterns: patterns}, nil
 }
 
 // Generate cleans markup owned by the supplied harness, sanitizes the result,
@@ -64,6 +74,7 @@ func NewTitlePipeline() (*TitlePipeline, error) {
 //     falls back to a generic title.
 //
 // GenerateFromTurns applies both rules for the caller.
+// firstTurn must be valid UTF-8; see the package input contract.
 func (p *TitlePipeline) Generate(firstTurn string, context TitleContext) (TitleResult, error) {
 	if p == nil {
 		return TitleResult{}, nilTitlePipelineError("Generate", "generating a title from the first user turn")
@@ -81,6 +92,7 @@ func (p *TitlePipeline) Generate(firstTurn string, context TitleContext) (TitleR
 // Sanitize never interprets harness markup. It preserves exact input bytes when
 // no sensitive rewrite occurs and the title is within the length limit; a
 // sensitive or over-limit title returns its canonical rewritten or capped text.
+// title must be valid UTF-8; see the package input contract.
 func (p *TitlePipeline) Sanitize(title string, context TitleContext) (TitleResult, error) {
 	if p == nil {
 		return TitleResult{}, nilTitlePipelineError("Sanitize", "sanitizing a supplied title")
@@ -155,7 +167,7 @@ func nilTitlePipelineError(method, operation string) error {
 
 func (p *TitlePipeline) process(input string, context TitleContext) TitleResult {
 	pathNormalized, pathChanged := normalizeTitlePaths(input, context.ProjectPath)
-	text, detected := redactTitleRules(pathNormalized, p.rules)
+	text, detected := redactTitleRules(pathNormalized, p.rules, p.patterns)
 	if pathChanged {
 		detected[CategoryStringPath] = struct{}{}
 	}
@@ -594,10 +606,10 @@ func normalizeOneTitlePath(candidate, projectPath string, windows bool) string {
 	return base
 }
 
-func redactTitleRules(input string, rules []Rule) (string, map[CategoryString]struct{}) {
+func redactTitleRules(input string, rules []Rule, patterns compiledPatterns) (string, map[CategoryString]struct{}) {
 	categories := make(map[CategoryString]struct{})
-	matches := detectWithRules(input, rules)
-	output, applied := redactWithRules(input, matches, rules)
+	matches := detectWithRules(input, rules, patterns)
+	output, applied := redactWithRules(input, matches, rules, patterns)
 	for _, match := range applied {
 		if category := match.Category.String(); category != "" {
 			categories[category] = struct{}{}

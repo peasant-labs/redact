@@ -1,0 +1,32 @@
+required_names:
+  - secret_span_contains_invalid_byte
+  - dot_skips_invalid_middle
+  - dot_skips_trailing_invalid
+cases:
+  - name: secret_span_contains_invalid_byte
+    input_hex: "61ff62"
+    pattern: "a.b"
+    replacement: "<HIDDEN>"
+    stdlib_output_hex: "3c48494444454e3e"
+    re2_output_hex: "61ff62"
+    stdlib_spans: 1
+    re2_spans: 0
+    why: "A secret whose span crosses the invalid byte is fully redacted by stdlib and entirely missed by go-re2."
+  - name: dot_skips_invalid_middle
+    input_hex: "61ff62"
+    pattern: "."
+    replacement: "<X>"
+    stdlib_output_hex: "3c583e3c583e3c583e"
+    re2_output_hex: "3c583eff3c583e"
+    stdlib_spans: 3
+    re2_spans: 2
+    why: "The minimal case: stdlib matches the invalid byte as U+FFFD, go-re2 leaves it unmatched."
+  - name: dot_skips_trailing_invalid
+    input_hex: "61ff"
+    pattern: "."
+    replacement: "<X>"
+    stdlib_output_hex: "3c583e3c583e"
+    re2_output_hex: "3c583eff"
+    stdlib_spans: 2
+    re2_spans: 1
+    why: "A trailing invalid byte is matched by stdlib and skipped by go-re2."

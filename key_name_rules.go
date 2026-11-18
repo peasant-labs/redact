@@ -266,13 +266,13 @@ func secretShapedValue(kind secretNameKind, value string) bool {
 	return shannonEntropy(value) >= minEntropy
 }
 
-func isASCIIDigit(r rune) bool { return r >= '0' && r <= '9' }
+func isASCIIDigitRune(r rune) bool { return r >= '0' && r <= '9' }
 
 // dropASCIIDigit removes digits; strings.Map drops a rune mapped below zero.
 // A digit is one byte, so the byte lengths before and after differ by the
 // number of digits.
 func dropASCIIDigit(r rune) rune {
-	if isASCIIDigit(r) {
+	if isASCIIDigitRune(r) {
 		return -1
 	}
 	return r

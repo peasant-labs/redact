@@ -62,6 +62,10 @@ package redact
 //	3.1.1 — a location that is only the account name, recorded by a session run
 //	         straight from the home folder, collapses to the placeholder in the
 //	         path form and in both slug forms instead of returning the account.
+//	3.1.2 — credit_card: spaces or hyphens are the only separators, so a match
+//	         cannot cross a newline; Luhn validation redacts real cards in either
+//	         form and keeps non-Luhn 16-digit IDs suppressed; a match that is part
+//	         of a longer dash-separated identifier stays suppressed.
 //	3.2.0 — rules that use the name of the key or the construct around a
 //	         credential, token formats with a documented prefix, and one pattern
 //	         gap. +key_name_secret (a value under a name that ends in a secret

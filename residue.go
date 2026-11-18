@@ -175,20 +175,39 @@ var ResidueRules = []ResidueRule{
 }
 
 // DefaultResidueDetector is the production implementation of ResidueDetector.
-type DefaultResidueDetector struct{}
+type DefaultResidueDetector struct {
+	patterns compiledPatterns
+}
 
 // Compile-time guard: DefaultResidueDetector must implement ResidueDetector.
 var _ ResidueDetector = (*DefaultResidueDetector)(nil)
 
-// NewResidueDetector returns a ResidueDetector that scans for missed patterns.
+// NewResidueDetector returns a ResidueDetector that scans for missed patterns
+// with the build's selected engine. It panics if a built-in residue rule has no
+// form under that engine; that is a build error, not a caller error.
+// Scan input must be valid UTF-8; see the package input contract.
 func NewResidueDetector() ResidueDetector {
-	return &DefaultResidueDetector{}
+	detector, err := newResidueDetector(selectEngine())
+	if err != nil {
+		panic(err)
+	}
+	return detector
+}
+
+func newResidueDetector(e engine) (ResidueDetector, error) {
+	patterns, err := compileRulePatterns(e, nil, nil, ResidueRules)
+	if err != nil {
+		return nil, err
+	}
+	return &DefaultResidueDetector{patterns: patterns}, nil
 }
 
 // Scan examines redactedText for patterns that may indicate missed sensitive data.
 // Returns zero or more warnings; all matches are returned — callers that need
 // deduplicated results should filter by RuleID/Location.
 // The input string is never modified.
+//
+// redactedText must be valid UTF-8; see the package input contract.
 func (d *DefaultResidueDetector) Scan(redactedText string) []ResidueWarning {
 	if len(redactedText) == 0 {
 		return nil
@@ -196,7 +215,7 @@ func (d *DefaultResidueDetector) Scan(redactedText string) []ResidueWarning {
 
 	var warnings []ResidueWarning
 	for _, rule := range ResidueRules {
-		matches := rule.Pattern.FindAllStringIndex(redactedText, -1)
+		matches := d.patterns.lookup(rule.Pattern).FindAllStringIndex(redactedText, -1)
 		for _, loc := range matches {
 			start := loc[0]
 			preview := safePreview(redactedText, start, PreviewMaxLength)

@@ -1,0 +1,19 @@
+# Regression coverage for the compiled-pattern lookup seam.
+# A nil set is the stdlib build and keeps stdlib behavior. A miss on a
+# non-nil set is a programming error: the rule pointer never went through
+# compileRulePatterns, so the lookup must panic instead of running stdlib.
+# The probe rule below is never compiled into any set under test.
+required_names:
+  - engine_lookup_nil_set_uses_stdlib
+  - engine_lookup_hit_uses_selected_engine
+  - engine_lookup_miss_panics
+  - engine_parity_runs_selected_engine
+probe_rule_id: lookup_probe
+probe_pattern: 'lookup-probe-([0-9]+)'
+probe_input: 'lookup-probe-12345'
+probe_replacement: '${1}<HIDDEN>'
+cases:
+  - {name: engine_lookup_nil_set_uses_stdlib}
+  - {name: engine_lookup_hit_uses_selected_engine}
+  - {name: engine_lookup_miss_panics}
+  - {name: engine_parity_runs_selected_engine}

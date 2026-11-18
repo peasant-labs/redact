@@ -35,7 +35,7 @@ func prefixTokenFilter(matched, input string, offset int) bool {
 	if offset > 0 && isWordByte(input[offset-1]) {
 		return false
 	}
-	return strings.IndexFunc(matched, isASCIIDigit) >= 0
+	return strings.IndexFunc(matched, isASCIIDigitRune) >= 0
 }
 
 func isWordByte(b byte) bool {
@@ -144,7 +144,7 @@ func curlUserPasswordFilter(matched, input string, offset int) bool {
 }
 
 func isDigits(s string) bool {
-	return s != "" && strings.IndexFunc(s, func(r rune) bool { return !isASCIIDigit(r) }) < 0
+	return s != "" && strings.IndexFunc(s, func(r rune) bool { return !isASCIIDigitRune(r) }) < 0
 }
 
 // commandBefore returns the text of the command that position offset belongs
