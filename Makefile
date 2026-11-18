@@ -1,4 +1,4 @@
-.PHONY: check test test-race bench lint fmt vet release-check verify-tidy check-unstring unstring-update
+.PHONY: check test test-race bench perf lint fmt vet release-check verify-tidy check-unstring unstring-update
 
 # Static guard against stringly-typed values. Pin the published tool here.
 # The binary it scans with is ast-grep 0.51.2 on PATH.
@@ -26,6 +26,11 @@ test-race:
 # Reproducible synthetic constructor and first-detection measurements
 bench:
 	go test -run '^$$' -bench 'Benchmark(RedactorConstruction|FirstDetection)$$' -benchmem -count=6
+
+# Timings are a required local release gate; CI uses allocation-only budgets
+# because routed runners do not share a stable CPU (see docs/performance.md).
+perf:
+	go run ./cmd/engine-perf $(PERF_ARGS)
 
 # Run go vet
 vet:

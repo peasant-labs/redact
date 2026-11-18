@@ -1,0 +1,810 @@
+{
+  "engine": "go-re2",
+  "time_factor": 2.0,
+  "allocation_factor": 1.25,
+  "allocation_slack": {
+    "B/op": 512,
+    "allocs/op": 8
+  },
+  "required_names": [
+    "Construction",
+    "Rule/access_code",
+    "Rule/anthropic_key",
+    "Rule/artifactory_api_token",
+    "Rule/artifactory_password",
+    "Rule/aws_access_key",
+    "Rule/aws_secret_key",
+    "Rule/azure_storage_key",
+    "Rule/basic_auth",
+    "Rule/basic_auth_uri",
+    "Rule/bearer_token",
+    "Rule/claude_project_slug",
+    "Rule/credit_card",
+    "Rule/discord_bot_token",
+    "Rule/docker_image_ref",
+    "Rule/email",
+    "Rule/generic_api_key",
+    "Rule/ghcr_image_ref",
+    "Rule/git_branch_output",
+    "Rule/git_remote_https",
+    "Rule/git_remote_ssh",
+    "Rule/github_actions_repo",
+    "Rule/github_pat",
+    "Rule/gitlab_agent",
+    "Rule/gitlab_ci_project",
+    "Rule/gitlab_cicd",
+    "Rule/gitlab_incoming_mail",
+    "Rule/gitlab_oauth_secret",
+    "Rule/gitlab_pat",
+    "Rule/gitlab_runner_registration",
+    "Rule/gitlab_trigger",
+    "Rule/go_import_path",
+    "Rule/go_module_path",
+    "Rule/ip_address",
+    "Rule/jwt_token",
+    "Rule/mailchimp_api_key",
+    "Rule/npm_auth_token",
+    "Rule/npm_repo_url",
+    "Rule/openai_key",
+    "Rule/peasant_host_slug",
+    "Rule/phone_us",
+    "Rule/private_key_block",
+    "Rule/pypi_api_token",
+    "Rule/pypi_test_token",
+    "Rule/sendgrid_key",
+    "Rule/slack_token",
+    "Rule/slack_webhook_url",
+    "Rule/square_oauth_secret",
+    "Rule/ssn",
+    "Rule/stripe_key",
+    "Rule/telegram_bot_token",
+    "Rule/twilio_auth_token",
+    "Rule/twilio_key",
+    "Rule/unix_home_path",
+    "Rule/unix_home_path_spaced",
+    "Rule/windows_home_path",
+    "Rule/windows_home_path_spaced",
+    "RuleCompile/access_code",
+    "RuleCompile/anthropic_key",
+    "RuleCompile/artifactory_api_token",
+    "RuleCompile/artifactory_password",
+    "RuleCompile/aws_access_key",
+    "RuleCompile/aws_secret_key",
+    "RuleCompile/azure_storage_key",
+    "RuleCompile/basic_auth",
+    "RuleCompile/basic_auth_uri",
+    "RuleCompile/bearer_token",
+    "RuleCompile/claude_project_slug",
+    "RuleCompile/credit_card",
+    "RuleCompile/discord_bot_token",
+    "RuleCompile/docker_image_ref",
+    "RuleCompile/email",
+    "RuleCompile/generic_api_key",
+    "RuleCompile/ghcr_image_ref",
+    "RuleCompile/git_branch_output",
+    "RuleCompile/git_remote_https",
+    "RuleCompile/git_remote_ssh",
+    "RuleCompile/github_actions_repo",
+    "RuleCompile/github_pat",
+    "RuleCompile/gitlab_agent",
+    "RuleCompile/gitlab_ci_project",
+    "RuleCompile/gitlab_cicd",
+    "RuleCompile/gitlab_incoming_mail",
+    "RuleCompile/gitlab_oauth_secret",
+    "RuleCompile/gitlab_pat",
+    "RuleCompile/gitlab_runner_registration",
+    "RuleCompile/gitlab_trigger",
+    "RuleCompile/go_import_path",
+    "RuleCompile/go_module_path",
+    "RuleCompile/ip_address",
+    "RuleCompile/jwt_token",
+    "RuleCompile/mailchimp_api_key",
+    "RuleCompile/npm_auth_token",
+    "RuleCompile/npm_repo_url",
+    "RuleCompile/openai_key",
+    "RuleCompile/peasant_host_slug",
+    "RuleCompile/phone_us",
+    "RuleCompile/private_key_block",
+    "RuleCompile/pypi_api_token",
+    "RuleCompile/pypi_test_token",
+    "RuleCompile/sendgrid_key",
+    "RuleCompile/slack_token",
+    "RuleCompile/slack_webhook_url",
+    "RuleCompile/square_oauth_secret",
+    "RuleCompile/ssn",
+    "RuleCompile/stripe_key",
+    "RuleCompile/telegram_bot_token",
+    "RuleCompile/twilio_auth_token",
+    "RuleCompile/twilio_key",
+    "RuleCompile/unix_home_path",
+    "RuleCompile/unix_home_path_spaced",
+    "RuleCompile/windows_home_path",
+    "RuleCompile/windows_home_path_spaced",
+    "large_64mib_plus_1kib/Full",
+    "large_64mib_plus_1kib/Residue",
+    "large_64mib_plus_1kib/WholeSet",
+    "metadata_192b/Full",
+    "metadata_192b/Residue",
+    "metadata_192b/WholeSet",
+    "tool_8kib/Full",
+    "tool_8kib/Residue",
+    "tool_8kib/WholeSet"
+  ],
+  "baselines": {
+    "Construction": {
+      "ns/op": 7369221.0,
+      "B/op": 19312.0,
+      "allocs/op": 125.0
+    },
+    "Rule/access_code": {
+      "ns/op": 18236.0,
+      "ns/byte": 2.226,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/anthropic_key": {
+      "ns/op": 2979.0,
+      "ns/byte": 0.3637,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/artifactory_api_token": {
+      "ns/op": 17357.0,
+      "ns/byte": 2.119,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/artifactory_password": {
+      "ns/op": 17252.0,
+      "ns/byte": 2.106,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/aws_access_key": {
+      "ns/op": 2034.0,
+      "ns/byte": 0.2482,
+      "B/op": 144.0,
+      "allocs/op": 5.0
+    },
+    "Rule/aws_secret_key": {
+      "ns/op": 18092.0,
+      "ns/byte": 2.209,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/azure_storage_key": {
+      "ns/op": 1521.0,
+      "ns/byte": 0.1856,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/basic_auth": {
+      "ns/op": 17602.0,
+      "ns/byte": 2.149,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/basic_auth_uri": {
+      "ns/op": 1553.0,
+      "ns/byte": 0.1895,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/bearer_token": {
+      "ns/op": 4018.0,
+      "ns/byte": 0.4905,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/claude_project_slug": {
+      "ns/op": 16917.0,
+      "ns/byte": 2.065,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/credit_card": {
+      "ns/op": 16883.0,
+      "ns/byte": 2.061,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/discord_bot_token": {
+      "ns/op": 17051.0,
+      "ns/byte": 2.081,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/docker_image_ref": {
+      "ns/op": 16996.0,
+      "ns/byte": 2.075,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/email": {
+      "ns/op": 17230.0,
+      "ns/byte": 2.103,
+      "B/op": 144.0,
+      "allocs/op": 5.0
+    },
+    "Rule/generic_api_key": {
+      "ns/op": 4012.0,
+      "ns/byte": 0.4898,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/ghcr_image_ref": {
+      "ns/op": 1474.0,
+      "ns/byte": 0.18,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/git_branch_output": {
+      "ns/op": 16841.0,
+      "ns/byte": 2.056,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/git_remote_https": {
+      "ns/op": 2113.0,
+      "ns/byte": 0.2579,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/git_remote_ssh": {
+      "ns/op": 1475.0,
+      "ns/byte": 0.18,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/github_actions_repo": {
+      "ns/op": 1475.0,
+      "ns/byte": 0.1801,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/github_pat": {
+      "ns/op": 1557.0,
+      "ns/byte": 0.19,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/gitlab_agent": {
+      "ns/op": 1506.0,
+      "ns/byte": 0.1838,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/gitlab_ci_project": {
+      "ns/op": 1490.0,
+      "ns/byte": 0.1819,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/gitlab_cicd": {
+      "ns/op": 1497.0,
+      "ns/byte": 0.1827,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/gitlab_incoming_mail": {
+      "ns/op": 1521.0,
+      "ns/byte": 0.1857,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/gitlab_oauth_secret": {
+      "ns/op": 1505.0,
+      "ns/byte": 0.1837,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/gitlab_pat": {
+      "ns/op": 1502.0,
+      "ns/byte": 0.1833,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/gitlab_runner_registration": {
+      "ns/op": 1496.0,
+      "ns/byte": 0.1826,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/gitlab_trigger": {
+      "ns/op": 1518.0,
+      "ns/byte": 0.1853,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/go_import_path": {
+      "ns/op": 1477.0,
+      "ns/byte": 0.1803,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/go_module_path": {
+      "ns/op": 1478.0,
+      "ns/byte": 0.1804,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/ip_address": {
+      "ns/op": 16847.0,
+      "ns/byte": 2.056,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/jwt_token": {
+      "ns/op": 4092.0,
+      "ns/byte": 0.4995,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/mailchimp_api_key": {
+      "ns/op": 16921.0,
+      "ns/byte": 2.066,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/npm_auth_token": {
+      "ns/op": 1483.0,
+      "ns/byte": 0.1811,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/npm_repo_url": {
+      "ns/op": 1477.0,
+      "ns/byte": 0.1803,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/openai_key": {
+      "ns/op": 2914.0,
+      "ns/byte": 0.3557,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/peasant_host_slug": {
+      "ns/op": 1485.0,
+      "ns/byte": 0.1812,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/phone_us": {
+      "ns/op": 16900.0,
+      "ns/byte": 2.063,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/private_key_block": {
+      "ns/op": 17775.0,
+      "ns/byte": 2.17,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/pypi_api_token": {
+      "ns/op": 2029.0,
+      "ns/byte": 0.2477,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/pypi_test_token": {
+      "ns/op": 2026.0,
+      "ns/byte": 0.2474,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/sendgrid_key": {
+      "ns/op": 1542.0,
+      "ns/byte": 0.1883,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/slack_token": {
+      "ns/op": 3993.0,
+      "ns/byte": 0.4875,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/slack_webhook_url": {
+      "ns/op": 4019.0,
+      "ns/byte": 0.4906,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/square_oauth_secret": {
+      "ns/op": 2827.0,
+      "ns/byte": 0.3451,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/ssn": {
+      "ns/op": 16902.0,
+      "ns/byte": 2.063,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/stripe_key": {
+      "ns/op": 17687.0,
+      "ns/byte": 2.159,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/telegram_bot_token": {
+      "ns/op": 16993.0,
+      "ns/byte": 2.074,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/twilio_auth_token": {
+      "ns/op": 1541.0,
+      "ns/byte": 0.1881,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/twilio_key": {
+      "ns/op": 1601.0,
+      "ns/byte": 0.1955,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/unix_home_path": {
+      "ns/op": 1474.0,
+      "ns/byte": 0.1799,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/unix_home_path_spaced": {
+      "ns/op": 1503.0,
+      "ns/byte": 0.1835,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/windows_home_path": {
+      "ns/op": 3957.0,
+      "ns/byte": 0.4831,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "Rule/windows_home_path_spaced": {
+      "ns/op": 3890.0,
+      "ns/byte": 0.4748,
+      "B/op": 16.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/access_code": {
+      "ns/op": 94214.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/anthropic_key": {
+      "ns/op": 25128.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/artifactory_api_token": {
+      "ns/op": 12858.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/artifactory_password": {
+      "ns/op": 12142.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/aws_access_key": {
+      "ns/op": 20602.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/aws_secret_key": {
+      "ns/op": 70980.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/azure_storage_key": {
+      "ns/op": 83287.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/basic_auth": {
+      "ns/op": 55304.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/basic_auth_uri": {
+      "ns/op": 16387.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/bearer_token": {
+      "ns/op": 52562.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/claude_project_slug": {
+      "ns/op": 12411.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/credit_card": {
+      "ns/op": 11829.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/discord_bot_token": {
+      "ns/op": 49153.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/docker_image_ref": {
+      "ns/op": 12996.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/email": {
+      "ns/op": 8050.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/generic_api_key": {
+      "ns/op": 50503.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/ghcr_image_ref": {
+      "ns/op": 10593.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/git_branch_output": {
+      "ns/op": 9871.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/git_remote_https": {
+      "ns/op": 22179.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/git_remote_ssh": {
+      "ns/op": 22599.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/github_actions_repo": {
+      "ns/op": 12295.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/github_pat": {
+      "ns/op": 29910.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/gitlab_agent": {
+      "ns/op": 3661115.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/gitlab_ci_project": {
+      "ns/op": 15174.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/gitlab_cicd": {
+      "ns/op": 57205.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/gitlab_incoming_mail": {
+      "ns/op": 29460.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/gitlab_oauth_secret": {
+      "ns/op": 65449.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/gitlab_pat": {
+      "ns/op": 62097.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/gitlab_runner_registration": {
+      "ns/op": 57185.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/gitlab_trigger": {
+      "ns/op": 43406.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/go_import_path": {
+      "ns/op": 11935.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/go_module_path": {
+      "ns/op": 12357.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/ip_address": {
+      "ns/op": 19636.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/jwt_token": {
+      "ns/op": 25273.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/mailchimp_api_key": {
+      "ns/op": 20847.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/npm_auth_token": {
+      "ns/op": 32381.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/npm_repo_url": {
+      "ns/op": 21791.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/openai_key": {
+      "ns/op": 24073.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/peasant_host_slug": {
+      "ns/op": 10095.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/phone_us": {
+      "ns/op": 12155.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/private_key_block": {
+      "ns/op": 25487.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/pypi_api_token": {
+      "ns/op": 82305.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/pypi_test_token": {
+      "ns/op": 93022.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/sendgrid_key": {
+      "ns/op": 58182.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/slack_token": {
+      "ns/op": 10688.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/slack_webhook_url": {
+      "ns/op": 35114.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/square_oauth_secret": {
+      "ns/op": 48853.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/ssn": {
+      "ns/op": 7086.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/stripe_key": {
+      "ns/op": 19620.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/telegram_bot_token": {
+      "ns/op": 41438.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/twilio_auth_token": {
+      "ns/op": 15941.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/twilio_key": {
+      "ns/op": 16070.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/unix_home_path": {
+      "ns/op": 9634.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/unix_home_path_spaced": {
+      "ns/op": 13805.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/windows_home_path": {
+      "ns/op": 11966.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "RuleCompile/windows_home_path_spaced": {
+      "ns/op": 17026.0,
+      "B/op": 112.0,
+      "allocs/op": 1.0
+    },
+    "large_64mib_plus_1kib/Full": {
+      "ns/op": 5581292586.0,
+      "ns/byte": 83.17,
+      "B/op": 134252936.0,
+      "allocs/op": 124.0
+    },
+    "large_64mib_plus_1kib/Residue": {
+      "ns/op": 2535799613.0,
+      "ns/byte": 37.79,
+      "B/op": 936.0,
+      "allocs/op": 52.0
+    },
+    "large_64mib_plus_1kib/WholeSet": {
+      "ns/op": 3202849799.0,
+      "ns/byte": 47.73,
+      "B/op": 1440.0,
+      "allocs/op": 67.0
+    },
+    "metadata_192b/Full": {
+      "ns/op": 43257.0,
+      "ns/byte": 225.3,
+      "B/op": 18568.0,
+      "allocs/op": 116.0
+    },
+    "metadata_192b/Residue": {
+      "ns/op": 15484.0,
+      "ns/byte": 80.65,
+      "B/op": 800.0,
+      "allocs/op": 50.0
+    },
+    "metadata_192b/WholeSet": {
+      "ns/op": 19631.0,
+      "ns/byte": 102.2,
+      "B/op": 1024.0,
+      "allocs/op": 60.0
+    },
+    "tool_8kib/Full": {
+      "ns/op": 735405.0,
+      "ns/byte": 89.77,
+      "B/op": 45825.0,
+      "allocs/op": 124.0
+    },
+    "tool_8kib/Residue": {
+      "ns/op": 314660.0,
+      "ns/byte": 38.41,
+      "B/op": 800.0,
+      "allocs/op": 50.0
+    },
+    "tool_8kib/WholeSet": {
+      "ns/op": 410002.0,
+      "ns/byte": 50.05,
+      "B/op": 1304.0,
+      "allocs/op": 65.0
+    }
+  }
+}
