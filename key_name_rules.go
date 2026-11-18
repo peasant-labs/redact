@@ -250,9 +250,17 @@ var (
 	// result: os.getenv(NAME), secrets.token_hex(16), f(x).value. A value with
 	// more text after the closing parenthesis is not a call: aB3xkd(92)LqZw81.
 	callPattern = regexp.MustCompile(`^[A-Za-z_$@][A-Za-z0-9_$.:>\-]*\(.*\)(?:[;,]?|\.[A-Za-z_$][^()]*)$`)
-	// openCallPattern is a call that the end of an unquoted value cut short:
-	// "token = get_token(client, scope)" gives the value "get_token(client,".
-	openCallPattern = regexp.MustCompile(`^[A-Za-z_$@][A-Za-z0-9_$.:>\-]*\([^)]*$`)
+	// unquotedCallPattern is an unquoted value that opens with a call, or with
+	// a chain of members that ends in a call, and goes on as code does. The end
+	// of an unquoted value is only where the pattern stopped, at a space or a
+	// quote, so the rest of the expression is often cut off:
+	// "token = get_token(client, scope)" gives "get_token(client,", and
+	// "token = response.json()["access_token"]" gives "response.json()[".
+	// The call is either left open or closed and followed by the end of the
+	// value or by a character that is not a letter or a digit (".", "[", ")",
+	// ","). A letter or a digit straight after the closing parenthesis is not
+	// code: aB3xkd(92)LqZw81.
+	unquotedCallPattern = regexp.MustCompile(`^[A-Za-z_$@][A-Za-z0-9_$.:>?\-]*\([^()]*(?:$|\)(?:$|[^A-Za-z0-9]))`)
 )
 
 // notCredentialPrefixes open a value that is a reference, a path or an escape
@@ -285,6 +293,8 @@ var notCredentialPrefixes = []string{"#{", "~/", "./", "../", `\`, "arn:", "vaul
 //	a template or a structure: <token> {name} [a, b] (none)  kept
 //	a path: /etc/x ~/x ./x config/x.yml a/123/b              kept
 //	a type or a call: Optional<String> getToken() f(x).y     kept
+//	  unquoted, a call cut short or followed by code:
+//	  a.b().c(8, req.headers.authorization?.split(          kept
 //	no letter: digits only, a mask such as ********          kept
 //	letters only, as words: hashedPassword, your-api-key     kept
 //	a version, a member access, an indexed name              kept
@@ -302,8 +312,8 @@ var notCredentialPrefixes = []string{"#{", "~/", "./", "../", `\`, "arn:", "vaul
 //
 // Known gaps, kept in the output because the shape is ambiguous: a password
 // made of words where digits only end a word (Welcome1-Again), a password that
-// reads as a variable ($ecretPw99x) or as a call (Pass(123)), and a passphrase
-// with spaces. In the other direction an identifier in camel case that holds a
+// reads as a variable ($ecretPw99x) or as a call (Pass(123), or unquoted
+// Pass(12).x), and a passphrase with spaces. In the other direction an identifier in camel case that holds a
 // digit (oauth2Token) is redacted.
 func secretShapedValue(kind secretNameKind, value string, whole bool) bool {
 	if whole {
@@ -372,7 +382,7 @@ func referenceOrStructure(value string, whole bool) bool {
 	case '/':
 		return absolutePath(value)
 	}
-	return genericTypePattern.MatchString(value) || callPattern.MatchString(value) || (!whole && openCallPattern.MatchString(value))
+	return genericTypePattern.MatchString(value) || callPattern.MatchString(value) || (!whole && unquotedCallPattern.MatchString(value))
 }
 
 // absolutePath reports whether a value that starts with a slash is a path to a

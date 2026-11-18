@@ -163,6 +163,11 @@ required_unchanged_text_ids:
   - x_api_key_header_variable
   - auth_token_header_placeholder
   - access_token_header_variable
+  - call_result_indexed
+  - schema_builder_chain
+  - generated_key_decoded
+  - random_bytes_as_text
+  - optional_chain_call
 secrets:
   - {id: anthropic_key, level: minimal, input: "sk-ant-api03-abc123def456abc123def456abc123def456abc123", contains: "<ANTHROPIC_KEY>"}
   - {id: openai_key, level: minimal, input: "sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789", contains: "<OPENAI_KEY>"}
@@ -558,6 +563,21 @@ unchanged_text:
   - id: access_token_header_variable
     why: a variable reference in a token header is not a credential
     input: 'access-token: ${SERVICE_ACCESS_TOKEN_2026}'
+  - id: call_result_indexed
+    why: the result of a call, then indexed, is code; the unquoted value stops at the quote of the index
+    input: 'token = response.json()["access_token"]'
+  - id: schema_builder_chain
+    why: a chain of calls that builds a schema is code
+    input: 'password: z.string().min(8),'
+  - id: generated_key_decoded
+    why: a call on the result of a call is code
+    input: 'secret = Fernet.generate_key().decode()'
+  - id: random_bytes_as_text
+    why: a chain of calls cut at the quote of its argument is code
+    input: "const secret = crypto.randomBytes(32).toString('hex')"
+  - id: optional_chain_call
+    why: an optional member access that ends in a call is code
+    input: "const token = req.headers.authorization?.split(' ')[1]"
 metadata_paths:
   - id: nested_project_becomes_path_project
     why: a project below an intermediate folder keeps only its own folder name, so a published path names the project and nothing about the machine it sat on
