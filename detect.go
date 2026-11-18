@@ -65,9 +65,11 @@ func (r *DefaultRedactor) scan(input string, call *observationCall) []Match {
 	}
 
 	activeRules := make([]Rule, 0, len(Rules)+len(r.userRules))
+	builtins := 0
 	for index, rule := range Rules {
 		if r.isActiveRule(rule) {
 			activeRules = append(activeRules, rule)
+			builtins++
 			if call != nil {
 				call.record.Rules = append(call.record.Rules, RuleDetection{Rule: RuleIdentity{ID: rule.ID, Origin: RuleOriginBuiltin, Index: index}, Category: rule.Category})
 			}
@@ -89,7 +91,7 @@ func (r *DefaultRedactor) scan(input string, call *observationCall) []Match {
 	if call != nil {
 		accepted = func(index int) { call.record.Rules[index].Count++; call.record.RegexDetected.Value++ }
 	}
-	return detectWithRulesInto(input, activeRules, r.patterns, accepted)
+	return detectWithRulesInto(input, activeRules, builtins, r.patterns, accepted)
 }
 
 // valueSpan is a part of the input that a rule replaces: input[start:end].
@@ -150,12 +152,16 @@ func hasValue(find valueFinder) func(matched, input string, offset int) bool {
 }
 
 // detectWithRules is the pure canonical regex detector. Reporting and
-// last-call state remain the responsibility of DefaultRedactor.Detect.
+// last-call state remain the responsibility of DefaultRedactor.Detect. Every
+// rule in rules is treated as built in.
 func detectWithRules(input string, rules []Rule, patterns compiledPatterns) []Match {
-	return detectWithRulesInto(input, rules, patterns, nil)
+	return detectWithRulesInto(input, rules, len(rules), patterns, nil)
 }
 
-func detectWithRulesInto(input string, rules []Rule, patterns compiledPatterns, accepted func(ruleIndex int)) []Match {
+// detectWithRulesInto detects with rules, of which the first builtins are
+// rules of this package and the rest are configured. Settling a value match
+// may drop a match of a built-in rule, never one of a configured rule.
+func detectWithRulesInto(input string, rules []Rule, builtins int, patterns compiledPatterns, accepted func(ruleIndex int)) []Match {
 	var found detectedMatches
 	valueMatches := false
 	for index, rule := range rules {
@@ -168,13 +174,13 @@ func detectWithRulesInto(input string, rules []Rule, patterns compiledPatterns, 
 			matched := input[loc[0]:loc[1]]
 			if values.find != nil {
 				for _, span := range values.find(matched, input, loc[0]) {
-					found.add(Match{Rule: rule.ID, Offset: span.start, Length: span.end - span.start, Category: rule.Category, MatchedText: input[span.start:span.end]}, matchSource{rule: index, value: !values.knowsFormat, construct: span.construct})
+					found.add(Match{Rule: rule.ID, Offset: span.start, Length: span.end - span.start, Category: rule.Category, MatchedText: input[span.start:span.end]}, matchSource{rule: index, value: !values.knowsFormat, construct: span.construct, builtin: index < builtins})
 					valueMatches = valueMatches || !values.knowsFormat
 				}
 				continue
 			}
 			if rule.FilterFn == nil || rule.FilterFn(matched, input, loc[0]) {
-				found.add(Match{Rule: rule.ID, Offset: loc[0], Length: loc[1] - loc[0], Category: rule.Category, MatchedText: matched}, matchSource{rule: index})
+				found.add(Match{Rule: rule.ID, Offset: loc[0], Length: loc[1] - loc[0], Category: rule.Category, MatchedText: matched}, matchSource{rule: index, builtin: index < builtins})
 			}
 		}
 	}
@@ -212,10 +218,15 @@ type detectedMatches struct {
 // holds where the construct that the value was found in starts: the start of
 // the name in "name=value", which for the second setting of
 // "password=abc12345,token=def67890" is the start of "token".
+//
+// builtin is set on a match of a rule of this package. Only such a match may
+// be dropped in favour of a value match; a configured rule's match is kept
+// and the value match gives way to it.
 type matchSource struct {
 	rule      int
 	value     bool
 	construct int
+	builtin   bool
 }
 
 func (d *detectedMatches) add(match Match, source matchSource) {
@@ -248,11 +259,12 @@ func (d *detectedMatches) Swap(i, j int) {
 //
 //   - A match of another rule covers the whole value. The value match is
 //     dropped: GITHUB_TOKEN=<GITHUB_PAT>, not GITHUB_TOKEN=<SECRET>.
-//   - A match starts inside the construct the value was found in and stops
-//     part of the way through the value: generic_api_key reads the name in
-//     api_key="abc...+/x9" too and stops at the "+". That match is dropped
-//     and the value match replaces the whole value. What the dropped match
-//     covered outside the value is the name and the separator.
+//   - A match of a built-in rule starts inside the construct the value was
+//     found in and stops part of the way through the value: generic_api_key
+//     reads the name in api_key="abc...+/x9" too and stops at the "+". That
+//     match is dropped and the value match replaces the whole value. What the
+//     dropped match covered outside the value is the name and the separator.
+//     A configured rule's match is never dropped; the next case applies.
 //   - Any other applied match covers the start of the value. The value match
 //     keeps the rest, which Redact would otherwise skip and leave in the
 //     output.
@@ -277,7 +289,7 @@ func (d *detectedMatches) resolveValueOverlaps(input string) {
 			continue
 		}
 		for j := i - 1; j >= 0 && d.matches[j].Offset >= source.construct; j-- {
-			if !d.sources[j].value && end(j) > d.matches[i].Offset && end(j) < end(i) {
+			if !d.sources[j].value && d.sources[j].builtin && end(j) > d.matches[i].Offset && end(j) < end(i) {
 				dropped[j] = true
 			}
 		}

@@ -20,6 +20,7 @@ required_names:
   - value_under_secret_name_cut_two_characters_past
   - value_under_secret_name_keeps_match_one_character_past
   - value_under_secret_name_after_partial_cover
+  - value_under_secret_name_keeps_configured_rule_on_its_start
 cases:
   # A match that starts inside the value cuts it when it ends two or more
   # characters after the value. One character after it is the character a
@@ -55,6 +56,18 @@ cases:
     patterns:
       - {id: outer, category: secrets, pattern: 'xx token=abc12345INNERdef', replacement: '<OUTER>'}
       - {id: inner, category: secrets, pattern: 'INNER', replacement: '<INNER>'}
+  # A configured rule's match that reads the name and stops inside the value
+  # is never dropped for the value match: it is applied, and the value match
+  # keeps the rest of the value.
+  - name: value_under_secret_name_keeps_configured_rule_on_its_start
+    input: auth_token=canary12345xyz
+    output: '<UA><SECRET>'
+    rules: [ua, key_name_secret]
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 2, counts: {ua: 1, key_name_secret: 1}}
+    patterns:
+      - {id: ua, category: secrets, pattern: 'auth_token=[a-z]+', replacement: '<UA>'}
   # A key-name match spans the value alone and is settled against the matches
   # of every other rule, configured rules included. Report counts hold only the
   # matches that remain, so a count never names a redaction that was not made.
