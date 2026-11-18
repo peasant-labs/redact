@@ -206,7 +206,7 @@ func newFixtureEnum[T ~string](raw string, known []T, kind string) (T, error) {
 			return value, nil
 		}
 	}
-	return "", fmt.Errorf("unknown %s %q in testdata/engine_chunking.yaml; use a reviewed typed constant", kind, raw)
+	return "", fmt.Errorf("unknown %s %q; use a reviewed typed constant", kind, raw)
 }
 
 func validateTypedChunkManifest[T ~string](section string, required, manifest, actual []T) error {
