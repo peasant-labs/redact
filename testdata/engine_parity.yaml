@@ -17,7 +17,44 @@ required_names:
   - value_under_secret_name_cut_by_configured_rule
   - value_under_secret_name_with_configured_rule_on_name
   - value_under_secret_name_before_card_number
+  - value_under_secret_name_cut_two_characters_past
+  - value_under_secret_name_keeps_match_one_character_past
+  - value_under_secret_name_after_partial_cover
 cases:
+  # A match that starts inside the value cuts it when it ends two or more
+  # characters after the value. One character after it is the character a
+  # pattern takes behind its token, and the value match stands.
+  - name: value_under_secret_name_cut_two_characters_past
+    input: badge_token=canary77EMP12345 J
+    output: 'badge_token=<SECRET><BADGE>'
+    rules: [key_name_secret, badge]
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 2, counts: {key_name_secret: 1, badge: 1}}
+    patterns:
+      - {id: badge, category: pii, pattern: 'EMP[0-9]+ J', replacement: '<BADGE>'}
+  - name: value_under_secret_name_keeps_match_one_character_past
+    input: badge_token=canary77EMP12345 J
+    output: 'badge_token=<SECRET> J'
+    rules: [key_name_secret, badge]
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 2, counts: {key_name_secret: 1, badge: 1}}
+    patterns:
+      - {id: badge, category: pii, pattern: 'EMP[0-9]+ ', replacement: '<BADGE>'}
+  # A match that starts before the name covers the start of the value. The
+  # value match keeps the rest, and Detect still returns matches in offset
+  # order although the value match now starts after a match inside the first.
+  - name: value_under_secret_name_after_partial_cover
+    input: xx token=abc12345INNERdef-rest9
+    output: '<OUTER><SECRET>'
+    rules: [outer, inner, key_name_secret]
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 3, counts: {outer: 1, inner: 1, key_name_secret: 1}}
+    patterns:
+      - {id: outer, category: secrets, pattern: 'xx token=abc12345INNERdef', replacement: '<OUTER>'}
+      - {id: inner, category: secrets, pattern: 'INNER', replacement: '<INNER>'}
   # A key-name match spans the value alone and is settled against the matches
   # of every other rule, configured rules included. Report counts hold only the
   # matches that remain, so a count never names a redaction that was not made.

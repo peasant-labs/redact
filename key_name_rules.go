@@ -493,7 +493,8 @@ func keyNameSecretValues(matched, input string, offset int) []valueSpan {
 		if bare {
 			if valueEnd == len(matched) {
 				// The pattern stops an unquoted value at an angle bracket.
-				value += unquotedTail(input[offset+valueEnd:])
+				tail := unquotedTail(input[offset+valueEnd:])
+				value = input[offset+valueStart : offset+valueEnd+len(tail)]
 			}
 			if cut := nextSettingPattern.FindStringIndex(value); cut != nil {
 				value = value[:cut[0]]

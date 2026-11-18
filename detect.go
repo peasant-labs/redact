@@ -276,6 +276,7 @@ func (d *detectedMatches) resolveValueOverlaps(input string) {
 	}
 	kept := 0
 	applied := 0 // end of the last match Redact applies
+	moved := false
 	for i, match := range d.matches {
 		if dropped[i] {
 			continue
@@ -299,6 +300,7 @@ func (d *detectedMatches) resolveValueOverlaps(input string) {
 			if start >= stop {
 				continue
 			}
+			moved = moved || start != match.Offset
 			match.Offset, match.Length, match.MatchedText = start, stop-start, input[start:stop]
 			applied = stop
 		}
@@ -306,6 +308,11 @@ func (d *detectedMatches) resolveValueOverlaps(input string) {
 		kept++
 	}
 	d.matches, d.sources = d.matches[:kept], d.sources[:kept]
+	if moved {
+		// A value match that lost its start now begins after matches that lie
+		// inside the match before it. Restore the order Detect promises.
+		sort.Stable(d)
+	}
 }
 
 // Redact replaces the byte spans identified by matches in input with their rule
