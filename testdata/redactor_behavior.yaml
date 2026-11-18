@@ -139,6 +139,7 @@ required_standard_text_outputs_ids:
   - redirect_after_value_to_stream
   - clone_url_with_token_user
   - clone_url_with_ci_token_user
+  - curl_pair_beside_commit_hash
 required_linear_time_ids:
   - settings_joined_by_commas
   - settings_joined_by_semicolons
@@ -499,6 +500,10 @@ standard_text_outputs:
     why: the same for the user name of a CI job token
     input: 'https://gitlab-ci-token:canaryCiTok3n99@gitlab.example.com/group/proj.git'
     want: 'https://<BASIC_AUTH_URI>@gitlab.example.com/group/proj.git'
+  - id: curl_pair_beside_commit_hash
+    why: the placeholder of the curl pair holds no word that the AWS secret key rule reads as context, so a second pass leaves the commit hash on the same line alone
+    input: 'curl -u admin:canaryCurlPw0rd https://api.github.com/repos/o/r/commits/3f786850e387550fdab836ed7e6dc881de23001b'
+    want: 'curl -u <USER_PASSWORD> https://api.github.com/repos/o/r/commits/3f786850e387550fdab836ed7e6dc881de23001b'
 linear_time:
   - id: settings_joined_by_commas
     why: every setting of the run is cut from one unquoted value and read once

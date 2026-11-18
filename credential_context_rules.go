@@ -17,7 +17,10 @@ const (
 	curlUserPasswordRuleID   = "curl_user_password"
 	jwkPrivateMemberRuleID   = "jwk_private_member"
 
-	curlUserPasswordPlaceholder = "<CREDENTIALS>"
+	// curlUserPasswordPlaceholder names no word that another rule reads as
+	// context: aws_secret_key reads "credential", so a placeholder holding it
+	// would turn a commit hash on the same line into a key on a second pass.
+	curlUserPasswordPlaceholder = "<USER_PASSWORD>"
 	jwkPrivateMemberPlaceholder = "<JWK_PRIVATE_KEY>"
 )
 

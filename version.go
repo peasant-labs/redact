@@ -72,8 +72,9 @@ package redact
 //	         +key_name_secret (a value under a name that ends in a secret
 //	         word; the name lists and the decision table for the value are in
 //	         key_name_rules.go), +url_query_secret, +cookie_header,
-//	         +curl_user_password. Each of these reports the value as its
-//	         match, not the name. Detection settles its overlaps: it is
+//	         +curl_user_password (the pair becomes <USER_PASSWORD>). Each
+//	         of these reports the value as its match, not the name.
+//	         Detection settles its overlaps: it is
 //	         dropped where another rule matches the whole value and
 //	         shortened where another match covers its start or runs past its
 //	         end, so no match of another rule is lost to it.

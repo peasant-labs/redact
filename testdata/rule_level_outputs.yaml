@@ -740,13 +740,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: "curl -u <CREDENTIALS> https://api.example.com/v1"
+        output: "curl -u <USER_PASSWORD> https://api.example.com/v1"
       standard:
         active: true
-        output: "curl -u <CREDENTIALS> https://api.example.com/v1"
+        output: "curl -u <USER_PASSWORD> https://api.example.com/v1"
       maximum:
         active: true
-        output: "curl -u <CREDENTIALS> https://api.example.com/v1"
+        output: "curl -u <USER_PASSWORD> https://api.example.com/v1"
 
   - name: curl_long_user_option
     ruleId: curl_user_password
@@ -755,13 +755,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: "curl --silent --user \"<CREDENTIALS>\" https://api.example.com/v1"
+        output: "curl --silent --user \"<USER_PASSWORD>\" https://api.example.com/v1"
       standard:
         active: true
-        output: "curl --silent --user \"<CREDENTIALS>\" https://api.example.com/v1"
+        output: "curl --silent --user \"<USER_PASSWORD>\" https://api.example.com/v1"
       maximum:
         active: true
-        output: "curl --silent --user \"<CREDENTIALS>\" https://api.example.com/v1"
+        output: "curl --silent --user \"<USER_PASSWORD>\" https://api.example.com/v1"
 
   - name: curl_user_option_after_bearer_header
     ruleId: curl_user_password
@@ -770,13 +770,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u <CREDENTIALS> https://api.example.com"
+        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u <USER_PASSWORD> https://api.example.com"
       standard:
         active: true
-        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u <CREDENTIALS> https://api.example.com"
+        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u <USER_PASSWORD> https://api.example.com"
       maximum:
         active: true
-        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u <CREDENTIALS> https://api.example.com"
+        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u <USER_PASSWORD> https://api.example.com"
 
   - name: jwk_private_member
     ruleId: jwk_private_member
@@ -800,13 +800,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: "curl -u <CREDENTIALS> https://api.example.com/user"
+        output: "curl -u <USER_PASSWORD> https://api.example.com/user"
       standard:
         active: true
-        output: "curl -u <CREDENTIALS> https://api.example.com/user"
+        output: "curl -u <USER_PASSWORD> https://api.example.com/user"
       maximum:
         active: true
-        output: "curl -u <CREDENTIALS> https://api.example.com/user"
+        output: "curl -u <USER_PASSWORD> https://api.example.com/user"
 
   - name: curl_option_after_quoted_semicolon
     ruleId: curl_user_password
@@ -815,13 +815,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: "curl -H \"Accept: application/json; charset=utf-8\" -u <CREDENTIALS> https://api.example.com"
+        output: "curl -H \"Accept: application/json; charset=utf-8\" -u <USER_PASSWORD> https://api.example.com"
       standard:
         active: true
-        output: "curl -H \"Accept: application/json; charset=utf-8\" -u <CREDENTIALS> https://api.example.com"
+        output: "curl -H \"Accept: application/json; charset=utf-8\" -u <USER_PASSWORD> https://api.example.com"
       maximum:
         active: true
-        output: "curl -H \"Accept: application/json; charset=utf-8\" -u <CREDENTIALS> https://api.example.com"
+        output: "curl -H \"Accept: application/json; charset=utf-8\" -u <USER_PASSWORD> https://api.example.com"
 
   - name: curl_bundled_short_options
     ruleId: curl_user_password
@@ -830,13 +830,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: "curl -sSu <CREDENTIALS> https://api.example.com/v1"
+        output: "curl -sSu <USER_PASSWORD> https://api.example.com/v1"
       standard:
         active: true
-        output: "curl -sSu <CREDENTIALS> https://api.example.com/v1"
+        output: "curl -sSu <USER_PASSWORD> https://api.example.com/v1"
       maximum:
         active: true
-        output: "curl -sSu <CREDENTIALS> https://api.example.com/v1"
+        output: "curl -sSu <USER_PASSWORD> https://api.example.com/v1"
 
   - name: curl_attached_value
     ruleId: curl_user_password
@@ -845,13 +845,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: "curl -u<CREDENTIALS> https://api.example.com/v1"
+        output: "curl -u<USER_PASSWORD> https://api.example.com/v1"
       standard:
         active: true
-        output: "curl -u<CREDENTIALS> https://api.example.com/v1"
+        output: "curl -u<USER_PASSWORD> https://api.example.com/v1"
       maximum:
         active: true
-        output: "curl -u<CREDENTIALS> https://api.example.com/v1"
+        output: "curl -u<USER_PASSWORD> https://api.example.com/v1"
 
   - name: curl_argument_list
     ruleId: curl_user_password
@@ -860,13 +860,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: "[\"curl\", \"-u\", \"<CREDENTIALS>\", \"https://api.example.com/v1\"]"
+        output: "[\"curl\", \"-u\", \"<USER_PASSWORD>\", \"https://api.example.com/v1\"]"
       standard:
         active: true
-        output: "[\"curl\", \"-u\", \"<CREDENTIALS>\", \"https://api.example.com/v1\"]"
+        output: "[\"curl\", \"-u\", \"<USER_PASSWORD>\", \"https://api.example.com/v1\"]"
       maximum:
         active: true
-        output: "[\"curl\", \"-u\", \"<CREDENTIALS>\", \"https://api.example.com/v1\"]"
+        output: "[\"curl\", \"-u\", \"<USER_PASSWORD>\", \"https://api.example.com/v1\"]"
 
   - name: curl_quoted_pair_with_spaces
     ruleId: curl_user_password
@@ -875,13 +875,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: "curl -u '<CREDENTIALS>' https://api.example.com/v1"
+        output: "curl -u '<USER_PASSWORD>' https://api.example.com/v1"
       standard:
         active: true
-        output: "curl -u '<CREDENTIALS>' https://api.example.com/v1"
+        output: "curl -u '<USER_PASSWORD>' https://api.example.com/v1"
       maximum:
         active: true
-        output: "curl -u '<CREDENTIALS>' https://api.example.com/v1"
+        output: "curl -u '<USER_PASSWORD>' https://api.example.com/v1"
 
   - name: curl_escaped_password_characters
     ruleId: curl_user_password
@@ -890,13 +890,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: "curl -u <CREDENTIALS> https://api.example.com/v1"
+        output: "curl -u <USER_PASSWORD> https://api.example.com/v1"
       standard:
         active: true
-        output: "curl -u <CREDENTIALS> https://api.example.com/v1"
+        output: "curl -u <USER_PASSWORD> https://api.example.com/v1"
       maximum:
         active: true
-        output: "curl -u <CREDENTIALS> https://api.example.com/v1"
+        output: "curl -u <USER_PASSWORD> https://api.example.com/v1"
 
   - name: key_name_escaped_password_characters
     ruleId: key_name_secret
@@ -1115,13 +1115,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: "curl -H 'Cookie: <COOKIE>' --user <CREDENTIALS> https://api.example.com"
+        output: "curl -H 'Cookie: <COOKIE>' --user <USER_PASSWORD> https://api.example.com"
       standard:
         active: true
-        output: "curl -H 'Cookie: <COOKIE>' --user <CREDENTIALS> https://api.example.com"
+        output: "curl -H 'Cookie: <COOKIE>' --user <USER_PASSWORD> https://api.example.com"
       maximum:
         active: true
-        output: "curl -H 'Cookie: <COOKIE>' --user <CREDENTIALS> https://api.example.com"
+        output: "curl -H 'Cookie: <COOKIE>' --user <USER_PASSWORD> https://api.example.com"
 
 # Reviewed manifest of the secret-rule rows above. The loader asserts exact
 # membership in both directions.
@@ -1267,13 +1267,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: 'Run `curl -u <CREDENTIALS>` to test.'
+        output: 'Run `curl -u <USER_PASSWORD>` to test.'
       standard:
         active: true
-        output: 'Run `curl -u <CREDENTIALS>` to test.'
+        output: 'Run `curl -u <USER_PASSWORD>` to test.'
       maximum:
         active: true
-        output: 'Run `curl -u <CREDENTIALS>` to test.'
+        output: 'Run `curl -u <USER_PASSWORD>` to test.'
 
   - name: curl_pair_in_command_substitution
     ruleId: curl_user_password
@@ -1282,13 +1282,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: 'out=$(curl -s -u <CREDENTIALS>); echo done'
+        output: 'out=$(curl -s -u <USER_PASSWORD>); echo done'
       standard:
         active: true
-        output: 'out=$(curl -s -u <CREDENTIALS>); echo done'
+        output: 'out=$(curl -s -u <USER_PASSWORD>); echo done'
       maximum:
         active: true
-        output: 'out=$(curl -s -u <CREDENTIALS>); echo done'
+        output: 'out=$(curl -s -u <USER_PASSWORD>); echo done'
 
   - name: curl_long_user_option_with_equals
     ruleId: curl_user_password
@@ -1297,13 +1297,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: 'curl --user=<CREDENTIALS> https://api.example.com/v1'
+        output: 'curl --user=<USER_PASSWORD> https://api.example.com/v1'
       standard:
         active: true
-        output: 'curl --user=<CREDENTIALS> https://api.example.com/v1'
+        output: 'curl --user=<USER_PASSWORD> https://api.example.com/v1'
       maximum:
         active: true
-        output: 'curl --user=<CREDENTIALS> https://api.example.com/v1'
+        output: 'curl --user=<USER_PASSWORD> https://api.example.com/v1'
 
   - name: curl_variable_user_literal_password
     ruleId: curl_user_password
@@ -1312,13 +1312,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: 'curl -u "<CREDENTIALS>" https://api.example.com/v1'
+        output: 'curl -u "<USER_PASSWORD>" https://api.example.com/v1'
       standard:
         active: true
-        output: 'curl -u "<CREDENTIALS>" https://api.example.com/v1'
+        output: 'curl -u "<USER_PASSWORD>" https://api.example.com/v1'
       maximum:
         active: true
-        output: 'curl -u "<CREDENTIALS>" https://api.example.com/v1'
+        output: 'curl -u "<USER_PASSWORD>" https://api.example.com/v1'
 
   - name: curl_token_as_user_empty_password
     ruleId: curl_user_password
@@ -1327,13 +1327,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: 'curl -u <CREDENTIALS> https://api.example.com/v1'
+        output: 'curl -u <USER_PASSWORD> https://api.example.com/v1'
       standard:
         active: true
-        output: 'curl -u <CREDENTIALS> https://api.example.com/v1'
+        output: 'curl -u <USER_PASSWORD> https://api.example.com/v1'
       maximum:
         active: true
-        output: 'curl -u <CREDENTIALS> https://api.example.com/v1'
+        output: 'curl -u <USER_PASSWORD> https://api.example.com/v1'
 
   - name: curl_pair_before_card_number
     ruleId: curl_user_password
@@ -1342,13 +1342,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: 'curl -u <CREDENTIALS> 1111 1111 1111'
+        output: 'curl -u <USER_PASSWORD> 1111 1111 1111'
       standard:
         active: true
-        output: 'curl -u <CREDENTIALS><CREDIT_CARD>'
+        output: 'curl -u <USER_PASSWORD><CREDIT_CARD>'
       maximum:
         active: true
-        output: 'curl -u <CREDENTIALS><CREDIT_CARD>'
+        output: 'curl -u <USER_PASSWORD><CREDIT_CARD>'
 
   - name: google_api_key_longer_run
     ruleId: google_api_key
