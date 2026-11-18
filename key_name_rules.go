@@ -119,7 +119,7 @@ const escapedCharPattern = `\\[^nrt"'\s]`
 // (see escapedCharPattern), and it does not end in the punctuation that closes
 // a call or a list. keyNameSecretValues then moves the end of an unquoted
 // value where the pattern cannot: back to the start of the next setting
-// (nextSettingPattern), or on past an angle bracket that no markup follows
+// (nextSettingPattern) or to a line end encoded twice (twiceEncodedBreaks), or on past an angle bracket that no markup follows
 // (unquotedTail).
 //
 // Forms the pattern does not read, and so leaves in the output: a value in
@@ -321,6 +321,7 @@ var notCredentialPrefixes = []string{"#{", "~/", "./", "../", `\`, "arn:", "vaul
 //	  a.b().c(8, req.headers.authorization?.split(          kept
 //	no letter: digits only, a mask such as ********          kept
 //	letters only, as words: hashedPassword, your-api-key     kept
+//	a tokenizer piece: ▁database, Ġpassword, ##ing           kept
 //	a version, a member access, an indexed name              kept
 //	  (a member access holds two digits at most and no part
 //	  such as Pass1, so Secure.Pass1 is not one)
@@ -340,7 +341,10 @@ var notCredentialPrefixes = []string{"#{", "~/", "./", "../", `\`, "arn:", "vaul
 // made of words where digits only end a word (Welcome1-Again), a password that
 // reads as a variable ($ecretPw99x) or as a call (Pass(123), or unquoted
 // Pass(12).x), and a passphrase with spaces. In the other direction an identifier in camel case that holds a
-// digit (oauth2Token) is redacted.
+// digit (oauth2Token) is redacted, and so are two values that are not
+// credentials: a sed expression after a secret name (s|^JWT_SECRET=.*|...|
+// gives the value ".*|...|"), and the public key token of a .NET assembly
+// name (PublicKeyToken=b77a5c561934e089).
 func secretShapedValue(kind secretNameKind, value string, whole bool) bool {
 	if whole {
 		value = strings.TrimSpace(value)
@@ -365,7 +369,7 @@ func secretShapedValue(kind secretNameKind, value string, whole bool) bool {
 	}
 	// Sigils around an identifier are not part of it: &name, :name, @name, NAME!.
 	identifier := strings.TrimRight(strings.TrimLeft(value, "&*:@"), "!?")
-	if wordValuePattern.MatchString(identifier) || indexedIdentifierPattern.MatchString(identifier) ||
+	if tokenizerPiece(value) || wordValuePattern.MatchString(identifier) || indexedIdentifierPattern.MatchString(identifier) ||
 		versionValuePattern.MatchString(value) || relativeFilePattern.MatchString(value) ||
 		resourcePathPattern.MatchString(value) || wordsWithTrailingDigits(identifier) {
 		return false
@@ -549,6 +553,25 @@ func wordsWithTrailingDigits(value string) bool {
 	return plain > 0 && digits > 0 && digits <= maxIdentifierDigits
 }
 
+// tokenizerPieceMarkers are the marks a tokenizer writes at the start of a
+// piece of text to say that a word or a line starts there: "▁" (U+2581, not
+// the underscore), "Ġ" (U+0120), "Ċ" (U+010A) and "##". Interpretability and
+// tokenizer output lists such pieces under a key named "token".
+var tokenizerPieceMarkers = []string{"▁", "Ġ", "Ċ", "##"}
+
+// tokenizerPiece reports whether value is one marker of tokenizerPieceMarkers
+// followed by letters only, or the marker alone: ▁database, Ġpassword, ##ing.
+// A marker followed by digits or symbols is not one: ▁Xk9mQ2vL7pR4 is judged
+// as any other value.
+func tokenizerPiece(value string) bool {
+	for _, marker := range tokenizerPieceMarkers {
+		if rest, ok := strings.CutPrefix(value, marker); ok {
+			return strings.IndexFunc(rest, func(r rune) bool { return !unicode.IsLetter(r) }) < 0
+		}
+	}
+	return false
+}
+
 // isFiller reports whether one character makes up more than half of value:
 // aaaaaaa1, ******a*, xxxx-xxxx-xxx1.
 func isFiller(value string) bool {
@@ -580,7 +603,8 @@ func dropASCIIDigit(r rune) rune {
 // match. It is usually one value. An unquoted value that runs through the
 // start of another setting (see nextSettingPattern) is cut there, so each
 // setting on the line is judged by its own name:
-// "password=abc12345,token=def67890" holds two values.
+// "password=abc12345,token=def67890" holds two values. A value is cut the same
+// way at a line end encoded twice (see twiceEncodedBreaks).
 //
 // The cuts are found once, and each setting between two cuts is read on its
 // own, so the time taken follows the length of the match: a line of thousands
@@ -608,32 +632,33 @@ func keyNameSecretValues(matched, input string, offset int) []valueSpan {
 	}
 	// A cut must start inside the value; its name may run on past the end of
 	// the value when it holds a space (see nextSettingPattern).
-	cuts := nextSettingPattern.FindAllStringIndex(input[valueStart:min(len(input), end+maxSettingNameLookahead)], -1)
-	for len(cuts) > 0 && valueStart+cuts[len(cuts)-1][0] >= end {
-		cuts = cuts[:len(cuts)-1]
+	settings := nextSettingPattern.FindAllStringIndex(input[valueStart:min(len(input), end+maxSettingNameLookahead)], -1)
+	for len(settings) > 0 && valueStart+settings[len(settings)-1][0] >= end {
+		settings = settings[:len(settings)-1]
 	}
+	cuts := mergeValueCuts(settings, twiceEncodedBreaks(input[valueStart:end]))
 	var spans []valueSpan
 	for k := 0; ; k++ {
 		if pair.bare {
 			pair.valueEnd = end
 			if k < len(cuts) {
-				pair.valueEnd = valueStart + cuts[k][0]
+				pair.valueEnd = valueStart + cuts[k].at
 			}
 		}
 		spans = appendKeyNameValue(spans, input, pair)
 		if k == len(cuts) {
 			return spans
 		}
-		// The next setting starts after the comma or semicolon and ends at
-		// the next cut. It holds no space and no quote, because the unquoted
+		// The next setting starts after the comma, the semicolon or the line
+		// end and ends at the next cut. It holds no space and no quote, because the unquoted
 		// value it was cut from holds none, except that the last one may
 		// end in its separator with a quoted value after it, which the
 		// unquoted value stopped at: password=abc12345,token="def67890".
 		// The last setting then runs on to the end of that quoted value.
-		start := valueStart + cuts[k][0] + 1
+		start := valueStart + cuts[k].next
 		stop := end
 		if k+1 < len(cuts) {
-			stop = valueStart + cuts[k+1][0]
+			stop = valueStart + cuts[k+1].at
 		} else {
 			stop = quotedValueEnd(input, end)
 		}
@@ -644,6 +669,74 @@ func keyNameSecretValues(matched, input string, offset int) []valueSpan {
 		}
 		pair = next
 	}
+}
+
+// valueCut is a place where an unquoted value ends and the next setting may
+// start, as offsets in the value: the value ends at at, and the text read for
+// the next setting starts at next, after the separator.
+type valueCut struct{ at, next int }
+
+// mergeValueCuts returns the cuts at the start of each nextSettingPattern
+// match in settings and at each offset in breaks, in order. A setting match
+// holds no backslash, so no two cuts overlap.
+func mergeValueCuts(settings [][]int, breaks []int) []valueCut {
+	cuts := make([]valueCut, 0, len(settings)+len(breaks))
+	for len(settings) > 0 || len(breaks) > 0 {
+		if len(breaks) == 0 || (len(settings) > 0 && settings[0][0] < breaks[0]) {
+			cuts = append(cuts, valueCut{at: settings[0][0], next: settings[0][0] + 1})
+			settings = settings[1:]
+			continue
+		}
+		cuts = append(cuts, valueCut{at: breaks[0], next: breaks[0] + len(`\\n`)})
+		breaks = breaks[1:]
+	}
+	return cuts
+}
+
+// twiceEncodedBreaks returns the offsets in an unquoted value of each line end,
+// carriage return or tab that is encoded twice: two backslashes and the letter,
+// as JSON nested inside a JSON string writes a line end. The pattern stops a
+// value at a line end encoded once (see escapedCharPattern) but reads two
+// backslashes as one escaped backslash, so the value runs on into the next
+// line; keyNameSecretValues cuts it here instead, and the text after the line
+// end is read as the next setting.
+//
+// Two backslashes before n, r or t are also how text encoded once writes a
+// literal backslash before a letter: a Windows path such as C:\new, or a
+// password that holds a backslash. The two readings are told apart by the rest
+// of the value. When two backslashes in it (an even run) stand before any
+// other character, or end it, the value is encoded once and its backslashes
+// are literal, so it is not cut anywhere: C:\\new\\path12 stays one value.
+// When every even run stands before n, r or t, each run of exactly two is a
+// line end: ${TOKEN}\\nRUN ends after the brace. A run of four before the
+// letter is a literal backslash encoded twice and is not a line end.
+//
+// Known gap: a password with a backslash before n, r or t and no other
+// backslash, written unquoted in JSON-encoded text, reads as two lines and is
+// cut at the backslash.
+func twiceEncodedBreaks(value string) []int {
+	var breaks []int
+	for i := 0; i < len(value); {
+		if value[i] != '\\' {
+			i++
+			continue
+		}
+		run := i
+		for i < len(value) && value[i] == '\\' {
+			i++
+		}
+		length := i - run
+		if length%2 == 1 {
+			continue
+		}
+		if i == len(value) || strings.IndexByte(encodedBreakLetters, value[i]) < 0 {
+			return nil
+		}
+		if length == 2 {
+			breaks = append(breaks, run)
+		}
+	}
+	return breaks
 }
 
 // quotedValueEnd returns the end of the quoted value that opens at
