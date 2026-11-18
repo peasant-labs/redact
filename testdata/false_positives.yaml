@@ -690,6 +690,8 @@ requiredCaseNames:
   - fp_jwk_key_type_outside_window
   - tp_curl_command_word_at_edge_of_lookback
   - fp_curl_command_word_outside_lookback
+  - tp_key_name_short_segments_with_base64_signs
+  - fp_key_name_short_segments_path
 
 cases:
   # ---------------------------------------------------------------------------
@@ -6076,4 +6078,18 @@ cases:
     rule: curl_user_password
     expect: no_match
     reason: 'The command word starts 4097 bytes before the option, one byte outside the lookback.'
+    source: synthetic
+
+  - name: tp_key_name_short_segments_with_base64_signs
+    input: 'SECRET_KEY=/can+ary0/Fk29dLq0=/Pz71Xn5Rv3'
+    rule: key_name_secret
+    expect: match
+    reason: 'Every segment is short, but a path holds no "+" and no "=".'
+    source: synthetic
+
+  - name: fp_key_name_short_segments_path
+    input: 'SECRET_KEY=/canary0/Fk29dLq0/Pz71Xn5Rv3'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'Short segments with no "+" and no "=" are a path.'
     source: synthetic

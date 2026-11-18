@@ -1395,6 +1395,36 @@ cases:
         active: true
         output: '<OPENAI_KEY>'
 
+  - name: key_name_value_matched_whole_by_later_rule
+    ruleId: key_name_secret
+    category: secrets
+    input: 'password=jane.canary@example.com'
+    expectations:
+      minimal:
+        active: true
+        output: 'password=<SECRET>'
+      standard:
+        active: false
+        output: 'password=<EMAIL>'
+      maximum:
+        active: false
+        output: 'password=<EMAIL>'
+
+  - name: key_name_value_after_scheme_rule_covers_its_start
+    ruleId: basic_auth
+    category: secrets
+    input: 'Basic auth: Y2FuYXJ5OmNhbmFyeQ-canary0123456789abcdef'
+    expectations:
+      minimal:
+        active: true
+        output: '<BASIC_AUTH><SECRET>'
+      standard:
+        active: true
+        output: '<BASIC_AUTH><SECRET>'
+      maximum:
+        active: true
+        output: '<BASIC_AUTH><SECRET>'
+
 requiredSecretCaseNames:
   - key_name_env_assignment
   - key_name_json_text
@@ -1474,3 +1504,5 @@ requiredSecretCaseNames:
   - google_api_key_longer_run
   - openai_project_key_after_glued_prefix
   - openai_key_long_part_after_marker
+  - key_name_value_matched_whole_by_later_rule
+  - key_name_value_after_scheme_rule_covers_its_start

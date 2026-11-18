@@ -39,6 +39,8 @@ type redactorBehaviorFixtures struct {
 	UnchangedText           []unchangedTextFixture `yaml:"unchanged_text"`
 	RequiredObservedKeyIDs  []string               `yaml:"required_observed_json_keys_ids"`
 	ObservedJSONKeys        []observedKeyFixture   `yaml:"observed_json_keys"`
+	RequiredObservedTextIDs []string               `yaml:"required_observed_text_ids"`
+	ObservedText            []observedTextFixture  `yaml:"observed_text"`
 	RequiredInactiveRuleIDs []string               `yaml:"required_inactive_json_key_rules_ids"`
 	InactiveJSONKeyRules    []inactiveRuleFixture  `yaml:"inactive_json_key_rules"`
 	JSONKeySets             jsonKeySetsFixture     `yaml:"json_key_sets"`
@@ -52,6 +54,15 @@ type observedKeyFixture struct {
 	JSON     string   `yaml:"json"`
 	Rule     string   `yaml:"rule"`
 	Category Category `yaml:"category"`
+}
+
+// observedTextFixture is a text and the detections an observer must be told of
+// for it at standard: every rule with a count above zero, and no other.
+type observedTextFixture struct {
+	ID         string         `yaml:"id"`
+	Why        string         `yaml:"why"`
+	Input      string         `yaml:"input"`
+	Detections map[string]int `yaml:"detections"`
 }
 
 // inactiveRuleFixture is a JSON document that RedactJSON must return as it is
@@ -91,6 +102,9 @@ type jsonKeyFixture struct {
 	KeyRedactions int `yaml:"key_redactions"`
 	// Counts, when set, is every count Report() holds after the first pass.
 	Counts map[string]int `yaml:"counts"`
+	// Categories, when set, is every category Report() names after the first
+	// pass, in any order.
+	Categories []string `yaml:"categories"`
 }
 
 // metadataPathFixture drives RedactMetadata, the context-aware stage that knows
@@ -170,6 +184,12 @@ func loadRedactorBehaviorFixtures(t *testing.T) redactorBehaviorFixtures {
 	for _, row := range fixtures.ObservedJSONKeys {
 		if row.Why == "" || row.JSON == "" || row.Rule == "" || !row.Category.IsValid() {
 			t.Fatalf("observed JSON key fixture %q is incomplete; why, json, rule and a valid category are required", row.ID)
+		}
+	}
+	checkFixtureFamily(t, "observed_text", fixtures.RequiredObservedTextIDs, fixtureNames(fixtures.ObservedText, func(row observedTextFixture) string { return row.ID }))
+	for _, row := range fixtures.ObservedText {
+		if row.Why == "" || row.Input == "" || len(row.Detections) == 0 {
+			t.Fatalf("observed text fixture %q is incomplete; why, input and detections are required", row.ID)
 		}
 	}
 	checkFixtureFamily(t, "inactive_json_key_rules", fixtures.RequiredInactiveRuleIDs, fixtureNames(fixtures.InactiveJSONKeyRules, func(row inactiveRuleFixture) string { return row.ID }))
@@ -349,6 +369,9 @@ func TestRedactJSON_KeyNameFixtures(t *testing.T) {
 			if row.Counts != nil && !reflect.DeepEqual(counts, row.Counts) {
 				t.Errorf("Report() counts = %v, want exactly %v", counts, row.Counts)
 			}
+			if categories := slices.Sorted(slices.Values(redactor.Report().Categories)); row.Categories != nil && !slices.Equal(categories, slices.Sorted(slices.Values(row.Categories))) {
+				t.Errorf("Report() categories = %v, want exactly %v", categories, row.Categories)
+			}
 			if again := redactor.RedactJSON(got); !reflect.DeepEqual(again, want) {
 				t.Errorf("second RedactJSON pass = %#v, want %#v; redaction must be idempotent", again, want)
 			}
@@ -446,6 +469,40 @@ func TestRedactJSON_KeyRedactionIsObserved(t *testing.T) {
 			}
 			if seen != 1 {
 				t.Errorf("observer saw %d detections, want exactly 1 of %s (records: %+v)", seen, row.Rule, records)
+			}
+		})
+	}
+}
+
+// TestRedactText_ObservedDetectionsFollowOverlaps pins that an observer is told
+// of the matches that remain after a key-name match and the matches around it
+// are settled, not of one that detection dropped.
+func TestRedactText_ObservedDetectionsFollowOverlaps(t *testing.T) {
+	for _, row := range loadRedactorBehaviorFixtures(t).ObservedText {
+		t.Run(row.ID, func(t *testing.T) {
+			got := make(map[string]int)
+			detected := 0
+			run, err := NewRun(mustNewRedactor(t, Standard, nil), "run", func(record Observation) error {
+				for _, detection := range record.Rules {
+					if detection.Count > 0 {
+						got[detection.Rule.ID] += detection.Count
+					}
+				}
+				detected += record.RegexDetected.Value
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, status := run.RedactText("call", row.Input); status != DeliveryOK {
+				t.Fatalf("RedactText delivery status = %v, want DeliveryOK", status)
+			}
+			total := 0
+			for _, count := range row.Detections {
+				total += count
+			}
+			if !reflect.DeepEqual(got, row.Detections) || detected != total {
+				t.Errorf("observed detections = %v (total %d), want exactly %v", got, detected, row.Detections)
 			}
 		})
 	}

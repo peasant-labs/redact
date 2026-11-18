@@ -121,6 +121,10 @@ required_json_keys_ids:
 required_observed_json_keys_ids:
   - value_under_secret_key
   - web_key_private_member
+required_observed_text_ids:
+  - value_covered_by_format_rule
+  - value_cut_by_later_match
+  - value_and_card_number
 required_inactive_json_key_rules_ids:
   - key_name_rule_inactive
   - web_key_rule_inactive
@@ -240,6 +244,8 @@ json_keys:
     json: '{"db_password": "canaryJsonPw0rd!2026", "user": "jane"}'
     want: '{"db_password": "<SECRET>", "user": "jane"}'
     key_redactions: 1
+    counts: {key_name_secret: 1}
+    categories: [secrets]
   - id: secret_named_key_redacts_value_at_minimal
     why: the key-name rule is in the secrets category, so the JSON form is active at minimal like the text form
     level: minimal
@@ -321,6 +327,8 @@ json_keys:
     json: '{"kty": "RSA", "n": "canaryModulus0123456789abcdefghijklmnop", "e": "AQAB", "d": "canaryPrivateMember0123456789abcdefghijklmn", "p": "canaryPrimeMember0123456789abcdefghijklmnop", "q": "canaryPrimeMember9876543210abcdefghijklmnop"}'
     want: '{"kty": "RSA", "n": "canaryModulus0123456789abcdefghijklmnop", "e": "AQAB", "d": "<JWK_PRIVATE_KEY>", "p": "<JWK_PRIVATE_KEY>", "q": "<JWK_PRIVATE_KEY>"}'
     key_redactions: 3
+    counts: {jwk_private_member: 3}
+    categories: [secrets]
   - id: web_key_public_key_unchanged
     why: a public key has no private member, and nothing in it is a credential
     level: minimal
@@ -432,6 +440,19 @@ observed_json_keys:
     json: '{"kty": "oct", "k": "canarySymmetricKey0123456789abcd"}'
     rule: jwk_private_member
     category: secrets
+observed_text:
+  - id: value_covered_by_format_rule
+    why: The key-name match is dropped in detection, so an observer is told of the format rule alone.
+    input: 'GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789'
+    detections: {github_pat: 1}
+  - id: value_cut_by_later_match
+    why: Both matches are applied, and both are counted once.
+    input: 'token=abc12345Bearer canarybearer0123456789abcd'
+    detections: {key_name_secret: 1, bearer_token: 1}
+  - id: value_and_card_number
+    why: The card number after the value is found and counted beside the value.
+    input: 'password=canaryPw0rd2026,card=4111 1111 1111 1111'
+    detections: {key_name_secret: 1, credit_card: 1}
 inactive_json_key_rules:
   - id: key_name_rule_inactive
     why: RedactJSON replaces a value under a secret key only while key_name_secret is active at the configured level, as the text form does.
