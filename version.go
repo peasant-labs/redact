@@ -62,7 +62,11 @@ package redact
 //	3.1.1 — a location that is only the account name, recorded by a session run
 //	         straight from the home folder, collapses to the placeholder in the
 //	         path form and in both slug forms instead of returning the account.
-const RuleSetVersion = "3.1.1"
+//	3.1.2 — credit_card: spaces or hyphens are the only separators, so a match
+//	         cannot cross a newline; Luhn validation redacts real cards in either
+//	         form and keeps non-Luhn 16-digit IDs suppressed; a match that is part
+//	         of a longer dash-separated identifier stays suppressed.
+const RuleSetVersion = "3.1.2"
 
 // Version returns the rule set version string.
 // It can be called without instantiating a Redactor.

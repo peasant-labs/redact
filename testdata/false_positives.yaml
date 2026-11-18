@@ -856,13 +856,13 @@ cases:
       Standard 16-digit Visa test card number (no separators) matches.
     source: detect_secrets
 
-  - name: fp_credit_card_with_dashes
+  - name: tp_credit_card_with_dashes
     input: "payment 4111-1111-1111-1111 charged"
     rule: credit_card
-    expect: no_match
+    expect: match
     reason: >
-      Dash-separated 4-digit groups are rejected by creditCardFilter. Dashes
-      strongly indicate UUID/order-number patterns rather than real credit cards.
+      A Luhn-valid card written with hyphens is a real card format and must be
+      redacted. creditCardFilter now accepts hyphens and validates the digits.
     source: detect_secrets
 
   - name: tp_credit_card_with_spaces
@@ -873,13 +873,13 @@ cases:
       16-digit card number with space separators matches.
     source: detect_secrets
 
-  - name: tp_credit_card_16digit_id
+  - name: fp_credit_card_16digit_id
     input: "transaction_id: 1234567890123456"
     rule: credit_card
-    expect: match
+    expect: no_match
     reason: >
-      Any 16-digit number matches the credit_card regex; transaction IDs are a known
-      false positive. The rule comment in rules.go explicitly acknowledges this trade-off.
+      The transaction ID is not Luhn-valid. creditCardFilter rejects non-card
+      16-digit IDs instead of redacting every 16-digit number.
     source: pattern_analysis
 
   - name: fp_credit_card_order_number
@@ -887,8 +887,8 @@ cases:
     rule: credit_card
     expect: no_match
     reason: >
-      The creditCardFilter rejects dash-separated 4-digit groups — these typically come
-      from UUID fragments or order numbers, not real credit cards.
+      The order number is not Luhn-valid. creditCardFilter keeps non-card numeric
+      identifiers suppressed even when they use dash separators.
     source: pattern_analysis
 
   - name: fp_credit_card_short_sequence
@@ -900,27 +900,24 @@ cases:
     source: pattern_analysis
 
   - name: fp_credit_card_uuid_fragment
-    # UUID middle portion (4-4-4-4 digit groups) matches the credit_card regex but
-    # the creditCardFilter rejects it because of the dash-separated 4-digit pattern.
+    # The 16-digit 4-4-4-4 prefix of this UUID happens to be Luhn-valid, but the
+    # trailing group shows the match is part of a longer dash-separated identifier.
     input: "id: 54375256-9939-4381-8382"
     rule: credit_card
     expect: no_match
     reason: >
-      UUID fragments contain 4-digit groups separated by dashes which match the
-      credit_card regex. The creditCardFilter rejects matches that start with
-      three dash-separated 4-digit groups, which is the UUID signature.
+      creditCardFilter rejects a match that continues into another dash-separated
+      group. That keeps UUID and order-number fragments suppressed even when their
+      16-digit prefix passes Luhn.
     source: real_transcript
 
-  - name: fp_credit_card_dashed_with_dashes
-    # A 16-digit card number written with dashes — now filtered by creditCardFilter.
-    # Real credit cards use spaces or no separator; dashes indicate UUID/order IDs.
+  - name: tp_credit_card_dashed_with_dashes
     input: "card 4111-1111-1111-1111 end"
     rule: credit_card
-    expect: no_match
+    expect: match
     reason: >
-      Dash-separated 4-digit groups are rejected by creditCardFilter. Real credit
-      card numbers use spaces or no separators; dashes strongly correlate with
-      UUIDs, order numbers, and other non-card identifiers.
+      A Luhn-valid card written with hyphens is redacted. The match ends at a
+      boundary, so the longer-identifier guard does not apply.
     source: pattern_analysis
 
   # ip_address
