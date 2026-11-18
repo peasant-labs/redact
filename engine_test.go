@@ -87,6 +87,12 @@ func TestEngineIdentityRegistry(t *testing.T) {
 	}
 }
 
+func TestEngineIdentityReportsSelected(t *testing.T) {
+	if got, want := EngineIdentity(), selectEngine().Identity(); got != want {
+		t.Fatalf("EngineIdentity() = %q, want %q", got, want)
+	}
+}
+
 func TestEngineDefaultRemainsStdlib(t *testing.T) {
 	r, err := NewRedactor(Standard, nil, XDGPaths{})
 	if err != nil {
