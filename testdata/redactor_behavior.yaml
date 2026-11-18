@@ -142,6 +142,8 @@ required_standard_text_outputs_ids:
   - curl_pair_beside_commit_hash
   - url_query_value_percent_encoded
   - unquoted_value_with_dollar_signs
+  - path_value_with_account_name_is_stable
+  - slug_value_with_account_name_is_stable
 required_value_rule_replacements_ids:
   - key_name_secret
   - url_query_secret
@@ -523,6 +525,14 @@ standard_text_outputs:
     why: a dollar sign that does not start a variable name, a brace or a parenthesis is data
     input: 'DB_PASSWORD=$2a$10$canaryN9qo8uLOickgx2ZMRZoMye'
     want: 'DB_PASSWORD=<SECRET>'
+  - id: path_value_with_account_name_is_stable
+    why: a value read as a path keeps its form, the account name in it is replaced, and a second pass sees the placeholder and leaves the value alone
+    input: 'token=canary12345/Users/jane/secret9.txt'
+    want: 'token=canary12345/Users/<USER>/secret9.txt'
+  - id: slug_value_with_account_name_is_stable
+    why: the same for a quoted value made of words and dashes that holds an account name
+    input: "secret='--Users--johndoe--'"
+    want: "secret='--Users--<USER>--'"
 # The rules that replace a value and not their whole pattern match. Each
 # Replacement is the bare placeholder; the recovery path keeps the name.
 value_rule_replacements:

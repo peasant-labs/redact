@@ -291,6 +291,7 @@ var notCredentialPrefixes = []string{"#{", "~/", "./", "../", `\`, "arn:", "vaul
 //	shorter than 8 characters (20 for key material)          kept
 //	holds a space (a description, a passphrase)              kept
 //	holds "://" (a location)                                 kept
+//	holds a placeholder this package writes: <USER> <SECRET> kept
 //	a reference: $VAR ${VAR} $(cmd) %s %VAR% #{x} arn:...    kept
 //	  (a URL query value is tested decoded, so %2B is data)
 //	a template or a structure: <token> {name} [a, b] (none)  kept
@@ -332,6 +333,9 @@ func secretShapedValue(kind secretNameKind, value string, whole bool) bool {
 	if strings.ContainsFunc(value, unicode.IsSpace) || strings.Contains(value, "://") {
 		return false
 	}
+	if holdsPlaceholder(value) {
+		return false
+	}
 	if referenceOrStructure(value, whole) {
 		return false
 	}
@@ -355,6 +359,53 @@ func secretShapedValue(kind secretNameKind, value string, whole bool) bool {
 	}
 	return !isFiller(value)
 }
+
+// placeholderPattern is the shape of the placeholders this package writes.
+var placeholderPattern = regexp.MustCompile(`<[A-Z][A-Z0-9_]*>`)
+
+// ruleSetPlaceholders are the placeholders the rules and the path stage write
+// into the output: <SECRET>, <USER>, <PATH>. A value that holds one has been
+// redacted already, so a second pass leaves it as it is: the first pass kept
+// "abc12345/Users/jane/x.txt" as a path and replaced the account name, and
+// the second must not then read "abc12345/Users/" as a credential.
+//
+// The set is read from the rule table in init, after every package variable
+// is set: the value test is part of the rule table, so a variable built from
+// the table here would be a cycle.
+var ruleSetPlaceholders map[string]bool
+
+func init() {
+	ruleSetPlaceholders = map[string]bool{privatePathPlaceholder: true}
+	for _, rule := range Rules {
+		for _, placeholder := range placeholderPattern.FindAllString(rule.Replacement, -1) {
+			ruleSetPlaceholders[placeholder] = true
+		}
+	}
+}
+
+// holdsPlaceholder reports whether value holds one of ruleSetPlaceholders.
+func holdsPlaceholder(value string) bool {
+	if !strings.Contains(value, "<") {
+		return false
+	}
+	for _, placeholder := range placeholderPattern.FindAllString(value, -1) {
+		if ruleSetPlaceholders[placeholder] {
+			return true
+		}
+	}
+	return false
+}
+
+// startsWithPlaceholder reports whether text starts with one of
+// ruleSetPlaceholders.
+func startsWithPlaceholder(text string) bool {
+	location := placeholderPattern.FindStringIndex(text[:min(len(text), maxPlaceholderLength)])
+	return location != nil && location[0] == 0 && ruleSetPlaceholders[text[:location[1]]]
+}
+
+// maxPlaceholderLength bounds how much of the text startsWithPlaceholder
+// reads. Every placeholder of this package is shorter.
+const maxPlaceholderLength = 64
 
 // referenceOrStructure reports whether value is a reference to a value kept
 // elsewhere, a template, the start of a structure, a path, a type or a call.
@@ -590,6 +641,11 @@ func appendKeyNameValue(spans []valueSpan, input string, pair keyNamePair) []val
 			// stops the value at the next parameter.
 			return spans
 		}
+	}
+	if pair.bare && startsWithPlaceholder(input[pair.valueEnd:]) {
+		// The value stopped at a placeholder an earlier pass wrote:
+		// "token=abc12345/Users/<USER>/x.txt". It was judged then.
+		return spans
 	}
 	kind := secretNameKindOf(name)
 	if !pair.flag && messageAbout(input, pair.nameStart, name) {
