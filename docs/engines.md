@@ -29,9 +29,10 @@ a span runs on the standard library, whichever engine was injected:
 - A rule's `FilterFn`. A filter that uses a regular expression of its own
   (`awsSecretKeyFilter`, `emailFilter`, `jwkPrivateMemberFilter`) uses Go's
   `regexp`.
-- A value finder (`valueRules` in `detect.go`). The key-name rules, the curl
-  rule and the prefix-token rules read their own pattern match a second time
-  with Go's `regexp` to find the groups, and apply the value test in
+- A value finder (`valueRules` in `detect.go`). `key_name_secret`,
+  `url_query_secret`, `cookie_header`, `curl_user_password` and the
+  prefix-token rules read their own pattern match a second time with Go's
+  `regexp` to find the groups, and apply the value test in
   `key_name_rules.go`, which is made of small anchored patterns.
 - The decisions `RedactJSON` makes from an object key alone: the value test
   for a key that names a secret, and the member name and value shape of a JSON

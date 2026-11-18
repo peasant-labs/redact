@@ -89,8 +89,11 @@ Detection counts include accepted regex matches **before overlap removal**.
 One kind of match is settled earlier, in detection itself: a match of a rule
 that reports the value alone (`key_name_secret`, `url_query_secret`,
 `cookie_header`, `curl_user_password`) is dropped when a match of another rule
-covers the whole value, and is then not counted. See `resolveValueOverlaps` in
-`detect.go`.
+covers the whole value, and is then not counted. It may instead be shortened,
+where another match covers its start or runs on past its end; a shortened
+match is still counted once. A match of a built-in rule that starts inside the
+name and stops inside the value is dropped in favour of the value match and is
+not counted. See `resolveValueOverlaps` in `detect.go`.
 `Rules` contains only rules with accepted matches, in source order, with their
 actual categories. These counts exclude AST and entropy changes and residue
 warnings. They are not exact applied replacement counts. The legacy cumulative

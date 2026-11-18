@@ -278,8 +278,11 @@ func (d *detectedMatches) Swap(i, j int) {
 
 // resolveValueOverlaps settles every overlap between a match of a value rule
 // and the matches around it. A value rule knows only where a value sits, so a
-// rule that knows what the text is goes first, and nothing another rule would
-// redact is left in the output because a value match stood in its way.
+// rule that knows what the text is goes first, and the value match gives way:
+// it is dropped or shortened, so that it is never the reason another rule's
+// match is not applied. The claim is about value matches only. Two matches of
+// other rules that overlap each other are left to Redact, which keeps the
+// first, as without the value rules.
 //
 // The matches are sorted, and Redact applies them in that order and skips a
 // match that starts inside one it already applied. This pass walks them the
@@ -306,9 +309,10 @@ func (d *detectedMatches) Swap(i, j int) {
 // character after its token, as aws_secret_key does, covers no more of the
 // input than the value.
 //
-// Apart from the second case no match of another rule is changed, so every
-// part of the input that the other rules would replace without the value rules
-// is still replaced.
+// Apart from the second case no match of another rule is changed. So every
+// part of the input that the other rules would replace without the value
+// rules is still replaced, except the name and the separator that a built-in
+// match dropped in the second case covered.
 func (d *detectedMatches) resolveValueOverlaps(input string) {
 	end := func(i int) int { return d.matches[i].Offset + d.matches[i].Length }
 	dropped := make([]bool, len(d.matches))
