@@ -39,6 +39,9 @@ const (
 	DiagnosticNotMeasured
 	DiagnosticEngineRecovered
 	DiagnosticEnginePanicked
+	// DiagnosticInputRefused means a size or ambiguous-split policy prevented a
+	// successful scan. Detected/applied counts are unavailable, not zero.
+	DiagnosticInputRefused
 )
 
 // DeliveryStatus combines callback outcomes for a root and its automatic children.

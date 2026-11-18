@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -65,7 +66,10 @@ func RedactJSONLBytes(r JSONRedactor, data []byte, opts ...RedactJSONLBytesOptio
 			buf.WriteByte('\n')
 			continue
 		}
-		redacted := r.RedactJSON(v)
+		redacted, err := redactJSONChecked(r, v)
+		if err != nil {
+			return data, err
+		}
 		encoded, err := json.Marshal(redacted)
 		if err != nil {
 			buf.Write(line)
@@ -81,7 +85,7 @@ func RedactJSONLBytes(r JSONRedactor, data []byte, opts ...RedactJSONLBytesOptio
 }
 
 func defaultScannerConfig() scannerConfig {
-	return scannerConfig{initBuf: DefaultScannerInitBuf, maxLine: DefaultScannerMaxLine}
+	return scannerConfig{initBuf: DefaultScannerInitBuf, maxLine: DefaultScannerMaxLine, inputPolicy: DefaultMaxInputBytesPolicy}
 }
 
 func validateScannerConfig(operation string, cfg scannerConfig) error {
@@ -118,16 +122,41 @@ func (r *DefaultRedactor) redactScannerConfig() scannerConfig { return r.scanner
 //
 // Decoded strings must be valid UTF-8; see the package input contract.
 func RedactJSONDocBytes(r JSONRedactor, data []byte) []byte {
+	output, err := RedactJSONDocBytesChecked(r, data)
+	if err != nil {
+		// Unlike malformed JSON's historical pass-through, a size refusal
+		// must never return sensitive content as a successful result.
+		if errors.Is(err, ErrInputAboveEngineCeiling) || errors.Is(err, ErrInputCannotChunkSafely) {
+			return []byte(`"<REDACTED>"`)
+		}
+		return data
+	}
+	return output
+}
+
+// RedactJSONDocBytesChecked returns an error on malformed JSON, encoding failure,
+// or a checked redactor's input refusal. No partially redacted output is returned.
+func RedactJSONDocBytesChecked(r JSONRedactor, data []byte) ([]byte, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()
 	var v any
 	if err := dec.Decode(&v); err != nil {
-		return data
+		return nil, err
 	}
-	redacted := r.RedactJSON(v)
+	redacted, err := redactJSONChecked(r, v)
+	if err != nil {
+		return nil, err
+	}
 	encoded, err := json.Marshal(redacted)
 	if err != nil {
-		return data
+		return nil, err
 	}
-	return encoded
+	return encoded, nil
+}
+
+func redactJSONChecked(r JSONRedactor, value any) (any, error) {
+	if checked, ok := r.(interface{ RedactJSONChecked(any) (any, error) }); ok {
+		return checked.RedactJSONChecked(value)
+	}
+	return r.RedactJSON(value), nil
 }

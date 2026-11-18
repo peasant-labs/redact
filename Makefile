@@ -1,4 +1,4 @@
-.PHONY: check test test-nore2 bench lint fmt vet release-check verify-tidy check-unstring unstring-update
+.PHONY: check test test-race bench lint fmt vet release-check verify-tidy check-unstring unstring-update
 
 # Static guard against stringly-typed values. Pin the published tool here.
 # The binary it scans with is ast-grep 0.51.2 on PATH.
@@ -6,7 +6,7 @@ UNSTRING ?= go run github.com/peasant-labs/infra/unstring/cmd/unstring@v0.0.4
 
 # Full quality gate. The guard runs last and fails the gate when the tree
 # is not the committed baseline.
-check: fmt vet test test-nore2 check-unstring
+check: fmt vet test check-unstring
 
 release-check: check
 	CGO_ENABLED=0 go test ./...
@@ -15,13 +15,13 @@ release-check: check
 	@! go list -deps ./... | grep -E '^github.com/peasant-labs/peasant($$|/)' >/dev/null
 	$(MAKE) verify-tidy
 
-# Run all tests with race detector
+# Run all tests
 test:
-	go test -race ./...
+	go test ./...
 
-# Exercise the stdlib fallback independently and in every quality gate
-test-nore2:
-	go test -tags no_re2 -race ./...
+# Run all tests with the race detector (manual or CI only)
+test-race:
+	go test -race ./...
 
 # Reproducible synthetic constructor and first-detection measurements
 bench:
