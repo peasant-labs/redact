@@ -230,6 +230,70 @@ rules:
       - {name: script_assignment, input: 'document.cookie = "theme=dark"', shouldFlag: false}
       - {name: longer_word, input: 'mycookie: sessionid=canarySessionCookie0123456789abcdef', shouldFlag: false}
 
+  - ruleId: github_fine_grained_pat
+    cases:
+      - {name: prefix_and_body, input: 'github_pat_canaryFINEgrained0123456789abcdef', shouldFlag: true}
+      - {name: bare_prefix, input: 'github_pat_', shouldFlag: false}
+      - {name: short_body, input: 'github_pat_example', shouldFlag: false}
+      - {name: classic_prefix, input: 'ghp_canaryFINEgrained0123456789abcdef', shouldFlag: false}
+
+  - ruleId: npm_token
+    cases:
+      - {name: prefix_and_body, input: 'npm_canarytoken0123456789abcdefghij', shouldFlag: true}
+      - {name: environment_name, input: 'npm_config_registry', shouldFlag: false}
+      - {name: short_body, input: 'npm_token', shouldFlag: false}
+
+  - ruleId: huggingface_token
+    cases:
+      - {name: prefix_and_body, input: 'hf_canarytoken0123456789abcdefghij', shouldFlag: true}
+      - {name: library_function, input: 'hf_hub_download', shouldFlag: false}
+      - {name: placeholder, input: 'hf_...', shouldFlag: false}
+
+  - ruleId: vercel_token
+    cases:
+      - {name: personal_access_token, input: 'vcp_canarytoken0123456789abcdef', shouldFlag: true}
+      - {name: integration_token, input: 'vci_canarytoken0123456789abcdef', shouldFlag: true}
+      - {name: app_access_token, input: 'vca_canarytoken0123456789abcdef', shouldFlag: true}
+      - {name: app_refresh_token, input: 'vcr_canarytoken0123456789abcdef', shouldFlag: true}
+      - {name: api_key, input: 'vck_canarytoken0123456789abcdef', shouldFlag: true}
+      - {name: unlisted_prefix, input: 'vcx_canarytoken0123456789abcdef', shouldFlag: false}
+      - {name: short_body, input: 'vcp_example', shouldFlag: false}
+
+  - ruleId: supabase_token
+    cases:
+      - {name: personal_access_token, input: 'sbp_canary0123456789abcdef0123456789abcdef', shouldFlag: true}
+      - {name: secret_key, input: 'sb_secret_canary0123456789abcdefgh', shouldFlag: true}
+      - {name: publishable_key, input: 'sb_publishable_canary0123456789abcdefgh', shouldFlag: false}
+      - {name: short_body, input: 'sbp_example', shouldFlag: false}
+
+  - ruleId: authorization_token
+    cases:
+      - {name: token_scheme, input: 'Authorization: token canaryAuthTok0123456789abcd', shouldFlag: true}
+      - {name: bot_scheme, input: 'Authorization: Bot canaryBotTok0123456789abcdef', shouldFlag: true}
+      - {name: lower_case_header, input: 'authorization: token canaryAuthTok0123456789abcd', shouldFlag: true}
+      - {name: bearer_scheme, input: 'Authorization: Bearer canaryAuthTok0123456789abcd', shouldFlag: false}
+      - {name: placeholder, input: 'Authorization: token YOUR-TOKEN', shouldFlag: false}
+      - {name: variable, input: 'Authorization: token ${GITHUB_TOKEN_FROM_ENVIRONMENT}', shouldFlag: false}
+
+  - ruleId: curl_user_password
+    cases:
+      - {name: short_option, input: 'curl -u jane:canaryCurlPw0rd https://api.example.com/v1', shouldFlag: true}
+      - {name: long_option, input: 'curl --user jane:canaryCurlPw0rd https://api.example.com/v1', shouldFlag: true}
+      - {name: long_option_equals, input: 'curl --user=jane:canaryCurlPw0rd https://api.example.com/v1', shouldFlag: true}
+      - {name: user_only, input: 'curl -u jane https://api.example.com/v1', shouldFlag: false}
+      - {name: variable_pair, input: 'curl -u "$API_USER:$API_PASSWORD" https://api.example.com/v1', shouldFlag: false}
+      - {name: variable_password, input: 'curl -u jane:$API_PASSWORD https://api.example.com/v1', shouldFlag: false}
+      - {name: option_inside_word, input: 'curl --no-user jane:canaryCurlPw0rd', shouldFlag: false}
+
+  - ruleId: jwk_private_member
+    cases:
+      - {name: private_exponent, input: '"d":"canaryPrivateMember0123456789abcdefghijklmn"', shouldFlag: true}
+      - {name: prime, input: '"p": "canaryPrimeMember0123456789abcdefghijklmnop"', shouldFlag: true}
+      - {name: symmetric_key, input: '"k":"canarySymmetricKey0123456789abcd"', shouldFlag: true}
+      - {name: public_member, input: '"x":"canaryPublicMemberX0123456789abcdefghijkl"', shouldFlag: false}
+      - {name: short_value, input: '"d":"short"', shouldFlag: false}
+      - {name: value_with_other_characters, input: '"d":"canary private member, not base64url!"', shouldFlag: false}
+
 residues:
   - {name: artifactory_api_token, ruleId: residue_artifactory_api_token, input: 'header: AKCshort1234567890'}
   - {name: artifactory_password, ruleId: residue_artifactory_password, input: 'pass: AP6short12345'}
@@ -248,6 +312,11 @@ residues:
   - {name: pypi_test_token, ruleId: residue_pypi_test_token, input: 'pypi-AgENshortprefixtoken1234567890123456789012345678901234567890'}
   - {name: square_oauth_secret, ruleId: residue_square_oauth_secret, input: 'sq0csp-ABCDEFGHIJK_LMNOPQRSTUVWXYZ123'}
   - {name: telegram_bot_token, ruleId: residue_telegram_bot_token, input: '1102015:AAHdqTcvCH1vGWJxfSe1ofSAs0K5PA'}
+  - {name: github_fine_grained_pat, ruleId: residue_github_fine_grained_pat, input: 'github_pat_shorttoken12'}
+  - {name: npm_token, ruleId: residue_npm_token, input: 'npm_shorttoken12'}
+  - {name: huggingface_token, ruleId: residue_huggingface_token, input: 'hf_shorttoken12'}
+  - {name: vercel_token, ruleId: residue_vercel_token, input: 'vcp_shorttoken12'}
+  - {name: supabase_token, ruleId: residue_supabase_token, input: 'sbp_shorttoken12'}
 
 awsFilters:
   - {name: file_path_no_context, input: 'nttea/codebases/dayvidpham/bestiary/main.', wantDetect: false}
@@ -321,3 +390,11 @@ coveredRuleIds:
   - key_name_secret
   - url_query_secret
   - cookie_header
+  - github_fine_grained_pat
+  - npm_token
+  - huggingface_token
+  - vercel_token
+  - supabase_token
+  - authorization_token
+  - curl_user_password
+  - jwk_private_member

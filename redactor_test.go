@@ -397,6 +397,10 @@ func TestRules_AllIDsHaveTestCoverage(t *testing.T) {
 		// Key-name and header rules (covered by the YAML fixtures: rules.yaml,
 		// false_positives.yaml and rule_level_outputs.yaml).
 		keyNameSecretRuleID, urlQuerySecretRuleID, cookieHeaderRuleID,
+		// Token formats with a documented prefix, and the rules that read the
+		// construct around a credential (covered by the same YAML fixtures).
+		"github_fine_grained_pat", "npm_token", "huggingface_token", "vercel_token", "supabase_token",
+		authorizationTokenRuleID, curlUserPasswordRuleID, jwkPrivateMemberRuleID,
 	}
 	for _, id := range secretsCases {
 		ruleIDs[id] = true

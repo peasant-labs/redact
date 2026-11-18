@@ -34,6 +34,17 @@ type redactorBehaviorFixtures struct {
 	CodePipeline            []codePipelineFixture  `yaml:"code_pipeline"`
 	RequiredJSONKeyIDs      []string               `yaml:"required_json_keys_ids"`
 	JSONKeys                []jsonKeyFixture       `yaml:"json_keys"`
+	RequiredUnchangedIDs    []string               `yaml:"required_unchanged_text_ids"`
+	UnchangedText           []unchangedTextFixture `yaml:"unchanged_text"`
+}
+
+// unchangedTextFixture is a text that RedactText must return as it is, at
+// minimal and at standard. It states the outcome a skip case promises: not
+// only that one rule stayed silent, but that nothing in the text changed.
+type unchangedTextFixture struct {
+	ID    string `yaml:"id"`
+	Why   string `yaml:"why"`
+	Input string `yaml:"input"`
 }
 
 // jsonKeyFixture drives RedactJSON on a whole document. JSON and Want are JSON
@@ -44,6 +55,9 @@ type jsonKeyFixture struct {
 	Level RedactionLevel `yaml:"level"`
 	JSON  string         `yaml:"json"`
 	Want  string         `yaml:"want"`
+	// KeyRedactions is the number of redactions Report() counts for the
+	// key-name rule and the JSON Web Key rule after the first pass.
+	KeyRedactions int `yaml:"key_redactions"`
 }
 
 // metadataPathFixture drives RedactMetadata, the context-aware stage that knows
@@ -111,6 +125,12 @@ func loadRedactorBehaviorFixtures(t *testing.T) redactorBehaviorFixtures {
 		checkFixtureLevel(t, row.ID, row.Level)
 		if row.Why == "" || row.JSON == "" || row.Want == "" {
 			t.Fatalf("JSON key fixture %q is incomplete; why, json and want are required", row.ID)
+		}
+	}
+	checkFixtureFamily(t, "unchanged_text", fixtures.RequiredUnchangedIDs, unchangedTextFixtureIDs(fixtures.UnchangedText))
+	for _, row := range fixtures.UnchangedText {
+		if row.Why == "" || row.Input == "" {
+			t.Fatalf("unchanged text fixture %q is incomplete; why and input are required", row.ID)
 		}
 	}
 	for _, row := range fixtures.MetadataPaths {
@@ -198,6 +218,13 @@ func jsonKeyFixtureIDs(rows []jsonKeyFixture) []string {
 	}
 	return ids
 }
+func unchangedTextFixtureIDs(rows []unchangedTextFixture) []string {
+	ids := make([]string, len(rows))
+	for i, row := range rows {
+		ids[i] = row.ID
+	}
+	return ids
+}
 func parityFixtureIDs(rows []parityFixture) []string {
 	ids := make([]string, len(rows))
 	for i, row := range rows {
@@ -267,6 +294,10 @@ func TestRedactJSON_KeyNameFixtures(t *testing.T) {
 			if !reflect.DeepEqual(got, want) {
 				t.Errorf("RedactJSON(%s) = %#v, want %#v", row.JSON, got, want)
 			}
+			counts := redactor.Report().Counts
+			if counted := counts[keyNameSecretRuleID] + counts[jwkPrivateMemberRuleID]; counted != row.KeyRedactions {
+				t.Errorf("Report() counts %d key redactions, want %d (counts: %v)", counted, row.KeyRedactions, counts)
+			}
 			if again := redactor.RedactJSON(got); !reflect.DeepEqual(again, want) {
 				t.Errorf("second RedactJSON pass = %#v, want %#v; redaction must be idempotent", again, want)
 			}
@@ -283,4 +314,69 @@ func decodeJSONFixture(t *testing.T, id, text string) any {
 		t.Fatalf("JSON key fixture %q holds invalid JSON %q: %v", id, text, err)
 	}
 	return value
+}
+
+// TestRedactText_UnchangedFixtures pins the texts no rule may touch: every
+// placeholder, reference, literal and count the key-name rules must skip comes
+// back byte for byte at both offered levels.
+func TestRedactText_UnchangedFixtures(t *testing.T) {
+	for _, row := range loadRedactorBehaviorFixtures(t).UnchangedText {
+		for _, level := range []RedactionLevel{Minimal, Standard} {
+			t.Run(row.ID+"/"+level.String(), func(t *testing.T) {
+				if got := mustNewRedactor(t, level, nil).RedactText(row.Input); got != row.Input {
+					t.Errorf("RedactText(%q) = %q, want it unchanged: %s", row.Input, got, row.Why)
+				}
+			})
+		}
+	}
+}
+
+// TestRules_KeyNameRulesComeLast pins the table order the overlap rules rely
+// on: two matches of equal offset and length resolve by table order, so every
+// rule that knows a format must come before the rules that read a key name.
+func TestRules_KeyNameRulesComeLast(t *testing.T) {
+	seenKeyNameRule := false
+	for _, rule := range Rules {
+		if rule.Category != CategorySecrets {
+			continue
+		}
+		if isKeyNameRule(rule.ID) {
+			seenKeyNameRule = true
+		} else if seenKeyNameRule {
+			t.Errorf("secrets rule %q comes after a key-name rule; move it before them so a format rule wins a tie", rule.ID)
+		}
+	}
+	if !seenKeyNameRule {
+		t.Fatal("no key-name rule is compiled; restore key_name_secret, url_query_secret and cookie_header")
+	}
+}
+
+// TestRedactJSON_KeyRedactionIsObserved pins that a value replaced because of
+// its key reaches the observer: one child record that names the rule.
+func TestRedactJSON_KeyRedactionIsObserved(t *testing.T) {
+	var records []Observation
+	run, err := NewRun(mustNewRedactor(t, Standard, nil), "run", func(record Observation) error {
+		records = append(records, record)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, status := run.RedactJSON("call", decodeJSONFixture(t, "observed key redaction", `{"db_password": "canaryJsonPw0rd!2026"}`)); status != DeliveryOK {
+		t.Fatalf("RedactJSON delivery status = %v, want DeliveryOK", status)
+	}
+	var seen int
+	for _, record := range records {
+		for _, detection := range record.Rules {
+			if detection.Rule.ID == keyNameSecretRuleID {
+				seen += detection.Count
+				if record.Operation != OperationRedactText || record.ParentCallID == 0 || record.RegexDetected.Value != 1 {
+					t.Errorf("key redaction record = %+v, want a child RedactText record with one detection", record)
+				}
+			}
+		}
+	}
+	if seen != 1 {
+		t.Errorf("observer saw %d detections of %s, want 1 (records: %+v)", seen, keyNameSecretRuleID, records)
+	}
 }

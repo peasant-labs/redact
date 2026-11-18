@@ -96,6 +96,27 @@ required_json_keys_ids:
   - object_under_secret_name_is_walked
   - strict_ending_short_value_unchanged
   - text_inside_string_value_still_scanned
+  - model_output_token_unchanged
+  - web_key_private_members
+  - web_key_public_key_unchanged
+  - private_member_name_without_key_type_unchanged
+required_unchanged_text_ids:
+  - shell_variable
+  - braced_shell_variable
+  - process_environment_read
+  - environment_index_read
+  - angle_template
+  - placeholder_words
+  - asterisk_mask
+  - ellipsis
+  - type_name
+  - null_literal
+  - true_literal
+  - maximum_token_count
+  - input_token_count
+  - name_only_contains_auth
+  - curl_other_command
+  - object_without_key_type
 secrets:
   - {id: anthropic_key, level: minimal, input: "sk-ant-api03-abc123def456abc123def456abc123def456abc123", contains: "<ANTHROPIC_KEY>"}
   - {id: openai_key, level: minimal, input: "sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789", contains: "<OPENAI_KEY>"}
@@ -183,21 +204,25 @@ json_keys:
     level: standard
     json: '{"db_password": "canaryJsonPw0rd!2026", "user": "jane"}'
     want: '{"db_password": "<SECRET>", "user": "jane"}'
+    key_redactions: 1
   - id: secret_named_key_redacts_value_at_minimal
     why: the key-name rule is in the secrets category, so the JSON form is active at minimal like the text form
     level: minimal
     json: '{"db_password": "canaryJsonPw0rd!2026"}'
     want: '{"db_password": "<SECRET>"}'
+    key_redactions: 1
   - id: nested_secret_named_key
     why: the key test applies at every depth of the document
     level: standard
     json: '{"config": {"database": {"clientSecret": "canaryCamel-9f8e7d6c5b4a"}}}'
     want: '{"config": {"database": {"clientSecret": "<SECRET>"}}}'
+    key_redactions: 1
   - id: secret_named_key_inside_array
     why: objects inside an array are walked with the same key test
     level: standard
     json: '[{"name": "ci", "access_token": "canaryArrayTok0123456789"}]'
     want: '[{"name": "ci", "access_token": "<SECRET>"}]'
+    key_redactions: 1
   - id: vendor_token_under_secret_name_keeps_label
     why: a value a format rule covers whole keeps the more specific placeholder
     level: standard
@@ -238,6 +263,7 @@ json_keys:
     level: standard
     json: '{"auth": {"username": "jane", "password": "canaryNestedPw0rd!41"}}'
     want: '{"auth": {"username": "jane", "password": "<SECRET>"}}'
+    key_redactions: 1
   - id: strict_ending_short_value_unchanged
     why: a name that ends in auth often holds a scheme or a mode, so only a long value that mixes letters and digits is taken
     level: standard
@@ -248,6 +274,77 @@ json_keys:
     level: standard
     json: '{"command": "export INTERNAL_API_TOKEN=canary-9f8e7d6c5b4a3928"}'
     want: '{"command": "export INTERNAL_API_TOKEN=<SECRET>"}'
+    key_redactions: 1
+  - id: model_output_token_unchanged
+    why: an entry of a token-probability list holds a piece of model output under "token"; the log probability beside it says it is not a credential
+    level: standard
+    json: '{"token": "localhost:8080x", "logprob": -0.1, "bytes": [1, 2]}'
+    want: '{"token": "localhost:8080x", "logprob": -0.1, "bytes": [1, 2]}'
+  - id: web_key_private_members
+    why: in an object that carries a key type, every private member is replaced and the public members stay, so the output still shows which key it was
+    level: minimal
+    json: '{"kty": "RSA", "n": "canaryModulus0123456789abcdefghijklmnop", "e": "AQAB", "d": "canaryPrivateMember0123456789abcdefghijklmn", "p": "canaryPrimeMember0123456789abcdefghijklmnop", "q": "canaryPrimeMember9876543210abcdefghijklmnop"}'
+    want: '{"kty": "RSA", "n": "canaryModulus0123456789abcdefghijklmnop", "e": "AQAB", "d": "<JWK_PRIVATE_KEY>", "p": "<JWK_PRIVATE_KEY>", "q": "<JWK_PRIVATE_KEY>"}'
+    key_redactions: 3
+  - id: web_key_public_key_unchanged
+    why: a public key has no private member, and nothing in it is a credential
+    level: minimal
+    json: '{"kty": "EC", "crv": "P-256", "x": "canaryPublicX", "y": "canaryPublicY"}'
+    want: '{"kty": "EC", "crv": "P-256", "x": "canaryPublicX", "y": "canaryPublicY"}'
+  - id: private_member_name_without_key_type_unchanged
+    why: a member named d in an object with no key type is ordinary data
+    level: minimal
+    json: '{"d": "canaryNotAKeyValue0123456789abcdefg", "name": "delta"}'
+    want: '{"d": "canaryNotAKeyValue0123456789abcdefg", "name": "delta"}'
+unchanged_text:
+  - id: shell_variable
+    why: a variable reference holds no credential
+    input: 'INTERNAL_API_TOKEN=$DEPLOY_TOKEN_VALUE'
+  - id: braced_shell_variable
+    why: a braced variable reference holds no credential
+    input: 'INTERNAL_API_TOKEN=${DEPLOY_TOKEN_VALUE}'
+  - id: process_environment_read
+    why: reading the environment is code
+    input: 'const token = process.env.INTERNAL_API_TOKEN'
+  - id: environment_index_read
+    why: reading the environment is code
+    input: 'password = os.environ["DB_PASSWORD"]'
+  - id: angle_template
+    why: an angle-bracket template is a placeholder
+    input: 'curl "https://api.example.test/export?token=<token>"'
+  - id: placeholder_words
+    why: a placeholder made of words is not a credential
+    input: 'api_key=your_api_key and token=your_api_token'
+  - id: asterisk_mask
+    why: a mask means the value was already removed
+    input: 'password=***'
+  - id: ellipsis
+    why: an ellipsis stands for an omitted value
+    input: 'token: ...'
+  - id: type_name
+    why: a type name in a declaration is not a value
+    input: 'password: string'
+  - id: null_literal
+    why: a null literal is not a value
+    input: '{"token": null, "secret": "null"}'
+  - id: true_literal
+    why: a boolean literal is not a value
+    input: 'use_token: true, secret=true'
+  - id: maximum_token_count
+    why: a token limit is a count
+    input: 'max_tokens=4096'
+  - id: input_token_count
+    why: a token usage figure is a count
+    input: 'input_tokens: 10'
+  - id: name_only_contains_auth
+    why: a name that contains a secret word and does not end in it is ordinary
+    input: 'author=jane-doe-2026x authority: registry.example.test oauth_callback_url=/callback/2026x'
+  - id: curl_other_command
+    why: the user option of another command is not a credential
+    input: 'sort -u names:canaryList0123 sorted.txt'
+  - id: object_without_key_type
+    why: a member named d outside a JSON Web Key is ordinary data
+    input: '{"d": "canaryNotAKeyValue0123456789abcdefg", "name": "delta"}'
 metadata_paths:
   - id: nested_project_becomes_path_project
     why: a project below an intermediate folder keeps only its own folder name, so a published path names the project and nothing about the machine it sat on
