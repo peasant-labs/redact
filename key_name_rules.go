@@ -596,8 +596,16 @@ const maxTailLookahead = 256
 // such as aB3xkd92Lq<Zw81 has no markup after it and continues. The tail is
 // empty when it holds a tag, or when the line goes on to close one with ">".
 // It reads no more than maxTailLookahead bytes of rest.
+//
+// The tail ends as the unquoted value does: not in the punctuation that closes
+// a call or a list (see closingPunctuation), so "if (password=abc12345<x)"
+// keeps its ")". A shell redirect (>>file, >&2, >|file) is not part of the
+// value.
 func unquotedTail(rest string) string {
 	if rest == "" || (rest[0] != '<' && rest[0] != '>') {
+		return ""
+	}
+	if len(rest) > 1 && rest[0] == '>' && strings.IndexByte(">&|", rest[1]) >= 0 {
 		return ""
 	}
 	rest = rest[:min(len(rest), maxTailLookahead)]
@@ -615,8 +623,17 @@ func unquotedTail(rest string) string {
 	if strings.Contains(tail, "<") && strings.Contains(line, ">") {
 		return ""
 	}
+	if tail = strings.TrimRight(tail, closingPunctuation); len(tail) == 1 {
+		// Only the angle bracket is left.
+		return ""
+	}
 	return tail
 }
+
+// closingPunctuation closes a call or a list. An unquoted value does not end
+// in it: keyNameSecretPattern leaves it out of the last character of the
+// value, and unquotedTail takes it off the end of the tail.
+const closingPunctuation = ",;)]}"
 
 // messageSubject is the one name that messages from parsers and validators
 // use for something that is not a credential, and messageWords are the words

@@ -46,8 +46,19 @@ type redactorBehaviorFixtures struct {
 	RequiredInactiveRuleIDs []string               `yaml:"required_inactive_json_key_rules_ids"`
 	InactiveJSONKeyRules    []inactiveRuleFixture  `yaml:"inactive_json_key_rules"`
 	JSONKeySets             jsonKeySetsFixture     `yaml:"json_key_sets"`
+	RequiredTextOutputIDs   []string               `yaml:"required_standard_text_outputs_ids"`
+	TextOutputs             []textOutputFixture    `yaml:"standard_text_outputs"`
 	RequiredLinearTimeIDs   []string               `yaml:"required_linear_time_ids"`
 	LinearTime              []linearTimeFixture    `yaml:"linear_time"`
+}
+
+// textOutputFixture is a text and the exact output of RedactText at standard.
+// A second pass over the output must return it unchanged.
+type textOutputFixture struct {
+	ID    string `yaml:"id"`
+	Why   string `yaml:"why"`
+	Input string `yaml:"input"`
+	Want  string `yaml:"want"`
 }
 
 // linearTimeFixture is a short text that RedactText must read in time that
@@ -209,6 +220,12 @@ func loadRedactorBehaviorFixtures(t *testing.T) redactorBehaviorFixtures {
 	for _, row := range fixtures.InactiveJSONKeyRules {
 		if row.Why == "" || row.JSON == "" || row.Rule == "" {
 			t.Fatalf("inactive JSON key rule fixture %q is incomplete; why, rule and json are required", row.ID)
+		}
+	}
+	checkFixtureFamily(t, "standard_text_outputs", fixtures.RequiredTextOutputIDs, fixtureNames(fixtures.TextOutputs, func(row textOutputFixture) string { return row.ID }))
+	for _, row := range fixtures.TextOutputs {
+		if row.Why == "" || row.Input == "" || row.Want == "" {
+			t.Fatalf("standard text output fixture %q is incomplete; why, input and want are required", row.ID)
 		}
 	}
 	checkFixtureFamily(t, "linear_time", fixtures.RequiredLinearTimeIDs, fixtureNames(fixtures.LinearTime, func(row linearTimeFixture) string { return row.ID }))
@@ -573,6 +590,23 @@ func TestRedactJSON_KeyListsAreClosed(t *testing.T) {
 		if !slices.Equal(got, want) {
 			t.Errorf("%s = %v, want exactly %v, the json_key_sets list of the redactor behavior fixture", list.name, got, want)
 		}
+	}
+}
+
+// TestRedactText_StandardOutputFixtures pins the exact output of RedactText at
+// standard for each row, and that a second pass leaves that output as it is.
+func TestRedactText_StandardOutputFixtures(t *testing.T) {
+	for _, row := range loadRedactorBehaviorFixtures(t).TextOutputs {
+		t.Run(row.ID, func(t *testing.T) {
+			redactor := mustNewRedactor(t, Standard, nil)
+			got := redactor.RedactText(row.Input)
+			if got != row.Want {
+				t.Errorf("RedactText(%q) = %q, want %q: %s", row.Input, got, row.Want, row.Why)
+			}
+			if again := redactor.RedactText(got); again != got {
+				t.Errorf("second RedactText pass over %q = %q; redaction must be idempotent", got, again)
+			}
+		})
 	}
 }
 

@@ -133,6 +133,10 @@ required_inactive_json_key_rules_ids:
 json_key_sets:
   jwk_private_members: [d, p, q, dp, dq, qi, k]
   header_value_keys: [authorization, cookie, set-cookie]
+required_standard_text_outputs_ids:
+  - tail_keeps_closing_parenthesis
+  - redirect_after_value
+  - redirect_after_value_to_stream
 required_linear_time_ids:
   - settings_joined_by_commas
   - settings_joined_by_semicolons
@@ -467,6 +471,19 @@ inactive_json_key_rules:
     why: RedactJSON replaces a private member only while jwk_private_member is active at the configured level.
     rule: jwk_private_member
     json: '{"kty": "oct", "k": "canarySymmetricKey0123456789abcd"}'
+standard_text_outputs:
+  - id: tail_keeps_closing_parenthesis
+    why: the text a value continues with past an angle bracket does not end in the parenthesis that closes the condition
+    input: 'if (password=canaryPw0rd<x) then'
+    want: 'if (password=<SECRET>) then'
+  - id: redirect_after_value
+    why: a shell redirect after the value is not part of it, so the file name stays
+    input: 'echo token=canaryTok3n>>log9.txt'
+    want: 'echo token=<SECRET>>>log9.txt'
+  - id: redirect_after_value_to_stream
+    why: the same for a redirect to another stream
+    input: 'echo token=canaryTok3n>&2'
+    want: 'echo token=<SECRET>>&2'
 linear_time:
   - id: settings_joined_by_commas
     why: every setting of the run is cut from one unquoted value and read once
