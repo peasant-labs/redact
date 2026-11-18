@@ -33,6 +33,8 @@ const (
 //     word: a token on its own line in JSON-encoded text follows "\n".
 //   - The body holds a digit. A generated token of 20 or more characters
 //     nearly always does; an identifier made of words does not.
+//   - The token is not a name of three or more words in which digits only
+//     end a word (see wordsWithTrailingDigits): vcr_cassette_library_dir_py3.
 //
 // The second test leaves a token made of letters alone unredacted by these
 // rules. That is the price of not redacting code.
@@ -58,7 +60,7 @@ func prefixTokenValues(pattern *regexp.Regexp) valueFinder {
 		for {
 			at := offset + start
 			if at == 0 || !isWordByte(input[at-1]) || endsEncodedBreak(input, at) {
-				if strings.IndexFunc(matched[start:end], isASCIIDigitRune) < 0 {
+				if token := matched[start:end]; strings.IndexFunc(token, isASCIIDigitRune) < 0 || identifierAfterPrefix(token) {
 					return nil
 				}
 				return []valueSpan{{start: at, end: offset + end, construct: at}}
@@ -70,6 +72,15 @@ func prefixTokenValues(pattern *regexp.Regexp) valueFinder {
 			start, end = start+1+inside[0], start+1+inside[1]
 		}
 	}
+}
+
+// identifierAfterPrefix reports whether token, after its first word, is a
+// name made of words in which digits only end a word, as wordsWithTrailingDigits
+// reads one: vcr_cassette_library_dir_py3. The first word is the prefix, and a
+// token whose body is one word is never such a name.
+func identifierAfterPrefix(token string) bool {
+	words := strings.FieldsFunc(token, func(r rune) bool { return r == '_' || r == '-' })
+	return len(words) >= 3 && wordsWithTrailingDigits(strings.Join(words[1:], "_"))
 }
 
 func isWordByte(b byte) bool {

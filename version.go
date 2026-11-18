@@ -82,8 +82,9 @@ package redact
 //	         +vercel_token, +supabase_token, +google_api_key (35 or more
 //	         characters after the prefix), +openai_project_key (the body
 //	         holds a run of 20 characters with no hyphen), each with a
-//	         residue rule. The prefix must start a word and the body must
-//	         hold a digit.
+//	         residue rule. The prefix must start a word, the body must
+//	         hold a digit, and the token must not be a name of words in
+//	         which digits only end a word.
 //	         +authorization_token (the "token" and "Bot" schemes),
 //	         +jwk_private_member.
 //	         A prefix-token rule, cookie_header and jwk_private_member also

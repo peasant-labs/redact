@@ -187,6 +187,7 @@ required_unchanged_text_ids:
   - url_query_percent_variable
   - unquoted_percent_variable
   - member_access_with_digit_in_lower_case_part
+  - prefixed_identifier_with_version_digit
 secrets:
   - {id: anthropic_key, level: minimal, input: "sk-ant-api03-abc123def456abc123def456abc123def456abc123", contains: "<ANTHROPIC_KEY>"}
   - {id: openai_key, level: minimal, input: "sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789", contains: "<OPENAI_KEY>"}
@@ -671,6 +672,9 @@ unchanged_text:
   - id: member_access_with_digit_in_lower_case_part
     why: a member access whose parts start in lower case stays code although it holds digits
     input: 'token = config.oauth2.accessToken9'
+  - id: prefixed_identifier_with_version_digit
+    why: a name of words that starts with a token prefix and holds a digit only at the end of a word is an identifier
+    input: 'vcr_cassette_library_dir_py3 = "fixtures/cassettes"'
 metadata_paths:
   - id: nested_project_becomes_path_project
     why: a project below an intermediate folder keeps only its own folder name, so a published path names the project and nothing about the machine it sat on
