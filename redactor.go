@@ -16,7 +16,8 @@ import (
 // All methods are safe for concurrent use.
 type Redactor interface {
 	// Detect scans input for sensitive patterns at the configured level.
-	// Returns matches sorted by offset. Does NOT modify input.
+	// Returns matches sorted by offset, and longest first at one offset. Does
+	// NOT modify input.
 	// Returns nil if no patterns match.
 	Detect(input string) []Match
 
@@ -605,10 +606,10 @@ func (r *DefaultRedactor) redactJSON(value any, call *observationCall) any {
 		object := jsonObjectKind(v)
 		for key, val := range v {
 			if text, ok := val.(string); ok {
-				if ruleID, placeholder, whole := r.wholeValueRule(object, key, text); whole {
+				if rule, placeholder := r.wholeValueRule(object, key, text); rule != nil {
 					result[key] = placeholder
-					r.recordRedaction(ruleID, CategorySecrets, 1)
-					r.observeWholeValue(call, ruleID)
+					r.recordRedaction(rule.ID, rule.Category, 1)
+					r.observeWholeValue(call, rule.ID)
 					continue
 				}
 				if isHeaderValueKey(key) {
@@ -647,27 +648,50 @@ func jsonObjectKind(object map[string]any) jsonObjectFacts {
 	return jsonObjectFacts{webKey: webKey, sampledToken: sampledToken}
 }
 
-// wholeValueRule reports whether the string value of an object key is replaced
-// whole, and by which rule: a private member of a JSON Web Key, or a value
-// under a key that names a secret. Both apply the test of their text rule to
-// the key, so the JSON form and the text form ("key": "value") make one
-// decision. The rule must be compiled and active at the configured level.
-func (r *DefaultRedactor) wholeValueRule(object jsonObjectFacts, key, value string) (ruleID, placeholder string, whole bool) {
+// wholeValueRule returns the rule that replaces the string value of an object
+// key whole, and the placeholder it leaves: a private member of a JSON Web
+// Key, or a value under a key that names a secret. It returns nil when no rule
+// does. The rule must be active at the configured level.
+//
+// Both rules apply the test of their text form ("key": "value") to the key and
+// the value. The two forms differ in three ways, each because a decoded object
+// says more, or less, than a line of text:
+//
+//   - The "token" of a log-probability entry is left alone. Text has no object
+//     to look for the "logprob" member in.
+//   - A value that a format rule matches whole goes to RedactText, which sees
+//     the value without its key. A rule that needs context beside the value,
+//     as aws_secret_key does, then finds none, and the value is replaced by
+//     the key-name placeholder instead of that rule's.
+//   - The value is known whole, so space around it is not part of it.
+func (r *DefaultRedactor) wholeValueRule(object jsonObjectFacts, key, value string) (rule *Rule, placeholder string) {
+	var ruleID string
 	switch {
 	case object.webKey && isJWKPrivateMember(key, value):
 		ruleID, placeholder = jwkPrivateMemberRuleID, jwkPrivateMemberPlaceholder
 	case object.sampledToken && key == sampledTokenMember:
-		return "", "", false
+		return nil, ""
 	case secretValueUnderKey(key, value):
 		ruleID, placeholder = keyNameSecretRuleID, keyNameSecretPlaceholder
 	default:
-		return "", "", false
+		return nil, ""
 	}
-	rule := findRuleByID(ruleID)
+	rule = findRuleByID(ruleID)
 	if rule == nil || !r.isActiveRule(*rule) {
-		return "", "", false
+		return nil, ""
 	}
-	return ruleID, placeholder, true
+	if ruleID == keyNameSecretRuleID && r.matchesWhole(value) {
+		return nil, ""
+	}
+	return rule, placeholder
+}
+
+// matchesWhole reports whether one active rule matches all of value. RedactJSON
+// then leaves the value to RedactText, so the output keeps that rule's
+// placeholder: {"token": "<GITHUB_PAT>"}, not {"token": "<SECRET>"}.
+func (r *DefaultRedactor) matchesWhole(value string) bool {
+	matches := r.scan(value, nil)
+	return len(matches) > 0 && matches[0].Offset == 0 && matches[0].Length == len(value)
 }
 
 // redactHeaderValue redacts the string under an object key that names a header

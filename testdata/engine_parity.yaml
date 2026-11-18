@@ -13,7 +13,49 @@ required_names:
   - dashed_credit_card_filter
   - ssh_email_filter
   - unicode_offsets
+  - value_under_secret_name_covered_by_configured_rule
+  - value_under_secret_name_cut_by_configured_rule
+  - value_under_secret_name_with_configured_rule_on_name
+  - value_under_secret_name_before_card_number
 cases:
+  # A key-name match spans the value alone and is settled against the matches
+  # of every other rule, configured rules included. Report counts hold only the
+  # matches that remain, so a count never names a redaction that was not made.
+  - name: value_under_secret_name_covered_by_configured_rule
+    input: badge_token=EMP12345 Jane Smith
+    output: 'badge_token=<BADGE>'
+    rules: [badge]
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 1, counts: {badge: 1}}
+    patterns:
+      - {id: badge, category: pii, pattern: 'EMP[0-9]+ [A-Z][a-z]+ [A-Z][a-z]+', replacement: '<BADGE>'}
+  - name: value_under_secret_name_cut_by_configured_rule
+    input: badge_token=canary77EMP12345 Jane Smith
+    output: 'badge_token=<SECRET><BADGE>'
+    rules: [key_name_secret, badge]
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 2, counts: {key_name_secret: 1, badge: 1}}
+    patterns:
+      - {id: badge, category: pii, pattern: 'EMP[0-9]+ [A-Z][a-z]+ [A-Z][a-z]+', replacement: '<BADGE>'}
+  - name: value_under_secret_name_with_configured_rule_on_name
+    input: ACME_DB_PASSWORD=canaryPw0rd2026
+    output: '<ENV_NAME>=<SECRET>'
+    rules: [env_name, key_name_secret]
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 2, counts: {env_name: 1, key_name_secret: 1}}
+    patterns:
+      - {id: env_name, category: project, pattern: 'ACME_[A-Z_]+', replacement: '<ENV_NAME>'}
+  - name: value_under_secret_name_before_card_number
+    input: password=canaryPw0rd2026,card=4111 1111 1111 1111
+    output: 'password=<SECRET>,card=<CREDIT_CARD>'
+    rules: [key_name_secret, credit_card]
+    required_report_names: [first_call, repeated_call]
+    reports:
+      - {name: first_call, total: 2, counts: {key_name_secret: 1, credit_card: 1}}
+      - {name: repeated_call, total: 4, counts: {key_name_secret: 2, credit_card: 2}}
   - name: same_span_rule_order
     input: token
     output: '<FIRST>'

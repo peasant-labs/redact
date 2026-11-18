@@ -909,20 +909,95 @@ cases:
         active: true
         output: "DB_PASSWORD=<SECRET> next"
 
-  - name: key_name_gives_way_to_continuing_match
+  - name: key_name_ends_where_continuing_match_starts
     ruleId: bearer_token
     category: secrets
     input: "token=abc12345Bearer canarybearer0123456789abcd"
     expectations:
       minimal:
         active: true
-        output: "token=abc12345<BEARER_TOKEN>"
+        output: "token=<SECRET><BEARER_TOKEN>"
       standard:
         active: true
-        output: "token=abc12345<BEARER_TOKEN>"
+        output: "token=<SECRET><BEARER_TOKEN>"
       maximum:
         active: true
-        output: "<HIGH_ENTROPY>"
+        output: "token=<SECRET><BEARER_TOKEN>"
+
+  - name: key_name_value_before_card_number
+    ruleId: key_name_secret
+    category: secrets
+    input: "password=hunter2hunter2a1,card=4111 1111 1111 1111"
+    expectations:
+      minimal:
+        active: true
+        output: "password=<SECRET>,card=4111 1111 1111 1111"
+      standard:
+        active: true
+        output: "password=<SECRET>,card=<CREDIT_CARD>"
+      maximum:
+        active: true
+        output: "password=<SECRET>,card=<CREDIT_CARD>"
+
+  - name: key_name_value_before_phone_number
+    ruleId: key_name_secret
+    category: secrets
+    input: "login ok user=jane,token=abc12345xyz,phone=415 555 0123,plan=pro"
+    expectations:
+      minimal:
+        active: true
+        output: "login ok user=jane,token=<SECRET>,phone=415 555 0123,plan=pro"
+      standard:
+        active: true
+        output: "login ok user=jane,token=<SECRET>,phone=<PHONE>,plan=pro"
+      maximum:
+        active: true
+        output: "login ok user=jane,token=<SECRET>,phone=<PHONE>,plan=pro"
+
+  - name: key_name_value_ends_at_next_setting
+    ruleId: key_name_secret
+    category: secrets
+    input: "password=S3cretPw99x,user=jane"
+    expectations:
+      minimal:
+        active: true
+        output: "password=<SECRET>,user=jane"
+      standard:
+        active: true
+        output: "password=<SECRET>,user=jane"
+      maximum:
+        active: true
+        output: "password=<SECRET>,user=jane"
+
+  - name: key_name_value_in_connection_string
+    ruleId: key_name_secret
+    category: secrets
+    input: "Server=db;User Id=sa;Password=S3cretPw99x;Encrypt=true"
+    expectations:
+      minimal:
+        active: true
+        output: "Server=db;User Id=sa;Password=<SECRET>;Encrypt=true"
+      standard:
+        active: true
+        output: "Server=db;User Id=sa;Password=<SECRET>;Encrypt=true"
+      maximum:
+        active: true
+        output: "Server=db;User Id=sa;Password=<SECRET>;Encrypt=true"
+
+  - name: key_name_two_settings_in_one_value
+    ruleId: key_name_secret
+    category: secrets
+    input: "password=S3cretPw99x,token=abc12345xyz"
+    expectations:
+      minimal:
+        active: true
+        output: "password=<SECRET>,token=<SECRET>"
+      standard:
+        active: true
+        output: "password=<SECRET>,token=<SECRET>"
+      maximum:
+        active: true
+        output: "password=<SECRET>,token=<SECRET>"
 
   - name: key_name_keeps_value_past_partial_match
     ruleId: key_name_secret
@@ -1093,7 +1168,12 @@ requiredSecretCaseNames:
   - curl_quoted_pair_with_spaces
   - curl_escaped_password_characters
   - key_name_escaped_password_characters
-  - key_name_gives_way_to_continuing_match
+  - key_name_ends_where_continuing_match_starts
+  - key_name_value_before_card_number
+  - key_name_value_before_phone_number
+  - key_name_value_ends_at_next_setting
+  - key_name_value_in_connection_string
+  - key_name_two_settings_in_one_value
   - key_name_keeps_value_past_partial_match
   - cookie_empty_first_value
   - cookie_quoted_first_value

@@ -4431,11 +4431,32 @@ cases:
     reason: "A backslash that escapes a character is part of the value."
     source: synthetic
 
-  - name: fp_key_name_gives_way_to_continuing_match
+  - name: tp_key_name_ends_where_continuing_match_starts
     input: "token=abc12345Bearer canarybearer0123456789abcd"
     rule: key_name_secret
+    expect: match
+    reason: "The bearer_token match starts inside the value and continues after it. The key-name match ends where that match starts, so both are applied and no part of the value stays in the output."
+    source: synthetic
+
+  - name: tp_bearer_token_after_key_name_value
+    input: "token=abc12345Bearer canarybearer0123456789abcd"
+    rule: bearer_token
+    expect: match
+    reason: "The key-name match before it does not displace the bearer_token match."
+    source: synthetic
+
+  - name: tp_credit_card_after_key_name_value
+    input: "password=hunter2hunter2a1,card=4111 1111 1111 1111"
+    rule: credit_card
+    expect: match
+    reason: "The unquoted value ends at the next setting, so the card number after it is still found."
+    source: synthetic
+
+  - name: fp_key_name_setting_after_value_is_not_secret
+    input: "password=hunter2,user=jane12345"
+    rule: key_name_secret
     expect: no_match
-    reason: "The bearer_token match starts inside the value and continues after it. The key-name rule gives way, so that match is not dropped."
+    reason: "The value ends at the next setting and is 7 characters long. The setting after it is not under a secret name."
     source: synthetic
 
   - name: tp_key_name_keeps_value_past_partial_match

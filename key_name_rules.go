@@ -12,8 +12,14 @@ import (
 //
 // The name lists and the value test live here, in one place. The text rules
 // (key_name_secret, url_query_secret) and RedactJSON all call secretNameKindOf
-// and secretShapedValue, so the three forms make one decision about a name and
-// a value.
+// and secretShapedValue, so the three forms apply one test to a name and a
+// value.
+//
+// Each rule in this file reports the value as its match, not the name and the
+// value (see valueFinder in detect.go). Detection then settles every overlap
+// with another rule's match, so a rule that knows the format of the value gives
+// the output its more specific placeholder, and no match of another rule is
+// lost because one of these rules matched first.
 
 const (
 	keyNameSecretRuleID  = "key_name_secret"
@@ -44,12 +50,6 @@ const (
 	// still be read as a member access (config.oauth2.token). A dotted value
 	// with more digits is a token made of segments.
 	maxReferenceDigits = 2
-	// overlapLookahead is how far past a value otherRuleOwns scans for a match
-	// of another rule that starts inside the value and continues after it. It
-	// is a trade: the scan runs on every key-name match, and 64 bytes hold a
-	// scheme word, a space and a token of 50 characters. A rule whose match
-	// would only complete further on is not seen.
-	overlapLookahead = 64
 )
 
 // credentialNameEndings is the closed list of name endings, compared without
@@ -117,8 +117,17 @@ var keyNameSecretPattern = regexp.MustCompile(
 		`|(?P<sqo>')(?P<sq>[^'\s]+)(?P<sqc>')` +
 		"|(?P<bare>[^\\s\"'`<>=\\\\](?:(?:[^\\s\"'`<>\\\\]|" + escapedCharPattern + ")*(?:[^\\s\"'`<>\\\\,;)\\]}]|" + escapedCharPattern + "))?))")
 
-// keyNameSecretReplacement keeps the text before the value and whichever pair
-// of quotes matched.
+// nextSettingPattern is where an unquoted value ends although the pattern runs
+// on: a comma or a semicolon and then the name of the next setting, as in
+// "password=abc12345,user=jane" and "Password=abc12345;Encrypt=true". RE2 has
+// no lookahead, so the pattern cannot stop there itself, and
+// keyNameSecretValues cuts the value. A password that holds ",name=" is cut
+// short; the text after the cut is read as the next setting.
+var nextSettingPattern = regexp.MustCompile(`[,;][A-Za-z_][A-Za-z0-9_.\-]*=`)
+
+// keyNameSecretReplacement replaces a whole pattern match: it keeps the text
+// before the value and whichever pair of quotes matched. Detection replaces the
+// value alone (see keyNameSecretValues); this form serves the recovery path.
 const keyNameSecretReplacement = "${before}${dqo}${esco}${sqo}" + keyNameSecretPlaceholder + "${dqc}${escc}${sqc}"
 
 // Group indices of keyNameSecretPattern, resolved once by name.
@@ -157,6 +166,8 @@ var (
 var cookieHeaderPattern = regexp.MustCompile(
 	`(?i)\b(?P<before>(?:set-)?cookie(?:\\*["'])?:[ \t]*(?:\\*["'])?)[a-z0-9_.\-$]+=` +
 		`(?:(?:[^\s;"'<${\\][^\s;"'\\]*|\\*"[^\s;"'<${\\][^\s;"'\\]*\\*")(?:;[^\r\n"'\\]*)?|;[^\r\n"'\\]*)`)
+
+var cookieHeaderBeforeGroup = cookieHeaderPattern.SubexpIndex("before")
 
 // secretNameKind says which value test a secret name asks for.
 type secretNameKind int
@@ -278,133 +289,106 @@ func dropASCIIDigit(r rune) rune {
 	return r
 }
 
-// isKeyNameRule reports whether id is one of the rules in this file. They do
-// not give way to each other.
+// isKeyNameRule reports whether id is one of the rules in this file. They come
+// after every format rule in the rule table, so that a format rule wins when
+// its match and a value match span the same text.
 func isKeyNameRule(id string) bool {
 	return id == keyNameSecretRuleID || id == urlQuerySecretRuleID || id == cookieHeaderRuleID
 }
 
-// otherRuleOwns reports whether another rule should redact the text at
-// input[valueStart:valueEnd] instead of a key-name rule. That is so in two
-// cases:
-//
-//   - The other rule matches a span that contains the whole value. It knows
-//     the format, so the output keeps the more specific placeholder
-//     (GITHUB_TOKEN=<GITHUB_PAT>, not GITHUB_TOKEN=<SECRET>).
-//   - The other rule's match starts inside the value and continues more than
-//     one character after it: a scheme word glued to the end of the value and
-//     the token behind it, or a path with a space in it. Redact keeps the
-//     first of two overlapping matches, so a key-name match here would drop
-//     the other rule's match and leave its tail in the output. Giving way
-//     keeps what the other rule redacted before the key-name rules existed.
-//
-// A rule whose match lies inside the value, or runs one character past it
-// because its pattern takes the character after its token, covers only part of
-// the value and does not count: giving way to it would leave the rest of the
-// value in the output.
-//
-// Only rules that are active whenever the key-name rules are can own the text:
-// the secrets and paths categories at their default level. Giving way to a
-// rule that is inactive at the current level would redact nothing.
-//
-// The scan runs from scanStart, which the caller sets to the start of its own
-// match or of the value, to overlapLookahead bytes past the value. A rule that
-// needs a boundary after its token therefore sees the real text after the
-// value, not the edge of the window.
-func otherRuleOwns(input string, scanStart, valueStart, valueEnd int) bool {
-	windowEnd := min(len(input), valueEnd+overlapLookahead)
-	window := input[scanStart:windowEnd]
-	for i := range Rules {
-		rule := &Rules[i]
-		if rule.Pattern == nil || rule.MinimumLevel != "" || isKeyNameRule(rule.ID) ||
-			(rule.Category != CategorySecrets && rule.Category != CategoryPaths) {
-			continue
-		}
-		for _, loc := range rule.Pattern.FindAllStringIndex(window, -1) {
-			start, end := scanStart+loc[0], scanStart+loc[1]
-			covers := start <= valueStart && end >= valueEnd
-			continues := start > valueStart && start < valueEnd && end > valueEnd+1
-			if !covers && !continues {
-				continue
-			}
-			if rule.FilterFn == nil || rule.FilterFn(input[start:end], input, start) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// keyNameSecretFilter keeps a key_name_secret match whose value is a
-// credential that no other rule owns.
-func keyNameSecretFilter(matched, input string, offset int) bool {
-	groups := keyNameSecretPattern.FindStringSubmatchIndex(matched)
-	if groups == nil || groups[0] != 0 {
-		return false
-	}
-	group := func(index int) (string, int, bool) {
-		if groups[2*index] < 0 {
-			return "", 0, false
-		}
-		return matched[groups[2*index]:groups[2*index+1]], groups[2*index], true
-	}
-	var value string
-	valueStart := -1
-	for _, index := range keyNameValueGroups {
-		if text, start, ok := group(index); ok {
-			value, valueStart = text, start
+// keyNameSecretValues returns the credential values in one key_name_secret
+// match. It is usually one value. An unquoted value that runs through the
+// start of another setting (see nextSettingPattern) is cut there, and the rest
+// of the match is read again, so each setting on the line is judged by its own
+// name: "password=abc12345,token=def67890" holds two values.
+func keyNameSecretValues(matched, input string, offset int) []valueSpan {
+	var spans []valueSpan
+	for next := 0; next < len(matched); {
+		base := next
+		groups := keyNameSecretPattern.FindStringSubmatchIndex(matched[base:])
+		if groups == nil {
 			break
 		}
-	}
-	if valueStart < 0 {
-		return false
-	}
-	_, _, bare := group(keyNameBareGroup)
-	name, _, flagForm := group(keyNameFlagGroup)
-	if flagForm {
-		// "--password --verbose": the text after the flag is the next flag.
-		// "--secret id=npmrc,src=.npmrc": a list of settings, not a value.
-		if strings.HasPrefix(value, "-") || flagSettingPattern.MatchString(value) {
-			return false
+		group := func(index int) (start, end int, ok bool) {
+			if groups[2*index] < 0 {
+				return 0, 0, false
+			}
+			return base + groups[2*index], base + groups[2*index+1], true
 		}
-	} else {
-		name, _, _ = group(keyNameNameGroup)
-		tight := len(matched) > len(name) && matched[len(name)] == '='
-		if bare && tight && offset > 0 && (input[offset-1] == '?' || input[offset-1] == '&') {
-			// An unquoted URL query parameter. url_query_secret owns it and
-			// stops the value at the next parameter.
-			return false
+		pairStart := base + groups[0]
+		next = base + groups[1]
+		valueStart, valueEnd := -1, -1
+		for _, index := range keyNameValueGroups {
+			if start, end, ok := group(index); ok {
+				valueStart, valueEnd = start, end
+				break
+			}
+		}
+		if valueStart < 0 {
+			break
+		}
+		_, _, bare := group(keyNameBareGroup)
+		if bare {
+			if cut := nextSettingPattern.FindStringIndex(matched[valueStart:valueEnd]); cut != nil {
+				valueEnd = valueStart + cut[0]
+				next = valueEnd + 1
+			}
+		}
+		value := matched[valueStart:valueEnd]
+		nameStart, nameEnd, flagForm := group(keyNameFlagGroup)
+		if flagForm {
+			// "--password --verbose": the text after the flag is the next flag.
+			// "--secret id=npmrc,src=.npmrc": a list of settings, not a value.
+			if strings.HasPrefix(value, "-") || flagSettingPattern.MatchString(value) {
+				continue
+			}
+		} else {
+			nameStart, nameEnd, _ = group(keyNameNameGroup)
+			tight := nameEnd < len(matched) && matched[nameEnd] == '='
+			if before := offset + pairStart - 1; bare && tight && before >= 0 && (input[before] == '?' || input[before] == '&') {
+				// An unquoted URL query parameter. url_query_secret owns it and
+				// stops the value at the next parameter.
+				continue
+			}
+		}
+		if secretShapedValue(secretNameKindOf(matched[nameStart:nameEnd]), value) {
+			spans = append(spans, valueSpan{offset + valueStart, offset + valueEnd})
 		}
 	}
-	if !secretShapedValue(secretNameKindOf(name), value) {
-		return false
-	}
-	return !otherRuleOwns(input, offset, offset+valueStart, offset+valueStart+len(value))
+	return spans
 }
 
 // flagSettingPattern is a flag value that is itself a setting: id=npmrc.
 var flagSettingPattern = regexp.MustCompile(`^[A-Za-z_]+=`)
 
-// urlQuerySecretFilter keeps a url_query_secret match whose value is a
-// credential that no other rule owns.
-func urlQuerySecretFilter(matched, input string, offset int) bool {
+// urlQuerySecretValues returns the value of a url_query_secret match when it
+// is a credential.
+func urlQuerySecretValues(matched, input string, offset int) []valueSpan {
 	groups := urlQuerySecretPattern.FindStringSubmatchIndex(matched)
 	if groups == nil || groups[0] != 0 {
-		return false
+		return nil
 	}
 	name := matched[groups[2*urlQueryNameGroup]:groups[2*urlQueryNameGroup+1]]
 	valueStart, valueEnd := groups[2*urlQueryValueGroup], groups[2*urlQueryValueGroup+1]
 	if !secretShapedValue(secretNameKindOf(name), matched[valueStart:valueEnd]) {
-		return false
+		return nil
 	}
-	// The scan starts at the name, after the "?" or "&".
-	return !otherRuleOwns(input, offset+1, offset+valueStart, offset+valueEnd)
+	return []valueSpan{{offset + valueStart, offset + valueEnd}}
 }
 
-// secretValueUnderKey reports whether RedactJSON replaces the string value of
-// an object key whole. It is the decision the text rule makes for
-// "key": "value": the key ends in a secret word, the value is a credential, and
-// no other rule owns the value.
+// cookieHeaderValues returns the part of a cookie_header match after the
+// header name: the cookie pairs and attributes.
+func cookieHeaderValues(matched, input string, offset int) []valueSpan {
+	groups := cookieHeaderPattern.FindStringSubmatchIndex(matched)
+	if groups == nil || groups[0] != 0 {
+		return nil
+	}
+	return []valueSpan{{offset + groups[2*cookieHeaderBeforeGroup+1], offset + len(matched)}}
+}
+
+// secretValueUnderKey reports whether the string value of an object key is a
+// credential by the test of the text rule for "key": "value": the key ends in
+// a secret word and the value is shaped like a credential.
 func secretValueUnderKey(key, value string) bool {
-	return secretShapedValue(secretNameKindOf(key), value) && !otherRuleOwns(value, 0, 0, len(value))
+	return secretShapedValue(secretNameKindOf(key), value)
 }

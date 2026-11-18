@@ -581,9 +581,10 @@ var Rules = []Rule{
 	},
 
 	// --- Secrets: identified by key name or header, not by value format ---
-	// Patterns, name lists and value tests are in key_name_rules.go. These
-	// rules come after every format rule, and the first two give way to a
-	// format rule that covers the whole value.
+	// Patterns, name lists and value tests are in key_name_rules.go. Each of
+	// these rules reports the value as its match (see valueRules in detect.go).
+	// They come after every format rule, so a format rule wins where both
+	// match the same text.
 	{
 		// A value under a name that ends in a secret word: NAME=value,
 		// NAME: value, "name": "value", --name value.
@@ -591,7 +592,7 @@ var Rules = []Rule{
 		Category:    CategorySecrets,
 		Pattern:     keyNameSecretPattern,
 		Replacement: keyNameSecretReplacement,
-		// FilterFn is wired in init(): the filter reads Rules.
+		FilterFn:    hasValue(keyNameSecretValues),
 	},
 	{
 		// The same names as a URL query parameter: ?name=value, &name=value.
@@ -599,7 +600,7 @@ var Rules = []Rule{
 		Category:    CategorySecrets,
 		Pattern:     urlQuerySecretPattern,
 		Replacement: "${1}" + keyNameSecretPlaceholder,
-		// FilterFn is wired in init(): the filter reads Rules.
+		FilterFn:    hasValue(urlQuerySecretValues),
 	},
 	{
 		// The value of a Cookie or Set-Cookie header.
@@ -732,10 +733,6 @@ func init() {
 			Rules[i].FilterFn = unixHomeSingleSegmentFilter
 		case "windows_home_path":
 			Rules[i].FilterFn = windowsHomeSingleSegmentFilter
-		case keyNameSecretRuleID:
-			Rules[i].FilterFn = keyNameSecretFilter
-		case urlQuerySecretRuleID:
-			Rules[i].FilterFn = urlQuerySecretFilter
 		}
 	}
 }
