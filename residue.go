@@ -178,6 +178,7 @@ var _ ResidueDetector = (*DefaultResidueDetector)(nil)
 // NewResidueDetector returns a ResidueDetector that scans for missed patterns
 // with the build's selected engine. It panics if a built-in residue rule has no
 // form under that engine; that is a build error, not a caller error.
+// Scan input must be valid UTF-8; see the package input contract.
 func NewResidueDetector() ResidueDetector {
 	detector, err := newResidueDetector(selectEngine())
 	if err != nil {
@@ -198,6 +199,8 @@ func newResidueDetector(e engine) (ResidueDetector, error) {
 // Returns zero or more warnings; all matches are returned — callers that need
 // deduplicated results should filter by RuleID/Location.
 // The input string is never modified.
+//
+// redactedText must be valid UTF-8; see the package input contract.
 func (d *DefaultResidueDetector) Scan(redactedText string) []ResidueWarning {
 	if len(redactedText) == 0 {
 		return nil

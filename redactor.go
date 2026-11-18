@@ -488,6 +488,8 @@ func maskCodeBlocks(s string) string {
 //  4. Residue scan (advisory — appends to Report().Warnings, never modifies content)
 //
 // Thread-safe. Fail-closed: panics are recovered and maximum-level rules are applied.
+//
+// input must be valid UTF-8; see the package input contract.
 func (r *DefaultRedactor) RedactText(input string) (output string) {
 	return r.redactText(input, nil)
 }
@@ -574,6 +576,8 @@ func (r *DefaultRedactor) redactText(input string, call *observationCall) (outpu
 // RedactJSON recursively descends through a JSON-decoded value and redacts strings.
 // Supported types: string, []any, map[string]any, json.Number. Other types pass through unchanged.
 // json.Number is returned as-is: integers > 2^53 decoded via UseNumber() retain full precision.
+//
+// String values must be valid UTF-8; see the package input contract.
 func (r *DefaultRedactor) RedactJSON(value any) any {
 	return r.redactJSON(value, nil)
 }
@@ -919,6 +923,8 @@ func buildPrivateReplacer(id privateMetadata) *strings.Replacer {
 //
 // Fields redacted: Source.FilePath, CWD, HostSlug, Git.Remote/Branch/Worktree/Tracking,
 // Project.FilePath/Name, Diagnostics.Warnings[i].Location/Message.
+//
+// Sensitive string fields must be valid UTF-8; see the package input contract.
 func (r *DefaultRedactor) RedactMetadata(meta *schema.UnifiedMetadata) *schema.UnifiedMetadata {
 	return r.redactMetadata(meta, nil)
 }
