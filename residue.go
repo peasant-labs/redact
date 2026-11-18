@@ -107,6 +107,13 @@ var ResidueRules = []ResidueRule{
 	{ID: "residue_square_oauth_secret", Pattern: regexp.MustCompile(`sq0csp-[0-9A-Za-z_-]{30,}`)},
 	{ID: "residue_telegram_bot_token", Pattern: regexp.MustCompile(`\d{7,}:[0-9A-Za-z_-]{30,}`)},
 
+	// --- Token formats with a documented prefix (broader than the main rules) ---
+	{ID: "residue_github_fine_grained_pat", Pattern: regexp.MustCompile(`github_pat_[A-Za-z0-9_]{10,}`)},
+	{ID: "residue_npm_token", Pattern: regexp.MustCompile(`npm_[A-Za-z0-9]{10,}`)},
+	{ID: "residue_huggingface_token", Pattern: regexp.MustCompile(`hf_[A-Za-z0-9]{10,}`)},
+	{ID: "residue_vercel_token", Pattern: regexp.MustCompile(`vc[piark]_[A-Za-z0-9_-]{10,}`)},
+	{ID: "residue_supabase_token", Pattern: regexp.MustCompile(`(?:sbp|sb_secret)_[A-Za-z0-9_-]{10,}`)},
+
 	// --- Project identity residue rules (10 broader advisory patterns) ---
 	// These are intentionally broader/noisier than the 10 primary project rules.
 	// They catch near-misses: partial URL matches, any github.com URL, loose CI var patterns.

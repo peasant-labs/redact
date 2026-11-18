@@ -456,6 +456,68 @@ var Rules = []Rule{
 		Replacement: "<TELEGRAM_BOT_TOKEN>",
 	},
 
+	// --- Secrets: token formats with a documented prefix ---
+	// For each of these the vendor documents the prefix and publishes no length
+	// and no alphabet. The rule takes the prefix and the run of token characters
+	// after it. The 20-character floor is a noise guard that keeps a bare prefix
+	// and an ordinary identifier out; it is not a statement about the format.
+	{
+		// GitHub fine-grained personal access token. The prefix table in
+		//   https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github
+		// lists "github_pat_" next to the ghp_/gho_/ghu_/ghs_/ghr_ prefixes
+		// that github_pat covers. The body uses the character class of that
+		// rule.
+		ID:          "github_fine_grained_pat",
+		Category:    CategorySecrets,
+		Pattern:     regexp.MustCompile(`github_pat_[A-Za-z0-9_]{20,}`),
+		Replacement: "<GITHUB_PAT>",
+	},
+	{
+		// npm access token outside an .npmrc line (npm_auth_token covers that
+		// line). The prefix and the Base62 checksum at the end are stated in
+		//   https://github.blog/changelog/2021-09-23-npm-has-a-new-access-token-format/
+		// Base62 has no underscore, so an environment name such as
+		// npm_config_registry or npm_package_version does not match.
+		ID:          "npm_token",
+		Category:    CategorySecrets,
+		Pattern:     regexp.MustCompile(`npm_[A-Za-z0-9]{20,}`),
+		Replacement: "<NPM_TOKEN>",
+	},
+	{
+		// Hugging Face user access token. The vendor's page shows the prefix
+		// in its example ("hf_...") and states no more:
+		//   https://huggingface.co/docs/hub/security-tokens
+		// The body takes letters and digits only, so a library name such as
+		// hf_hub_download does not match.
+		ID:          "huggingface_token",
+		Category:    CategorySecrets,
+		Pattern:     regexp.MustCompile(`hf_[A-Za-z0-9]{20,}`),
+		Replacement: "<HUGGINGFACE_TOKEN>",
+	},
+	{
+		// Vercel tokens and API keys. The prefixes are listed in
+		//   https://vercel.com/changelog/new-token-formats-and-secret-scanning
+		// (vcp personal access token, vci integration token, vca app access
+		// token, vcr app refresh token, vck API key). A token issued before
+		// that change has no prefix and no documented format, and this rule
+		// does not cover it.
+		ID:          "vercel_token",
+		Category:    CategorySecrets,
+		Pattern:     regexp.MustCompile(`vc[piark]_[A-Za-z0-9_\-]{20,}`),
+		Replacement: "<VERCEL_TOKEN>",
+	},
+	{
+		// Supabase secret key and personal access token.
+		//   sb_secret_: the key-type table in https://supabase.com/docs/guides/api/api-keys
+		//   sbp_:       the request example in https://supabase.com/docs/reference/api/introduction
+		// The publishable key (sb_publishable_) is meant to be public and is
+		// not redacted.
+		ID:          "supabase_token",
+		Category:    CategorySecrets,
+		Pattern:     regexp.MustCompile(`(?:sbp|sb_secret)_[A-Za-z0-9_\-]{20,}`),
+		Replacement: "<SUPABASE_TOKEN>",
+	},
+
 	// --- Secrets: identified by key name or header, not by value format ---
 	// Patterns, name lists and value tests are in key_name_rules.go. These
 	// rules come after every format rule, and the first two give way to a
