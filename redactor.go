@@ -29,7 +29,8 @@ type Redactor interface {
 	// Applies regex rules and entropy detection to plain text.
 	RedactText(input string) string
 	// RedactJSON recursively applies RedactText to all string values in a JSON-decoded value.
-	// A string value under an object key that names a secret is replaced whole.
+	// A string value under an object key that names a secret, and a private
+	// member of a JSON Web Key, is replaced whole.
 	RedactJSON(value any) any
 	// RedactMetadata applies RedactText to sensitive fields in a DEEP COPY of the metadata.
 	// The original pointer is never mutated.
@@ -563,7 +564,8 @@ func (r *DefaultRedactor) redactText(input string, call *observationCall) (outpu
 }
 
 // RedactJSON recursively descends through a JSON-decoded value and redacts strings.
-// A string under an object key that names a secret (see key_name_rules.go) is
+// A string under an object key that names a secret (see key_name_rules.go), and
+// a private member of a JSON Web Key (see credential_context_rules.go), is
 // replaced whole; every other string goes through RedactText.
 // Supported types: string, []any, map[string]any, json.Number. Other types pass through unchanged.
 // json.Number is returned as-is: integers > 2^53 decoded via UseNumber() retain full precision.
@@ -585,11 +587,15 @@ func (r *DefaultRedactor) redactJSON(value any, call *observationCall) any {
 		return result
 	case map[string]any:
 		result := make(map[string]any, len(v))
+		object := jsonObjectKind(v)
 		for key, val := range v {
-			if text, ok := val.(string); ok && r.redactsValueUnderKey(key, text) {
-				result[key] = keyNameSecretPlaceholder
-				r.recordRedaction(keyNameSecretRuleID, CategorySecrets, 1)
-				continue
+			if text, ok := val.(string); ok {
+				if ruleID, placeholder, whole := r.wholeValueRule(object, key, text); whole {
+					result[key] = placeholder
+					r.recordRedaction(ruleID, CategorySecrets, 1)
+					r.observeWholeValue(call, ruleID)
+					continue
+				}
 			}
 			result[key] = r.redactJSON(val, call)
 		}
@@ -599,17 +605,44 @@ func (r *DefaultRedactor) redactJSON(value any, call *observationCall) any {
 	}
 }
 
-// redactsValueUnderKey reports whether the string value of an object key is
-// replaced whole because the key names a secret. It applies the test of the
-// key_name_secret rule to the key, so the JSON form and the text form
-// ("key": "value") make one decision. The rule must be compiled and active at
-// the configured level.
-func (r *DefaultRedactor) redactsValueUnderKey(key, value string) bool {
-	rule := findRuleByID(keyNameSecretRuleID)
-	if rule == nil || rule.Pattern == nil || !r.isActiveRule(*rule) {
-		return false
+// jsonObjectFacts are the facts about one JSON object that decide how the
+// string values under its keys are read.
+type jsonObjectFacts struct {
+	// webKey: the object carries a key-type member, so it is a JSON Web Key.
+	webKey bool
+	// sampledToken: the object carries a log probability, so its "token"
+	// member is a piece of model output, not a credential.
+	sampledToken bool
+}
+
+// logProbabilityMember marks an entry of a model's token-probability list.
+const logProbabilityMember = "logprob"
+
+func jsonObjectKind(object map[string]any) jsonObjectFacts {
+	_, webKey := object[jwkKeyTypeMember]
+	_, sampledToken := object[logProbabilityMember]
+	return jsonObjectFacts{webKey: webKey, sampledToken: sampledToken}
+}
+
+// wholeValueRule reports whether the string value of an object key is replaced
+// whole, and by which rule: a private member of a JSON Web Key, or a value
+// under a key that names a secret. Both apply the test of their text rule to
+// the key, so the JSON form and the text form ("key": "value") make one
+// decision. The rule must be compiled and active at the configured level.
+func (r *DefaultRedactor) wholeValueRule(object jsonObjectFacts, key, value string) (ruleID, placeholder string, whole bool) {
+	switch {
+	case object.webKey && isJWKPrivateMember(key, value):
+		ruleID, placeholder = jwkPrivateMemberRuleID, jwkPrivateMemberPlaceholder
+	case !object.sampledToken && secretValueUnderKey(key, value):
+		ruleID, placeholder = keyNameSecretRuleID, keyNameSecretPlaceholder
+	default:
+		return "", "", false
 	}
-	return secretValueUnderKey(key, value)
+	rule := findRuleByID(ruleID)
+	if rule == nil || !r.isActiveRule(*rule) {
+		return "", "", false
+	}
+	return ruleID, placeholder, true
 }
 
 // privateMetadata holds the path-bearing values of one session's metadata.
