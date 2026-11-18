@@ -59,12 +59,14 @@ type ruleFixtures struct {
 }
 
 var expectedRuleFamilyCounts = map[string]int{
-	"artifactory_api_token": 16, "artifactory_password": 12, "azure_storage_key": 5,
-	"discord_bot_token": 12, "gitlab_pat": 13, "gitlab_runner_registration": 6,
+	"artifactory_api_token": 17, "artifactory_password": 13, "azure_storage_key": 5,
+	"discord_bot_token": 12, "gitlab_pat": 14, "gitlab_runner_registration": 6,
 	"gitlab_cicd": 7, "gitlab_incoming_mail": 6, "gitlab_trigger": 5,
 	"gitlab_agent": 5, "gitlab_oauth_secret": 5, "mailchimp_api_key": 7,
 	"npm_auth_token": 10, "pypi_api_token": 5, "pypi_test_token": 4,
 	"square_oauth_secret": 6, "telegram_bot_token": 9, "access_code": 7,
+	"github_pat": 6, "aws_access_key": 6, "stripe_key": 4,
+	"slack_token": 4, "slack_webhook_url": 4, "private_key_block": 6,
 }
 
 func mustLoadRuleFixtures(t *testing.T) ruleFixtures {

@@ -94,6 +94,11 @@ func detectWithRulesInto(input string, rules []Rule, accepted func(ruleIndex int
 		if rule.Pattern == nil {
 			continue
 		}
+		// The gate is a cheap byte check: a false return proves the value cannot
+		// match, so the rule's regex never runs. It never decides what is kept.
+		if !admits(rule, input) {
+			continue
+		}
 		for _, loc := range rule.Pattern.FindAllStringIndex(input, -1) {
 			match := Match{Rule: rule.ID, Offset: loc[0], Length: loc[1] - loc[0], Category: rule.Category, MatchedText: input[loc[0]:loc[1]]}
 			if rule.FilterFn == nil || rule.FilterFn(match.MatchedText, input, match.Offset) {
