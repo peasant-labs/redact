@@ -34,6 +34,13 @@ guarantees this precondition before invoking redaction. Encoding validation and
 normalization do not belong in this package; invalid UTF-8 input is out of scope
 and does not gate the engine swap.
 
+The precondition is stated in the package documentation and on every public
+entry point. The exact engine divergence is pinned in
+`testdata/engine_invalid_utf8.yaml`: stdlib treats an invalid byte as U+FFFD,
+while go-re2 skips it, so a violated contract can redact less. That fixture is a
+reviewed divergence record, not a parity requirement.
+`peasant-labs/peasant#826` owns ingest-level validation.
+
 This seam adds no chunking or input-size policy.
 
 The differential corpus proves synthetic valid-UTF-8 rule spans,

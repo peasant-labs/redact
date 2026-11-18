@@ -30,6 +30,8 @@ type Match struct {
 // need to hold matches past the input's lifetime must copy MatchedText themselves.
 //
 // If no patterns match, Detect returns nil (not an empty slice).
+//
+// input must be valid UTF-8; see the package input contract.
 func (r *DefaultRedactor) Detect(input string) []Match {
 	return r.detect(input, nil)
 }
@@ -121,6 +123,8 @@ func detectWithRulesInto(input string, rules []Rule, patterns compiledPatterns, 
 // applied match, the overlapping match is silently ignored.
 //
 // The output string is built in a single pass from left to right.
+//
+// input must be valid UTF-8; see the package input contract.
 func (r *DefaultRedactor) Redact(input string, matches []Match) string {
 	rules := make([]Rule, 0, len(Rules)+len(r.userRules))
 	rules = append(rules, Rules...)

@@ -32,6 +32,8 @@ type JSONRedactor interface {
 // If the scanner encounters a line exceeding the buffer (bufio.ErrTooLong),
 // the function returns the original unmodified data as a fail-safe to prevent
 // writing a truncated or partially-redacted transcript file.
+//
+// Decoded strings must be valid UTF-8; see the package input contract.
 func RedactJSONLBytes(r JSONRedactor, data []byte, opts ...RedactJSONLBytesOption) ([]byte, error) {
 	cfg := defaultScannerConfig()
 	if provider, ok := r.(interface{ redactScannerConfig() scannerConfig }); ok {
@@ -113,6 +115,8 @@ func (r *DefaultRedactor) redactScannerConfig() scannerConfig { return r.scanner
 
 // RedactJSONDocBytes processes an entire JSON document, applying RedactJSON to the
 // decoded value and marshalling back. Returns the original data on any error.
+//
+// Decoded strings must be valid UTF-8; see the package input contract.
 func RedactJSONDocBytes(r JSONRedactor, data []byte) []byte {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.UseNumber()

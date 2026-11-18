@@ -37,6 +37,7 @@ type TitlePipeline struct {
 }
 
 // NewTitlePipeline constructs the fixed baseline-Standard title policy.
+// Title input must be valid UTF-8; see the package input contract.
 func NewTitlePipeline() (*TitlePipeline, error) {
 	return newTitlePipelineWithEngine(selectEngine())
 }
@@ -73,6 +74,7 @@ func newTitlePipelineWithEngine(e engine) (*TitlePipeline, error) {
 //     falls back to a generic title.
 //
 // GenerateFromTurns applies both rules for the caller.
+// firstTurn must be valid UTF-8; see the package input contract.
 func (p *TitlePipeline) Generate(firstTurn string, context TitleContext) (TitleResult, error) {
 	if p == nil {
 		return TitleResult{}, nilTitlePipelineError("Generate", "generating a title from the first user turn")
@@ -90,6 +92,7 @@ func (p *TitlePipeline) Generate(firstTurn string, context TitleContext) (TitleR
 // Sanitize never interprets harness markup. It preserves exact input bytes when
 // no sensitive rewrite occurs and the title is within the length limit; a
 // sensitive or over-limit title returns its canonical rewritten or capped text.
+// title must be valid UTF-8; see the package input contract.
 func (p *TitlePipeline) Sanitize(title string, context TitleContext) (TitleResult, error) {
 	if p == nil {
 		return TitleResult{}, nilTitlePipelineError("Sanitize", "sanitizing a supplied title")
