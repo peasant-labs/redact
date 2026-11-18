@@ -1,6 +1,7 @@
 package redact
 
 import (
+	"net/url"
 	"regexp"
 	"slices"
 	"strings"
@@ -290,6 +291,7 @@ var notCredentialPrefixes = []string{"#{", "~/", "./", "../", `\`, "arn:", "vaul
 //	holds a space (a description, a passphrase)              kept
 //	holds "://" (a location)                                 kept
 //	a reference: $VAR ${VAR} $(cmd) %s %VAR% #{x} arn:...    kept
+//	  (a URL query value is tested decoded, so %2B is data)
 //	a template or a structure: <token> {name} [a, b] (none)  kept
 //	a path: /etc/x ~/x ./x config/x.yml a/123/b              kept
 //	a type or a call: Optional<String> getToken() f(x).y     kept
@@ -364,7 +366,9 @@ func referenceOrStructure(value string, whole bool) bool {
 	last := value[len(value)-1]
 	switch value[0] {
 	case '$':
-		return !whole || shellReferencePattern.MatchString(value)
+		// Quoted or not, a value that reads a variable and holds nothing else.
+		// $2a$10$N9qo8uLOickgx2ZMRZoMye is data.
+		return shellReferencePattern.MatchString(value)
 	case '%':
 		return !whole || formatReferencePattern.MatchString(value)
 	case '{':
@@ -696,7 +700,14 @@ func urlQuerySecretValues(matched, input string, offset int) []valueSpan {
 	}
 	name := matched[groups[2*urlQueryNameGroup]:groups[2*urlQueryNameGroup+1]]
 	valueStart, valueEnd := groups[2*urlQueryValueGroup], groups[2*urlQueryValueGroup+1]
-	if !secretShapedValue(secretNameKindOf(name), matched[valueStart:valueEnd], false) {
+	value := matched[valueStart:valueEnd]
+	// In a URL a percent sign and two hex digits are one encoded character,
+	// so the value is tested as it reads decoded: %2BaB3x... is +aB3x....
+	// A value that does not decode (%s, %TOKEN%) is tested as it is.
+	if decoded, err := url.PathUnescape(value); err == nil {
+		value = decoded
+	}
+	if !secretShapedValue(secretNameKindOf(name), value, false) {
 		return nil
 	}
 	return []valueSpan{{start: offset + valueStart, end: offset + valueEnd, construct: offset}}

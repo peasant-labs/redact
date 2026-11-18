@@ -140,6 +140,8 @@ required_standard_text_outputs_ids:
   - clone_url_with_token_user
   - clone_url_with_ci_token_user
   - curl_pair_beside_commit_hash
+  - url_query_value_percent_encoded
+  - unquoted_value_with_dollar_signs
 required_linear_time_ids:
   - settings_joined_by_commas
   - settings_joined_by_semicolons
@@ -171,6 +173,10 @@ required_unchanged_text_ids:
   - generated_key_decoded
   - random_bytes_as_text
   - optional_chain_call
+  - unquoted_command_substitution
+  - url_query_format_verb
+  - url_query_percent_variable
+  - unquoted_percent_variable
 secrets:
   - {id: anthropic_key, level: minimal, input: "sk-ant-api03-abc123def456abc123def456abc123def456abc123", contains: "<ANTHROPIC_KEY>"}
   - {id: openai_key, level: minimal, input: "sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789", contains: "<OPENAI_KEY>"}
@@ -504,6 +510,14 @@ standard_text_outputs:
     why: the placeholder of the curl pair holds no word that the AWS secret key rule reads as context, so a second pass leaves the commit hash on the same line alone
     input: 'curl -u admin:canaryCurlPw0rd https://api.github.com/repos/o/r/commits/3f786850e387550fdab836ed7e6dc881de23001b'
     want: 'curl -u <USER_PASSWORD> https://api.github.com/repos/o/r/commits/3f786850e387550fdab836ed7e6dc881de23001b'
+  - id: url_query_value_percent_encoded
+    why: in a URL query a percent sign and two hex digits are an encoded character, not a format verb
+    input: 'https://api.example.com/v1?access_token=%2BcanaryB3xkd92LqZw81&x=1'
+    want: 'https://api.example.com/v1?access_token=<SECRET>&x=1'
+  - id: unquoted_value_with_dollar_signs
+    why: a dollar sign that does not start a variable name, a brace or a parenthesis is data
+    input: 'DB_PASSWORD=$2a$10$canaryN9qo8uLOickgx2ZMRZoMye'
+    want: 'DB_PASSWORD=<SECRET>'
 linear_time:
   - id: settings_joined_by_commas
     why: every setting of the run is cut from one unquoted value and read once
@@ -593,6 +607,18 @@ unchanged_text:
   - id: optional_chain_call
     why: an optional member access that ends in a call is code
     input: "const token = req.headers.authorization?.split(' ')[1]"
+  - id: unquoted_command_substitution
+    why: a command substitution cut at its first space is a reference
+    input: 'TOKEN=$(cat /run/secrets/canary_tok3n)'
+  - id: url_query_format_verb
+    why: a format verb in a URL query does not decode and stays a template
+    input: 'https://api.example.com/v1?access_token=%s&x=1'
+  - id: url_query_percent_variable
+    why: a variable between percent signs in a URL query does not decode and stays a reference
+    input: 'https://api.example.com/v1?access_token=%API_TOKEN_2026%&x=1'
+  - id: unquoted_percent_variable
+    why: a variable between percent signs is a reference
+    input: 'DB_PASSWORD=%DB_PASSWORD_2026%'
 metadata_paths:
   - id: nested_project_becomes_path_project
     why: a project below an intermediate folder keeps only its own folder name, so a published path names the project and nothing about the machine it sat on
