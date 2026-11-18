@@ -62,15 +62,16 @@ package redact
 //	3.1.1 — a location that is only the account name, recorded by a session run
 //	         straight from the home folder, collapses to the placeholder in the
 //	         path form and in both slug forms instead of returning the account.
-//	3.2.0 — +key_name_secret: a value under a name that ends in a secret word
-//	         (token, secret, password, passwd, passphrase; and, for a long value
-//	         that mixes letters and digits, credential, private_key, access_key,
-//	         api_key, secret_key, auth) in the NAME=value, NAME: value,
-//	         "name": "value" and --name value forms; RedactJSON applies the same
-//	         test to object keys. +url_query_secret: the same names as a URL
-//	         query parameter. +cookie_header: the value of a Cookie or Set-Cookie
-//	         header. stripe_key matches 24 or more characters after the prefix
-//	         (was exactly 24), so a longer key no longer leaves its tail.
+//	3.2.0 — rules that use the name of the key, new token formats, and two
+//	         pattern gaps. +key_name_secret (a value under a name that ends in a
+//	         secret word; the lists are in key_name_rules.go), +url_query_secret,
+//	         +cookie_header; RedactJSON applies the key-name test to object keys.
+//	         +github_fine_grained_pat, +npm_token, +huggingface_token,
+//	         +vercel_token, +supabase_token (documented prefixes),
+//	         +authorization_token (the "token" and "Bot" schemes),
+//	         +curl_user_password, +jwk_private_member. stripe_key matches 24 or
+//	         more characters after the prefix (was exactly 24), so a longer key
+//	         no longer leaves its tail.
 const RuleSetVersion = "3.2.0"
 
 // Version returns the rule set version string.
