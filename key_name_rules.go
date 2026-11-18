@@ -225,6 +225,12 @@ var (
 	// process.env.TOKEN, request.body.token, var.database_password,
 	// session?.accessToken, oauth2::AccessToken, user->token.
 	memberAccessPattern = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*(?:(?:\.|\?\.|::|->)[A-Za-z_$][A-Za-z0-9_$]*)+$`)
+	// capitalWordWithDigitsPattern is a part of a dotted value that is a word
+	// with a capital first letter and digits at its end: the Pass1 of
+	// Secure.Pass1 or the Snow24 of Winter.Snow24. A member name rarely has
+	// that shape and a password made of words often does, so a dotted value
+	// with such a part is not read as a member access.
+	capitalWordWithDigitsPattern = regexp.MustCompile(`(?:^|[.:>])[A-Z][a-z]+[0-9]+(?:[.?:\-]|$)`)
 	// indexedIdentifierPattern is an identifier that is then indexed:
 	// os.environ[, ENV[, argv[.
 	indexedIdentifierPattern = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$.]*\[`)
@@ -302,6 +308,8 @@ var notCredentialPrefixes = []string{"#{", "~/", "./", "../", `\`, "arn:", "vaul
 //	no letter: digits only, a mask such as ********          kept
 //	letters only, as words: hashedPassword, your-api-key     kept
 //	a version, a member access, an indexed name              kept
+//	  (a member access holds two digits at most and no part
+//	  such as Pass1, so Secure.Pass1 is not one)
 //	words where digits only end a word: oauth2_token,
 //	  sha256_password, db-credentials-prod2                  kept
 //	key material: no digit, or entropy below 3.5             kept
@@ -351,7 +359,7 @@ func secretShapedValue(kind secretNameKind, value string, whole bool) bool {
 		return false
 	}
 	digits := len(value) - len(strings.Map(dropASCIIDigit, value))
-	if memberAccessPattern.MatchString(identifier) && digits <= maxReferenceDigits {
+	if memberAccessPattern.MatchString(identifier) && digits <= maxReferenceDigits && !capitalWordWithDigitsPattern.MatchString(identifier) {
 		return false
 	}
 	if kind == keyMaterialName {

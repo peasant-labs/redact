@@ -144,6 +144,8 @@ required_standard_text_outputs_ids:
   - unquoted_value_with_dollar_signs
   - path_value_with_account_name_is_stable
   - slug_value_with_account_name_is_stable
+  - dotted_password_with_digits_after_capital_word
+  - dotted_password_with_two_digits
 required_value_rule_replacements_ids:
   - key_name_secret
   - url_query_secret
@@ -184,6 +186,7 @@ required_unchanged_text_ids:
   - url_query_format_verb
   - url_query_percent_variable
   - unquoted_percent_variable
+  - member_access_with_digit_in_lower_case_part
 secrets:
   - {id: anthropic_key, level: minimal, input: "sk-ant-api03-abc123def456abc123def456abc123def456abc123", contains: "<ANTHROPIC_KEY>"}
   - {id: openai_key, level: minimal, input: "sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789", contains: "<OPENAI_KEY>"}
@@ -533,6 +536,14 @@ standard_text_outputs:
     why: the same for a quoted value made of words and dashes that holds an account name
     input: "secret='--Users--johndoe--'"
     want: "secret='--Users--<USER>--'"
+  - id: dotted_password_with_digits_after_capital_word
+    why: a dotted value whose last part is a capitalised word ending in a digit is a password, not a member access
+    input: 'password=Canary.Pass1'
+    want: 'password=<SECRET>'
+  - id: dotted_password_with_two_digits
+    why: the same with two digits
+    input: 'DB_PASSWORD=Canary.Snow24'
+    want: 'DB_PASSWORD=<SECRET>'
 # The rules that replace a value and not their whole pattern match. Each
 # Replacement is the bare placeholder; the recovery path keeps the name.
 value_rule_replacements:
@@ -657,6 +668,9 @@ unchanged_text:
   - id: unquoted_percent_variable
     why: a variable between percent signs is a reference
     input: 'DB_PASSWORD=%DB_PASSWORD_2026%'
+  - id: member_access_with_digit_in_lower_case_part
+    why: a member access whose parts start in lower case stays code although it holds digits
+    input: 'token = config.oauth2.accessToken9'
 metadata_paths:
   - id: nested_project_becomes_path_project
     why: a project below an intermediate folder keeps only its own folder name, so a published path names the project and nothing about the machine it sat on
