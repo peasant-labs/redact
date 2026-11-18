@@ -706,13 +706,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: "curl -u jane:<SECRET> https://api.example.com/v1"
+        output: "curl -u <CREDENTIALS> https://api.example.com/v1"
       standard:
         active: true
-        output: "curl -u jane:<SECRET> https://api.example.com/v1"
+        output: "curl -u <CREDENTIALS> https://api.example.com/v1"
       maximum:
         active: true
-        output: "curl -u jane:<SECRET> https://api.example.com/v1"
+        output: "curl -u <CREDENTIALS> https://api.example.com/v1"
 
   - name: curl_long_user_option
     ruleId: curl_user_password
@@ -721,13 +721,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: "curl --silent --user \"jane:<SECRET>\" https://api.example.com/v1"
+        output: "curl --silent --user \"<CREDENTIALS>\" https://api.example.com/v1"
       standard:
         active: true
-        output: "curl --silent --user \"jane:<SECRET>\" https://api.example.com/v1"
+        output: "curl --silent --user \"<CREDENTIALS>\" https://api.example.com/v1"
       maximum:
         active: true
-        output: "curl --silent --user \"jane:<SECRET>\" https://api.example.com/v1"
+        output: "curl --silent --user \"<CREDENTIALS>\" https://api.example.com/v1"
 
   - name: curl_user_option_after_bearer_header
     ruleId: curl_user_password
@@ -736,13 +736,13 @@ cases:
     expectations:
       minimal:
         active: true
-        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u jane:<SECRET> https://api.example.com"
+        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u <CREDENTIALS> https://api.example.com"
       standard:
         active: true
-        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u jane:<SECRET> https://api.example.com"
+        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u <CREDENTIALS> https://api.example.com"
       maximum:
         active: true
-        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u jane:<SECRET> https://api.example.com"
+        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u <CREDENTIALS> https://api.example.com"
 
   - name: jwk_private_member
     ruleId: jwk_private_member
@@ -758,6 +758,261 @@ cases:
       maximum:
         active: true
         output: "{\"kty\": \"OKP\", \"crv\": \"Ed25519\", \"x\": \"canaryPublicX\", \"d\": \"<JWK_PRIVATE_KEY>\"}"
+
+  - name: curl_token_as_user_name
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -u ghp_abcdefghijklmnopqrstuvwxyz0123456789:x-oauth-basic https://api.example.com/user"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -u <CREDENTIALS> https://api.example.com/user"
+      standard:
+        active: true
+        output: "curl -u <CREDENTIALS> https://api.example.com/user"
+      maximum:
+        active: true
+        output: "curl -u <CREDENTIALS> https://api.example.com/user"
+
+  - name: curl_option_after_quoted_semicolon
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -H \"Accept: application/json; charset=utf-8\" -u jane:canaryCurlPw0rd https://api.example.com"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -H \"Accept: application/json; charset=utf-8\" -u <CREDENTIALS> https://api.example.com"
+      standard:
+        active: true
+        output: "curl -H \"Accept: application/json; charset=utf-8\" -u <CREDENTIALS> https://api.example.com"
+      maximum:
+        active: true
+        output: "curl -H \"Accept: application/json; charset=utf-8\" -u <CREDENTIALS> https://api.example.com"
+
+  - name: curl_bundled_short_options
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -sSu jane:canaryCurlPw0rd https://api.example.com/v1"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -sSu <CREDENTIALS> https://api.example.com/v1"
+      standard:
+        active: true
+        output: "curl -sSu <CREDENTIALS> https://api.example.com/v1"
+      maximum:
+        active: true
+        output: "curl -sSu <CREDENTIALS> https://api.example.com/v1"
+
+  - name: curl_attached_value
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -ujane:canaryCurlPw0rd https://api.example.com/v1"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -u<CREDENTIALS> https://api.example.com/v1"
+      standard:
+        active: true
+        output: "curl -u<CREDENTIALS> https://api.example.com/v1"
+      maximum:
+        active: true
+        output: "curl -u<CREDENTIALS> https://api.example.com/v1"
+
+  - name: curl_argument_list
+    ruleId: curl_user_password
+    category: secrets
+    input: "[\"curl\", \"-u\", \"jane:canaryCurlPw0rd\", \"https://api.example.com/v1\"]"
+    expectations:
+      minimal:
+        active: true
+        output: "[\"curl\", \"-u\", \"<CREDENTIALS>\", \"https://api.example.com/v1\"]"
+      standard:
+        active: true
+        output: "[\"curl\", \"-u\", \"<CREDENTIALS>\", \"https://api.example.com/v1\"]"
+      maximum:
+        active: true
+        output: "[\"curl\", \"-u\", \"<CREDENTIALS>\", \"https://api.example.com/v1\"]"
+
+  - name: curl_quoted_pair_with_spaces
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -u 'jane:canary pass phrase 9' https://api.example.com/v1"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -u '<CREDENTIALS>' https://api.example.com/v1"
+      standard:
+        active: true
+        output: "curl -u '<CREDENTIALS>' https://api.example.com/v1"
+      maximum:
+        active: true
+        output: "curl -u '<CREDENTIALS>' https://api.example.com/v1"
+
+  - name: curl_escaped_password_characters
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -u jane:canary\\@Pw0rd\\!Long https://api.example.com/v1"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -u <CREDENTIALS> https://api.example.com/v1"
+      standard:
+        active: true
+        output: "curl -u <CREDENTIALS> https://api.example.com/v1"
+      maximum:
+        active: true
+        output: "curl -u <CREDENTIALS> https://api.example.com/v1"
+
+  - name: key_name_escaped_password_characters
+    ruleId: key_name_secret
+    category: secrets
+    input: "DB_PASSWORD=Sup3r\\!Canary9 next"
+    expectations:
+      minimal:
+        active: true
+        output: "DB_PASSWORD=<SECRET> next"
+      standard:
+        active: true
+        output: "DB_PASSWORD=<SECRET> next"
+      maximum:
+        active: true
+        output: "DB_PASSWORD=<SECRET> next"
+
+  - name: key_name_gives_way_to_continuing_match
+    ruleId: bearer_token
+    category: secrets
+    input: "token=abc12345Bearer canarybearer0123456789abcd"
+    expectations:
+      minimal:
+        active: true
+        output: "token=abc12345<BEARER_TOKEN>"
+      standard:
+        active: true
+        output: "token=abc12345<BEARER_TOKEN>"
+      maximum:
+        active: true
+        output: "<HIGH_ENTROPY>"
+
+  - name: key_name_keeps_value_past_partial_match
+    ruleId: key_name_secret
+    category: secrets
+    input: "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\nJWT_SECRET=Y2FuYXJ5and0U2VjcmV0MDEyMzQ1Njc4OWFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6\n"
+    expectations:
+      minimal:
+        active: true
+        output: "AWS_ACCESS_KEY_ID=<AWS_ACCESS_KEY>\nJWT_SECRET=<SECRET>\n"
+      standard:
+        active: true
+        output: "AWS_ACCESS_KEY_ID=<AWS_ACCESS_KEY>\nJWT_SECRET=<SECRET>\n"
+      maximum:
+        active: true
+        output: "AWS_ACCESS_KEY_ID=<AWS_ACCESS_KEY>\nJWT_SECRET=<SECRET>\n"
+
+  - name: cookie_empty_first_value
+    ruleId: cookie_header
+    category: secrets
+    input: "Cookie: theme=; session=canarySessionCookie0123456789abcdef"
+    expectations:
+      minimal:
+        active: true
+        output: "Cookie: <COOKIE>"
+      standard:
+        active: true
+        output: "Cookie: <COOKIE>"
+      maximum:
+        active: true
+        output: "Cookie: <COOKIE>"
+
+  - name: cookie_quoted_first_value
+    ruleId: cookie_header
+    category: secrets
+    input: "Set-Cookie: session=\"canarySessionCookie0123456789abcdef\"; Path=/"
+    expectations:
+      minimal:
+        active: true
+        output: "Set-Cookie: <COOKIE>"
+      standard:
+        active: true
+        output: "Set-Cookie: <COOKIE>"
+      maximum:
+        active: true
+        output: "Set-Cookie: <COOKIE>"
+
+  - name: jwk_private_member_single_quoted
+    ruleId: jwk_private_member
+    category: secrets
+    input: "{'kty': 'EC', 'crv': 'P-256', 'd': 'canaryPrivateMember0123456789abcdefghijklmn'}"
+    expectations:
+      minimal:
+        active: true
+        output: "{'kty': 'EC', 'crv': 'P-256', 'd': '<JWK_PRIVATE_KEY>'}"
+      standard:
+        active: true
+        output: "{'kty': 'EC', 'crv': 'P-256', 'd': '<JWK_PRIVATE_KEY>'}"
+      maximum:
+        active: true
+        output: "{'kty': 'EC', 'crv': 'P-256', 'd': '<JWK_PRIVATE_KEY>'}"
+
+  - name: unlisted_format_under_api_key_name
+    ruleId: generic_api_key
+    category: secrets
+    input: "GOOGLE_API_KEY=AIzacanary0123456789abcdefghijklmnopqrs"
+    expectations:
+      minimal:
+        active: true
+        output: "GOOGLE_<API_KEY>"
+      standard:
+        active: true
+        output: "GOOGLE_<API_KEY>"
+      maximum:
+        active: true
+        output: "GOOGLE_<API_KEY>"
+
+  - name: unlisted_format_after_bearer
+    ruleId: bearer_token
+    category: secrets
+    input: "Authorization: Bearer sk-proj-canary0123456789abcdefghij"
+    expectations:
+      minimal:
+        active: true
+        output: "Authorization: <BEARER_TOKEN>"
+      standard:
+        active: true
+        output: "Authorization: <BEARER_TOKEN>"
+      maximum:
+        active: true
+        output: "Authorization: <BEARER_TOKEN>"
+
+  - name: unlisted_format_under_secret_name
+    ruleId: key_name_secret
+    category: secrets
+    input: "PROVIDER_SECRET=sk-proj-canary0123456789abcdefghij"
+    expectations:
+      minimal:
+        active: true
+        output: "PROVIDER_SECRET=<SECRET>"
+      standard:
+        active: true
+        output: "PROVIDER_SECRET=<SECRET>"
+      maximum:
+        active: true
+        output: "PROVIDER_SECRET=<SECRET>"
+
+  - name: curl_option_after_quoted_cookie_header
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -H 'Cookie: a=b; c=d' --user jane:canaryCurlPw0rd https://api.example.com"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -H 'Cookie: <COOKIE>' --user <CREDENTIALS> https://api.example.com"
+      standard:
+        active: true
+        output: "curl -H 'Cookie: <COOKIE>' --user <CREDENTIALS> https://api.example.com"
+      maximum:
+        active: true
+        output: "curl -H 'Cookie: <COOKIE>' --user <CREDENTIALS> https://api.example.com"
 
 # Reviewed manifest of the secret-rule rows above. The loader asserts exact
 # membership in both directions.
@@ -798,3 +1053,20 @@ requiredSecretCaseNames:
   - curl_long_user_option
   - curl_user_option_after_bearer_header
   - jwk_private_member
+  - curl_token_as_user_name
+  - curl_option_after_quoted_semicolon
+  - curl_bundled_short_options
+  - curl_attached_value
+  - curl_argument_list
+  - curl_quoted_pair_with_spaces
+  - curl_escaped_password_characters
+  - key_name_escaped_password_characters
+  - key_name_gives_way_to_continuing_match
+  - key_name_keeps_value_past_partial_match
+  - cookie_empty_first_value
+  - cookie_quoted_first_value
+  - jwk_private_member_single_quoted
+  - unlisted_format_under_api_key_name
+  - unlisted_format_after_bearer
+  - unlisted_format_under_secret_name
+  - curl_option_after_quoted_cookie_header

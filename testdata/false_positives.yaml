@@ -3823,7 +3823,7 @@ cases:
     input: "npm_canarytoken0123456789abcdefghij"
     rule: npm_token
     expect: match
-    reason: "The documented prefix and a Base62 run."
+    reason: "The documented prefix and a run of letters and digits."
     source: synthetic
 
   - name: tp_npm_token_minimal
@@ -3838,7 +3838,7 @@ cases:
     input: "npm_config_registry=https://registry.example.com"
     rule: npm_token
     expect: no_match
-    reason: "An environment name has underscores after the prefix. Base62 has none."
+    reason: "An environment name has underscores after the prefix, and the rule takes letters and digits only."
     source: synthetic
 
   - name: fp_npm_token_lifecycle_name
@@ -4081,7 +4081,7 @@ cases:
     input: "curl -u jane:canaryCurlPw0rd https://api.example.com/v1"
     rule: curl_user_password
     expect: match
-    reason: "The password after the first colon of the user option."
+    reason: "The user and password pair of the user option."
     source: synthetic
 
   - name: tp_curl_short_user_option_minimal
@@ -4273,4 +4273,240 @@ cases:
     rule: curl_user_password
     expect: match
     reason: "An ampersand inside a quoted URL is not an operator, so the option still belongs to curl."
+    source: synthetic
+
+  # ---------------------------------------------------------------------------
+  # Rows added after the second review: identifiers under the prefix rules, the
+  # other spellings of the curl user option, and the edges of the overlap rule.
+  # ---------------------------------------------------------------------------
+
+  - name: fp_vercel_snake_case_identifier
+    input: "vcr_cassette_library_dir = 'spec/cassettes'"
+    rule: vercel_token
+    expect: no_match
+    reason: "An identifier made of words holds no digit."
+    source: synthetic
+
+  - name: fp_github_fine_grained_pat_variable_name
+    input: "var.github_pat_for_terraform_cloud_workspace"
+    rule: github_fine_grained_pat
+    expect: no_match
+    reason: "A variable name that starts with the prefix holds no digit."
+    source: synthetic
+
+  - name: fp_supabase_prefix_inside_word
+    input: "usbp_device_descriptor_table_entry_2"
+    rule: supabase_token
+    expect: no_match
+    reason: "The prefix must start a word."
+    source: synthetic
+
+  - name: fp_huggingface_class_name
+    input: "hf_AutoModelForCausalLMWrapper.from_pretrained(name)"
+    rule: huggingface_token
+    expect: no_match
+    reason: "A long identifier of letters holds no digit."
+    source: synthetic
+
+  - name: fp_npm_prefix_inside_word
+    input: "pnpm_canarytoken0123456789abcdefghij"
+    rule: npm_token
+    expect: no_match
+    reason: "The prefix must start a word."
+    source: synthetic
+
+  - name: tp_curl_token_as_user_name
+    input: "curl -u ghp_abcdefghijklmnopqrstuvwxyz0123456789:x-oauth-basic https://api.example.com/user"
+    rule: curl_user_password
+    expect: match
+    reason: "A token sent as the user name is part of the pair, and the whole pair is replaced."
+    source: synthetic
+
+  - name: tp_curl_empty_user_name
+    input: "curl -u :canaryCurlTok0123456789 https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    reason: "An empty user name with a token as the password."
+    source: synthetic
+
+  - name: tp_curl_bundled_short_options
+    input: "curl -sSu jane:canaryCurlPw0rd https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    reason: "The option bundled after other short options."
+    source: synthetic
+
+  - name: tp_curl_attached_value
+    input: "curl -ujane:canaryCurlPw0rd https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    reason: "The pair attached to the option with no space."
+    source: synthetic
+
+  - name: tp_curl_argument_list
+    input: "[\"curl\", \"-u\", \"jane:canaryCurlPw0rd\", \"https://api.example.com/v1\"]"
+    rule: curl_user_password
+    expect: match
+    reason: "The option and the pair as two members of an argument list."
+    source: synthetic
+
+  - name: tp_curl_option_after_quoted_semicolon
+    input: "curl -H \"Accept: application/json; charset=utf-8\" -u jane:canaryCurlPw0rd https://api.example.com"
+    rule: curl_user_password
+    expect: match
+    reason: "A semicolon inside a quoted argument does not start another command."
+    source: synthetic
+
+  - name: tp_curl_option_after_quoted_and
+    input: "curl -d '{\"q\": \"a && b\"}' --user jane:canaryCurlPw0rd https://api.example.com"
+    rule: curl_user_password
+    expect: match
+    reason: "An && inside a quoted argument does not start another command."
+    source: synthetic
+
+  - name: tp_curl_after_other_command
+    input: "cd /srv/app && curl -u jane:canaryCurlPw0rd https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    reason: "The command after && is curl."
+    source: synthetic
+
+  - name: tp_curl_exe
+    input: "curl.exe -u jane:canaryCurlPw0rd https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    reason: "The command word with its Windows extension."
+    source: synthetic
+
+  - name: tp_curl_option_on_continuation_line_start
+    input: "curl https://api.example.com/v1 \\\n-u jane:canaryCurlPw0rd"
+    rule: curl_user_password
+    expect: match
+    reason: "A continuation line that starts with the option."
+    source: synthetic
+
+  - name: fp_curl_other_command_after_semicolon
+    input: "curl -s https://api.example.com/names; sort -u names:canaryList0123"
+    rule: curl_user_password
+    expect: no_match
+    reason: "A semicolon outside quotes starts another command."
+    source: synthetic
+
+  - name: fp_curl_other_command_after_and
+    input: "curl -sO https://api.example.com/f.tgz && docker run -u builder:canaryGroup9 alpine"
+    rule: curl_user_password
+    expect: no_match
+    reason: "The command after && is not curl."
+    source: synthetic
+
+  - name: fp_curl_user_and_group_numbers
+    input: "curl -s https://api.example.com/v1 -u 1000:1000"
+    rule: curl_user_password
+    expect: no_match
+    reason: "A pair of numbers is a user and group number."
+    source: synthetic
+
+  - name: fp_curl_other_command_on_encoded_next_line
+    input: "{\"cmd\":\"curl -O https://api.example.com/f.tgz\\ndocker run -u builder:canaryGroup9 alpine\"}"
+    rule: curl_user_password
+    expect: no_match
+    reason: "In a JSON string the two characters of an encoded line end start a new line, and its command is not curl."
+    source: synthetic
+
+  - name: fp_curl_template_password
+    input: "curl -u jane:<password> https://api.example.com/v1"
+    rule: curl_user_password
+    expect: no_match
+    reason: "A template in place of the password."
+    source: synthetic
+
+  - name: fp_curl_option_inside_word
+    input: "curl --menu-u jane:canaryCurlPw0rd https://api.example.com/v1"
+    rule: curl_user_password
+    expect: no_match
+    reason: "The option must start an argument."
+    source: synthetic
+
+  - name: tp_key_name_escaped_password_characters
+    input: "DB_PASSWORD=Sup3r\\!Canary9 next"
+    rule: key_name_secret
+    expect: match
+    reason: "A backslash that escapes a character is part of the value."
+    source: synthetic
+
+  - name: fp_key_name_gives_way_to_continuing_match
+    input: "token=abc12345Bearer canarybearer0123456789abcd"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The bearer_token match starts inside the value and continues after it. The key-name rule gives way, so that match is not dropped."
+    source: synthetic
+
+  - name: tp_key_name_keeps_value_past_partial_match
+    input: "JWT_SECRET=Y2FuYXJ5and0U2VjcmV0MDEyMzQ1Njc4OWFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6\nAWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\n"
+    rule: key_name_secret
+    expect: match
+    reason: "Another rule matches the last 40 characters of the value and the character after it. That is part of the value, so the key-name rule keeps the whole value."
+    source: synthetic
+
+  - name: fp_key_name_file_reference
+    input: "db_password: file:secrets/db-pass-2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A reference to the file that holds the secret."
+    source: synthetic
+
+  - name: fp_key_name_environment_reference
+    input: "db_password: env:DATABASE_PASSWORD_2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A reference to the variable that holds the secret."
+    source: synthetic
+
+  - name: fp_key_name_relative_directory_dot
+    input: "db_password: ./secrets/db-pass-2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A relative path with no file extension is still a path."
+    source: synthetic
+
+  - name: fp_key_name_member_access_with_digit
+    input: "client_secret: config.oauth2.clientSecret"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A member access may hold a digit or two in a name."
+    source: synthetic
+
+  - name: tp_cookie_empty_first_value
+    input: "Cookie: theme=; session=canarySessionCookie0123456789abcdef"
+    rule: cookie_header
+    expect: match
+    reason: "An empty first value does not hide the pairs after it."
+    source: synthetic
+
+  - name: tp_cookie_quoted_first_value
+    input: "Set-Cookie: session=\"canarySessionCookie0123456789abcdef\"; Path=/"
+    rule: cookie_header
+    expect: match
+    reason: "A quoted cookie value is a value."
+    source: synthetic
+
+  - name: tp_jwk_single_quoted_members
+    input: "{'kty': 'EC', 'crv': 'P-256', 'd': 'canaryPrivateMember0123456789abcdefghijklmn'}"
+    rule: jwk_private_member
+    expect: match
+    reason: "A printed dictionary writes the same members with single quotes."
+    source: synthetic
+
+  - name: tp_jwk_unquoted_members
+    input: "kty: oct\nk: canarySymmetricKey0123456789abcd\n"
+    rule: jwk_private_member
+    expect: match
+    reason: "A key written as YAML has unquoted member names."
+    source: synthetic
+
+  - name: fp_jwk_member_name_inside_word
+    input: "{\"kty\": \"EC\", \"id\": \"canaryNotAMember0123456789abcdefg\"}"
+    rule: jwk_private_member
+    expect: no_match
+    reason: "The member name must be the whole word."
     source: synthetic

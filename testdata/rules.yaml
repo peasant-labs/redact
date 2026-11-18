@@ -281,8 +281,8 @@ rules:
       - {name: long_option, input: 'curl --user jane:canaryCurlPw0rd https://api.example.com/v1', shouldFlag: true}
       - {name: long_option_equals, input: 'curl --user=jane:canaryCurlPw0rd https://api.example.com/v1', shouldFlag: true}
       - {name: user_only, input: 'curl -u jane https://api.example.com/v1', shouldFlag: false}
-      - {name: variable_pair, input: 'curl -u "$API_USER:$API_PASSWORD" https://api.example.com/v1', shouldFlag: false}
-      - {name: variable_password, input: 'curl -u jane:$API_PASSWORD https://api.example.com/v1', shouldFlag: false}
+      - {name: attached_value, input: 'curl -ujane:canaryCurlPw0rd https://api.example.com/v1', shouldFlag: true}
+      - {name: bundled_short_options, input: 'curl -sSu jane:canaryCurlPw0rd https://api.example.com/v1', shouldFlag: true}
       - {name: option_inside_word, input: 'curl --no-user jane:canaryCurlPw0rd', shouldFlag: false}
 
   - ruleId: jwk_private_member

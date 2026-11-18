@@ -100,6 +100,10 @@ required_json_keys_ids:
   - web_key_private_members
   - web_key_public_key_unchanged
   - private_member_name_without_key_type_unchanged
+  - password_beside_log_probability
+  - authorization_header_key
+  - cookie_header_key
+  - header_key_with_placeholder_unchanged
 required_unchanged_text_ids:
   - shell_variable
   - braced_shell_variable
@@ -117,6 +121,10 @@ required_unchanged_text_ids:
   - name_only_contains_auth
   - curl_other_command
   - object_without_key_type
+  - api_key_header_placeholder
+  - x_api_key_header_variable
+  - auth_token_header_placeholder
+  - access_token_header_variable
 secrets:
   - {id: anthropic_key, level: minimal, input: "sk-ant-api03-abc123def456abc123def456abc123def456abc123", contains: "<ANTHROPIC_KEY>"}
   - {id: openai_key, level: minimal, input: "sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789", contains: "<OPENAI_KEY>"}
@@ -296,6 +304,27 @@ json_keys:
     level: minimal
     json: '{"d": "canaryNotAKeyValue0123456789abcdefg", "name": "delta"}'
     want: '{"d": "canaryNotAKeyValue0123456789abcdefg", "name": "delta"}'
+  - id: password_beside_log_probability
+    why: a log probability excuses only the "token" member beside it; any other secret-named member of that object is still a credential
+    level: standard
+    json: '{"token": "localhost:8080x", "logprob": -0.1, "password": "canaryJsonPw0rd!2026"}'
+    want: '{"token": "localhost:8080x", "logprob": -0.1, "password": "<SECRET>"}'
+    key_redactions: 1
+  - id: authorization_header_key
+    why: a decoded request holds the header name as the key and the value apart from it, so the value is read as the value of that header
+    level: minimal
+    json: '{"headers": {"Authorization": "token canaryAuthTok0123456789abcd", "Accept": "application/json"}}'
+    want: '{"headers": {"Authorization": "token <AUTH_TOKEN>", "Accept": "application/json"}}'
+  - id: cookie_header_key
+    why: a cookie header in a decoded request is redacted like the header line
+    level: minimal
+    json: '{"headers": {"cookie": "sessionid=canarySessionCookie0123456789abcdef; theme=dark"}}'
+    want: '{"headers": {"cookie": "<COOKIE>"}}'
+  - id: header_key_with_placeholder_unchanged
+    why: a placeholder under a header key is not a credential
+    level: minimal
+    json: '{"headers": {"Authorization": "token YOUR-TOKEN", "Cookie": "$SESSION_COOKIE"}}'
+    want: '{"headers": {"Authorization": "token YOUR-TOKEN", "Cookie": "$SESSION_COOKIE"}}'
 unchanged_text:
   - id: shell_variable
     why: a variable reference holds no credential
@@ -345,6 +374,18 @@ unchanged_text:
   - id: object_without_key_type
     why: a member named d outside a JSON Web Key is ordinary data
     input: '{"d": "canaryNotAKeyValue0123456789abcdefg", "name": "delta"}'
+  - id: api_key_header_placeholder
+    why: a template in an API-key header is not a credential
+    input: 'api-key: <your-api-key>'
+  - id: x_api_key_header_variable
+    why: a variable reference in an API-key header is not a credential
+    input: 'x-api-key: $SERVICE_API_KEY_VALUE_2026'
+  - id: auth_token_header_placeholder
+    why: a placeholder word in a token header is not a credential
+    input: 'auth-token: your-auth-token'
+  - id: access_token_header_variable
+    why: a variable reference in a token header is not a credential
+    input: 'access-token: ${SERVICE_ACCESS_TOKEN_2026}'
 metadata_paths:
   - id: nested_project_becomes_path_project
     why: a project below an intermediate folder keeps only its own folder name, so a published path names the project and nothing about the machine it sat on
