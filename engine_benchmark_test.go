@@ -38,7 +38,7 @@ func BenchmarkFirstDetection(b *testing.B) {
 		b.Fatal(err)
 	}
 	if fixture.Input == "" {
-		b.Fatal("restore the synthetic input in testdata/engine_benchmark.yaml before measuring first detection")
+		b.Fatal("restore the synthetic input in the engine benchmark fixture before measuring first detection")
 	}
 	benchmarkEngines(b, func(b *testing.B, e engine) {
 		b.ReportAllocs()
