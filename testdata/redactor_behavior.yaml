@@ -121,6 +121,7 @@ required_json_keys_ids:
   - keys_that_only_contain_a_secret_word_unchanged
   - value_a_format_rule_matches_in_part
   - short_symmetric_key_member_unchanged
+  - credential_after_placeholder_in_value
 required_observed_json_keys_ids:
   - value_under_secret_key
   - web_key_private_member
@@ -172,6 +173,12 @@ required_standard_text_outputs_ids:
   - escaped_quoted_setting_after_unquoted_setting
   - unquoted_setting_after_quoted_setting
   - quoted_setting_between_other_settings
+  - credential_before_placeholder_in_quotes
+  - credential_before_other_rule_placeholder
+  - credential_after_placeholder_unquoted
+  - credential_around_placeholder_unquoted
+  - placeholders_alone_unchanged
+  - template_before_text_unchanged
 required_value_rule_replacements_ids:
   - key_name_secret
   - url_query_secret
@@ -532,6 +539,12 @@ json_keys:
     level: standard
     json: '{"kty": "oct", "k": "canary"}'
     want: '{"kty": "oct", "k": "canary"}'
+  - id: credential_after_placeholder_in_value
+    why: A placeholder in the value holds none of the text it replaced, so the text after it is still judged.
+    level: standard
+    json: '{"password": "<SECRET>canaryXk9mQ2vL7pR4"}'
+    want: '{"password": "<SECRET>"}'
+    key_redactions: 1
 observed_json_keys:
   - id: value_under_secret_key
     why: A value replaced because of its key reaches the observer as one child record that names the rule, its category and its place in the rule table.
@@ -675,6 +688,30 @@ standard_text_outputs:
     why: settings that are not secret around the quoted one stay
     input: 'password=canary12345,user=jane,token="canaryXyz12345",mode=x'
     want: 'password=<SECRET>,user=jane,token="<SECRET>",mode=x'
+  - id: credential_before_placeholder_in_quotes
+    why: a placeholder in a quoted value holds none of the text it replaced, so the text before it is still judged
+    input: 'password="canaryXk9mQ2vL7pR4<SECRET>"'
+    want: 'password="<SECRET>"'
+  - id: credential_before_other_rule_placeholder
+    why: the same for another rule's placeholder
+    input: 'password="canaryXk9mQ2vL7pR4<EMAIL>"'
+    want: 'password="<SECRET>"'
+  - id: credential_after_placeholder_unquoted
+    why: an unquoted value that opens with a placeholder goes on through it, and the text after it is judged
+    input: 'token=<SECRET>canaryTok3n99'
+    want: 'token=<SECRET>'
+  - id: credential_around_placeholder_unquoted
+    why: the same for text on both sides of a placeholder
+    input: 'token=canary<SECRET>realTok3n99 next'
+    want: 'token=<SECRET> next'
+  - id: placeholders_alone_unchanged
+    why: a value made of placeholders alone is left as it is
+    input: 'token=<SECRET><BEARER_TOKEN> next'
+    want: 'token=<SECRET><BEARER_TOKEN> next'
+  - id: template_before_text_unchanged
+    why: an angle-bracket template that is not a placeholder of this package does not open a value
+    input: 'token=<TOKEN>canary12345x'
+    want: 'token=<TOKEN>canary12345x'
 # The rules that replace a value and not their whole pattern match. Each
 # Replacement is the bare placeholder; the recovery path keeps the name.
 value_rule_replacements:

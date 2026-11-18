@@ -131,7 +131,7 @@ var keyNameSecretPattern = regexp.MustCompile(
 		`(?:(?P<dqo>")(?P<dq>(?:[^"\s\\]|\\[^\s])+)(?P<dqc>")` +
 		`|(?P<esco>\\+")(?P<esc>[^"\s\\]+)(?P<escc>\\+")` +
 		`|(?P<sqo>')(?P<sq>[^'\s]+)(?P<sqc>')` +
-		"|(?P<bare>[^\\s\"'`<>=\\\\](?:(?:[^\\s\"'`<>\\\\]|" + escapedCharPattern + ")*(?:[^\\s\"'`<>\\\\,;)\\]}]|" + escapedCharPattern + "))?))")
+		"|(?P<bare>(?:(?-i:<[A-Z][A-Z0-9_]*>)|[^\\s\"'`<>=\\\\])(?:(?:[^\\s\"'`<>\\\\]|" + escapedCharPattern + ")*(?:[^\\s\"'`<>\\\\,;)\\]}]|" + escapedCharPattern + "))?))")
 
 // nextSettingPattern is where an unquoted value ends although the pattern runs
 // on: a comma or a semicolon and then the name of the next setting, as in
@@ -291,6 +291,9 @@ var notCredentialPrefixes = []string{"#{", "~/", "./", "../", `\`, "arn:", "vaul
 // a whole value that opens a bracket and does not close it is not one. Space
 // around a whole value is not part of it.
 //
+// A placeholder this package wrote into the value on an earlier pass is read
+// as the word it names (see placeholdersAsWords) before any test runs.
+//
 // The decision, in the order the tests run. The first row that fits decides.
 //
 //	value                                                    result
@@ -298,7 +301,6 @@ var notCredentialPrefixes = []string{"#{", "~/", "./", "../", `\`, "arn:", "vaul
 //	shorter than 8 characters (20 for key material)          kept
 //	holds a space (a description, a passphrase)              kept
 //	holds "://" (a location)                                 kept
-//	holds a placeholder this package writes: <USER> <SECRET> kept
 //	a reference: $VAR ${VAR} $(cmd) %s %VAR% #{x} arn:...    kept
 //	  (a URL query value is tested decoded, so %2B is data)
 //	a template or a structure: <token> {name} [a, b] (none)  kept
@@ -332,6 +334,7 @@ func secretShapedValue(kind secretNameKind, value string, whole bool) bool {
 	if whole {
 		value = strings.TrimSpace(value)
 	}
+	value = placeholdersAsWords(value)
 	minLength := minCredentialValueLength
 	if kind == keyMaterialName {
 		minLength = minKeyMaterialValueLength
@@ -340,9 +343,6 @@ func secretShapedValue(kind secretNameKind, value string, whole bool) bool {
 		return false
 	}
 	if strings.ContainsFunc(value, unicode.IsSpace) || strings.Contains(value, "://") {
-		return false
-	}
-	if holdsPlaceholder(value) {
 		return false
 	}
 	if referenceOrStructure(value, whole) {
@@ -392,17 +392,22 @@ func init() {
 	}
 }
 
-// holdsPlaceholder reports whether value holds one of ruleSetPlaceholders.
-func holdsPlaceholder(value string) bool {
+// placeholdersAsWords returns value with each of ruleSetPlaceholders in it
+// written as the word it names: <USER> becomes "user", <API_KEY> "api_key".
+// A placeholder holds none of the text it replaced, so the rest of the value
+// decides: abc12345/Users/<USER>/x.txt still reads as a path and
+// --Users--<USER>-- as words, while <SECRET>Xk9mQ2vL7pR4 and
+// Xk9mQ2vL7pR4<EMAIL> still read as credentials.
+func placeholdersAsWords(value string) string {
 	if !strings.Contains(value, "<") {
-		return false
+		return value
 	}
-	for _, placeholder := range placeholderPattern.FindAllString(value, -1) {
-		if ruleSetPlaceholders[placeholder] {
-			return true
+	return placeholderPattern.ReplaceAllStringFunc(value, func(placeholder string) string {
+		if !ruleSetPlaceholders[placeholder] {
+			return placeholder
 		}
-	}
-	return false
+		return strings.ToLower(placeholder[1 : len(placeholder)-1])
+	})
 }
 
 // startsWithPlaceholder reports whether text starts with one of
@@ -677,9 +682,9 @@ func appendKeyNameValue(spans []valueSpan, input string, pair keyNamePair) []val
 			return spans
 		}
 	}
-	if pair.bare && startsWithPlaceholder(input[pair.valueEnd:]) {
-		// The value stopped at a placeholder an earlier pass wrote:
-		// "token=abc12345/Users/<USER>/x.txt". It was judged then.
+	if pair.bare && value[0] == '<' && !startsWithPlaceholder(value) {
+		// An unquoted value opens with an angle bracket only when it opens
+		// with a placeholder of this package; <TOKEN> is a template.
 		return spans
 	}
 	kind := secretNameKindOf(name)
@@ -708,7 +713,8 @@ const maxTailLookahead = 256
 // "token=abc<br>" and "<password>abc</password>" keep their markup; a value
 // such as aB3xkd92Lq<Zw81 has no markup after it and continues. The tail is
 // empty when it holds a tag, or when the line goes on to close one with ">".
-// It reads no more than maxTailLookahead bytes of rest.
+// A placeholder of this package is not a tag: the value goes on through it
+// (see placeholderTail). It reads no more than maxTailLookahead bytes of rest.
 //
 // The tail ends as the unquoted value does: not in the punctuation that closes
 // a call or a list (see closingPunctuation), so "if (password=abc12345<x)"
@@ -722,6 +728,9 @@ func unquotedTail(rest string) string {
 		return ""
 	}
 	rest = rest[:min(len(rest), maxTailLookahead)]
+	if startsWithPlaceholder(rest) {
+		return placeholderTail(rest)
+	}
 	tail := rest
 	if end := strings.IndexAny(rest, " \t\r\n\"'`\\"); end >= 0 {
 		tail = rest[:end]
@@ -741,6 +750,31 @@ func unquotedTail(rest string) string {
 		return ""
 	}
 	return tail
+}
+
+// placeholderTail returns what an unquoted value continues with when the
+// pattern stopped it at a placeholder of this package, which an earlier pass
+// wrote in place of part of the value: the placeholders and the text between
+// and after them, up to the next space, quote, backslash or other angle
+// bracket. The value is then judged with its placeholders as words (see
+// placeholdersAsWords), so the text around a placeholder is not left out.
+func placeholderTail(rest string) string {
+	end := 0
+	for end < len(rest) {
+		if rest[end] == '<' {
+			location := placeholderPattern.FindStringIndex(rest[end:min(len(rest), end+maxPlaceholderLength)])
+			if location == nil || location[0] != 0 || !ruleSetPlaceholders[rest[end:end+location[1]]] {
+				break
+			}
+			end += location[1]
+			continue
+		}
+		if strings.IndexByte(" \t\r\n\"'`\\>", rest[end]) >= 0 {
+			break
+		}
+		end++
+	}
+	return strings.TrimRight(rest[:end], closingPunctuation)
 }
 
 // closingPunctuation closes a call or a list. An unquoted value does not end
