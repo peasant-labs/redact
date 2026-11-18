@@ -122,6 +122,8 @@ required_json_keys_ids:
   - value_a_format_rule_matches_in_part
   - short_symmetric_key_member_unchanged
   - credential_after_placeholder_in_value
+  - tokenizer_piece_values_unchanged
+  - tokenizer_marker_before_mixed_value_in_json
 required_observed_json_keys_ids:
   - value_under_secret_key
   - web_key_private_member
@@ -184,6 +186,11 @@ required_standard_text_outputs_ids:
   - connection_string_key_with_space_after
   - connection_string_keys_with_spaces_around
   - connection_string_flag_key_with_space
+  - tokenizer_piece_in_text
+  - tokenizer_piece_after_byte_marker
+  - tokenizer_piece_in_escaped_quotes
+  - tokenizer_pieces_after_other_markers
+  - tokenizer_marker_before_mixed_value
 required_value_rule_replacements_ids:
   - key_name_secret
   - url_query_secret
@@ -555,6 +562,17 @@ json_keys:
     json: '{"password": "<SECRET>canaryXk9mQ2vL7pR4"}'
     want: '{"password": "<SECRET>"}'
     key_redactions: 1
+  - id: tokenizer_piece_values_unchanged
+    why: tokenizer pieces under "token" are kept in an object with no log probability
+    level: standard
+    json: '{"tokens": [{"token": "▁database", "activation": 0}, {"token": "Ġpassword", "activation": 0.5}]}'
+    want: '{"tokens": [{"token": "▁database", "activation": 0}, {"token": "Ġpassword", "activation": 0.5}]}'
+  - id: tokenizer_marker_before_mixed_value_in_json
+    why: a marker followed by a value that mixes letters and digits is still a credential under a secret name
+    level: standard
+    json: '{"token": "▁canaryXk9mQ2vL7pR4", "activation": 0}'
+    want: '{"token": "<SECRET>", "activation": 0}'
+    key_redactions: 1
 observed_json_keys:
   - id: value_under_secret_key
     why: A value replaced because of its key reaches the observer as one child record that names the rule, its category and its place in the rule table.
@@ -742,6 +760,26 @@ standard_text_outputs:
     why: the same for a lower-case password key and a flag key with a space
     input: 'password=canaryXk9mQ2vL7pR4;Integrated Security=true'
     want: 'password=<SECRET>;Integrated Security=true'
+  - id: tokenizer_piece_in_text
+    why: a tokenizer piece is a word-boundary marker and letters, not a credential, although it is listed under "token"
+    input: '{"token":"▁database","activation":0}'
+    want: '{"token":"▁database","activation":0}'
+  - id: tokenizer_piece_after_byte_marker
+    why: the same for the marker a byte-level tokenizer writes before a word
+    input: '{"token":"Ġpassword","activation":0}'
+    want: '{"token":"Ġpassword","activation":0}'
+  - id: tokenizer_piece_in_escaped_quotes
+    why: the same for a piece in JSON that is itself inside a string, with its quotes escaped
+    input: 'result: "[{\"token\":\"▁database\",\"activation\":0}]"'
+    want: 'result: "[{\"token\":\"▁database\",\"activation\":0}]"'
+  - id: tokenizer_pieces_after_other_markers
+    why: the marker of a line start and the marker of a word continued are tokenizer pieces too
+    input: '[{"token":"##ingredients"},{"token":"Ċnewline"}]'
+    want: '[{"token":"##ingredients"},{"token":"Ċnewline"}]'
+  - id: tokenizer_marker_before_mixed_value
+    why: a marker followed by a value that mixes letters and digits is not a tokenizer piece, and the value is judged as any other
+    input: '{"token":"▁canaryXk9mQ2vL7pR4","activation":0}'
+    want: '{"token":"<SECRET>","activation":0}'
 # The rules that replace a value and not their whole pattern match. Each
 # Replacement is the bare placeholder; the recovery path keeps the name.
 value_rule_replacements:

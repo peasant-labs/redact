@@ -321,6 +321,7 @@ var notCredentialPrefixes = []string{"#{", "~/", "./", "../", `\`, "arn:", "vaul
 //	  a.b().c(8, req.headers.authorization?.split(          kept
 //	no letter: digits only, a mask such as ********          kept
 //	letters only, as words: hashedPassword, your-api-key     kept
+//	a tokenizer piece: ▁database, Ġpassword, ##ing           kept
 //	a version, a member access, an indexed name              kept
 //	  (a member access holds two digits at most and no part
 //	  such as Pass1, so Secure.Pass1 is not one)
@@ -365,7 +366,7 @@ func secretShapedValue(kind secretNameKind, value string, whole bool) bool {
 	}
 	// Sigils around an identifier are not part of it: &name, :name, @name, NAME!.
 	identifier := strings.TrimRight(strings.TrimLeft(value, "&*:@"), "!?")
-	if wordValuePattern.MatchString(identifier) || indexedIdentifierPattern.MatchString(identifier) ||
+	if tokenizerPiece(value) || wordValuePattern.MatchString(identifier) || indexedIdentifierPattern.MatchString(identifier) ||
 		versionValuePattern.MatchString(value) || relativeFilePattern.MatchString(value) ||
 		resourcePathPattern.MatchString(value) || wordsWithTrailingDigits(identifier) {
 		return false
@@ -547,6 +548,25 @@ func wordsWithTrailingDigits(value string) bool {
 		digits += len(word) - letters
 	}
 	return plain > 0 && digits > 0 && digits <= maxIdentifierDigits
+}
+
+// tokenizerPieceMarkers are the marks a tokenizer writes at the start of a
+// piece of text to say that a word or a line starts there: "▁" (U+2581, not
+// the underscore), "Ġ" (U+0120), "Ċ" (U+010A) and "##". Interpretability and
+// tokenizer output lists such pieces under a key named "token".
+var tokenizerPieceMarkers = []string{"▁", "Ġ", "Ċ", "##"}
+
+// tokenizerPiece reports whether value is one marker of tokenizerPieceMarkers
+// followed by letters only, or the marker alone: ▁database, Ġpassword, ##ing.
+// A marker followed by digits or symbols is not one: ▁Xk9mQ2vL7pR4 is judged
+// as any other value.
+func tokenizerPiece(value string) bool {
+	for _, marker := range tokenizerPieceMarkers {
+		if rest, ok := strings.CutPrefix(value, marker); ok {
+			return strings.IndexFunc(rest, func(r rune) bool { return !unicode.IsLetter(r) }) < 0
+		}
+	}
+	return false
 }
 
 // isFiller reports whether one character makes up more than half of value:
