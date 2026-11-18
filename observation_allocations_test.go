@@ -4,6 +4,7 @@ package redact
 
 import (
 	"encoding/json"
+	"runtime/debug"
 	"testing"
 
 	"github.com/peasant-labs/schema"
@@ -14,21 +15,25 @@ var observationDeliverySink DeliveryStatus
 // Exact heap comparisons run without race instrumentation: the race build
 // randomly drops sync.Pool entries used by regexp. Functional gates still race.
 func TestObservationDisabledAllocations(t *testing.T) {
+	// Keep the engine's sync.Pool entries alive across the exact-count
+	// measurement. A background GC drops them and turns reuse into allocations,
+	// which makes this gate flaky with the WASM-backed go-re2 engine.
+	oldGCPercent := debug.SetGCPercent(-1)
+	defer debug.SetGCPercent(oldGCPercent)
 	rows, err := loadObservationAllocationFixtures()
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, row := range rows {
 		t.Run(row.Name, func(t *testing.T) {
+			// Wrap the same redactor the direct closure uses. Two separately
+			// constructed redactors carry independent engine state, so their
+			// allocation counts can differ for reasons unrelated to observation.
 			legacy, err := NewRedactor(Standard, nil, XDGPaths{})
 			if err != nil {
 				t.Fatal(err)
 			}
-			engine, err := NewRedactor(Standard, nil, XDGPaths{})
-			if err != nil {
-				t.Fatal(err)
-			}
-			disabled, err := NewRun(engine, "allocation", nil)
+			disabled, err := NewRun(legacy, "allocation", nil)
 			if err != nil {
 				t.Fatal(err)
 			}
