@@ -96,6 +96,8 @@ func TestRedactText_PanicRecoveryUsesMaximumRulePrecedence(t *testing.T) {
 
 type ruleLevelOutputFixtures struct {
 	Cases []ruleLevelOutputFixture `yaml:"cases"`
+	// RequiredSecretCaseNames is the reviewed manifest of the secret-rule rows.
+	RequiredSecretCaseNames []string `yaml:"requiredSecretCaseNames"`
 }
 
 func loadRuleLevelOutputFixtures() ([]ruleLevelOutputFixture, error) {
@@ -103,10 +105,11 @@ func loadRuleLevelOutputFixtures() ([]ruleLevelOutputFixture, error) {
 	if err := yaml.Unmarshal(ruleLevelOutputsData, &fixtures); err != nil {
 		return nil, fmt.Errorf("redact: failed to parse testdata/rule_level_outputs.yaml while loading rule-level output fixtures: %w; the activation and output tests cannot run; fix the YAML syntax", err)
 	}
-	expectedCount := len(projectRules) + 4
+	expectedCount := len(projectRules) + 4 + len(fixtures.RequiredSecretCaseNames)
 	if len(fixtures.Cases) != expectedCount {
-		return nil, fmt.Errorf("redact: testdata/rule_level_outputs.yaml loaded %d cases, want %d; every compiled project rule and all four SSH/email overlap controls must remain covered exactly once", len(fixtures.Cases), expectedCount)
+		return nil, fmt.Errorf("redact: testdata/rule_level_outputs.yaml loaded %d cases, want %d; every compiled project rule, all four SSH/email overlap controls and every row in requiredSecretCaseNames must remain covered exactly once", len(fixtures.Cases), expectedCount)
 	}
+	var secretCaseNames []string
 	projectIDs := make(map[string]struct{}, len(projectRules))
 	for _, rule := range projectRules {
 		if _, duplicate := projectIDs[rule.ID]; duplicate {
@@ -141,6 +144,10 @@ func loadRuleLevelOutputFixtures() ([]ruleLevelOutputFixture, error) {
 			seenProjectRules[fixture.RuleID] = struct{}{}
 			continue
 		}
+		if fixture.Category == CategorySecrets && fixture.Control == "" {
+			secretCaseNames = append(secretCaseNames, fixture.Name)
+			continue
+		}
 		if fixture.RuleID != "email" || !fixture.Control.isValid() || fixture.Name != string(fixture.Control) {
 			return nil, fmt.Errorf("redact: non-project fixture %q must identify the email rule and one canonical overlap control with a matching name; the corpus contains an unexpected member; fix ruleId, control, or name", fixture.Name)
 		}
@@ -148,6 +155,9 @@ func loadRuleLevelOutputFixtures() ([]ruleLevelOutputFixture, error) {
 			return nil, fmt.Errorf("redact: email overlap control %q appears more than once; exact control membership is ambiguous; keep one case per control", fixture.Control)
 		}
 		seenControls[fixture.Control] = struct{}{}
+	}
+	if err := requireFixtureNames("testdata/rule_level_outputs.yaml", "requiredSecretCaseNames", fixtures.RequiredSecretCaseNames, secretCaseNames); err != nil {
+		return nil, err
 	}
 	for ruleID := range projectIDs {
 		if _, ok := seenProjectRules[ruleID]; !ok {

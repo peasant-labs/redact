@@ -216,3 +216,169 @@ cases:
       maximum:
         active: true
         output: "<EMAIL>:myorg/myrepo.git"
+
+  # Secret rules that keep the text around the value. Each row pins the exact
+  # output, because these rules replace one part of their match.
+  - name: key_name_env_assignment
+    ruleId: key_name_secret
+    category: secrets
+    input: "INTERNAL_API_TOKEN=canary-9f8e7d6c5b4a3928"
+    expectations:
+      minimal:
+        active: true
+        output: "INTERNAL_API_TOKEN=<SECRET>"
+      standard:
+        active: true
+        output: "INTERNAL_API_TOKEN=<SECRET>"
+      maximum:
+        active: true
+        output: "INTERNAL_API_TOKEN=<SECRET>"
+
+  - name: key_name_json_text
+    ruleId: key_name_secret
+    category: secrets
+    input: '{"db_password": "canaryJsonPw0rd!2026"}'
+    expectations:
+      minimal:
+        active: true
+        output: '{"db_password": "<SECRET>"}'
+      standard:
+        active: true
+        output: '{"db_password": "<SECRET>"}'
+      maximum:
+        active: true
+        output: '{"db_password": "<SECRET>"}'
+
+  - name: key_name_escaped_json_text
+    ruleId: key_name_secret
+    category: secrets
+    input: '{\"session_token\": \"canaryNested0123456789\"}'
+    expectations:
+      minimal:
+        active: true
+        output: '{\"session_token\": \"<SECRET>\"}'
+      standard:
+        active: true
+        output: '{\"session_token\": \"<SECRET>\"}'
+      maximum:
+        active: true
+        output: '{\"session_token\": \"<SECRET>\"}'
+
+  - name: key_name_command_flag
+    ruleId: key_name_secret
+    category: secrets
+    input: "deploy --db-password canaryFlagPw0rd!77 --verbose"
+    expectations:
+      minimal:
+        active: true
+        output: "deploy --db-password <SECRET> --verbose"
+      standard:
+        active: true
+        output: "deploy --db-password <SECRET> --verbose"
+      maximum:
+        active: true
+        output: "deploy --db-password <SECRET> --verbose"
+
+  - name: key_name_trailing_punctuation_kept
+    ruleId: key_name_secret
+    category: secrets
+    input: "connect(user=jane, password=canaryCallPw0rd!88);"
+    expectations:
+      minimal:
+        active: true
+        output: "connect(user=jane, password=<SECRET>);"
+      standard:
+        active: true
+        output: "connect(user=jane, password=<SECRET>);"
+      maximum:
+        active: true
+        output: "connect(user=jane, password=<SECRET>);"
+
+  - name: url_query_token
+    ruleId: url_query_secret
+    category: secrets
+    input: "https://api.example.com/export?token=canaryQueryTok0123456789&user=jane"
+    expectations:
+      minimal:
+        active: true
+        output: "https://api.example.com/export?token=<SECRET>&user=jane"
+      standard:
+        active: true
+        output: "https://api.example.com/export?token=<SECRET>&user=jane"
+      maximum:
+        active: true
+        output: "https://api.example.com/export?token=<SECRET>&user=jane"
+
+  - name: cookie_request_header
+    ruleId: cookie_header
+    category: secrets
+    input: "Cookie: sessionid=canarySessionCookie0123456789abcdef"
+    expectations:
+      minimal:
+        active: true
+        output: "Cookie: <COOKIE>"
+      standard:
+        active: true
+        output: "Cookie: <COOKIE>"
+      maximum:
+        active: true
+        output: "Cookie: <COOKIE>"
+
+  - name: cookie_response_header
+    ruleId: cookie_header
+    category: secrets
+    input: "Set-Cookie: sessionid=canarySetCookie0123456789; Path=/; HttpOnly"
+    expectations:
+      minimal:
+        active: true
+        output: "Set-Cookie: <COOKIE>"
+      standard:
+        active: true
+        output: "Set-Cookie: <COOKIE>"
+      maximum:
+        active: true
+        output: "Set-Cookie: <COOKIE>"
+
+  - name: stripe_key_long_body
+    ruleId: stripe_key
+    category: secrets
+    input: "sk_live_abcdefghijklmnopqrstuvwxyz01"
+    expectations:
+      minimal:
+        active: true
+        output: "<STRIPE_KEY>"
+      standard:
+        active: true
+        output: "<STRIPE_KEY>"
+      maximum:
+        active: true
+        output: "<STRIPE_KEY>"
+
+  - name: vendor_token_keeps_its_label
+    ruleId: github_pat
+    category: secrets
+    input: "GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+    expectations:
+      minimal:
+        active: true
+        output: "GITHUB_TOKEN=<GITHUB_PAT>"
+      standard:
+        active: true
+        output: "GITHUB_TOKEN=<GITHUB_PAT>"
+      maximum:
+        active: true
+        output: "GITHUB_TOKEN=<GITHUB_PAT>"
+
+# Reviewed manifest of the secret-rule rows above. The loader asserts exact
+# membership in both directions.
+requiredSecretCaseNames:
+  - key_name_env_assignment
+  - key_name_json_text
+  - key_name_escaped_json_text
+  - key_name_command_flag
+  - key_name_trailing_punctuation_kept
+  - url_query_token
+  - cookie_request_header
+  - cookie_response_header
+  - stripe_key_long_body
+  - vendor_token_keeps_its_label

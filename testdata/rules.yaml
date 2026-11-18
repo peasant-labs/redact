@@ -193,6 +193,43 @@ rules:
       - {name: exit_code, input: 'exit code 1', shouldFlag: false}
       - {name: short_verification_code, input: 'verification code: short', shouldFlag: false}
 
+  - ruleId: key_name_secret
+    cases:
+      - {name: env_assignment, input: 'INTERNAL_API_TOKEN=canary-9f8e7d6c5b4a3928', shouldFlag: true}
+      - {name: yaml_colon, input: 'db_password: canaryYamlPw0rd!2026', shouldFlag: true}
+      - {name: json_member, input: '{"db_password": "canaryJsonPw0rd!2026"}', shouldFlag: true}
+      - {name: flag_with_space, input: '--db-password canaryFlagPw0rd!77', shouldFlag: true}
+      - {name: flag_with_equals, input: '--auth-token=canaryFlagTok0123456789', shouldFlag: true}
+      - {name: go_short_declaration, input: 'token := "canaryGoTok0123456789"', shouldFlag: true}
+      - {name: plural_name, input: 'max_tokens=4096', shouldFlag: false}
+      - {name: name_only_contains_word, input: 'author=jane-doe-2026x', shouldFlag: false}
+      - {name: name_continues_after_word, input: 'token_type: bearer-v2-2026', shouldFlag: false}
+      - {name: comparison, input: 'password == expected0123456789', shouldFlag: false}
+      - {name: angle_bracket_template, input: 'token=<token>', shouldFlag: false}
+      - {name: quoted_value_with_space, input: '"token": "The token to send"', shouldFlag: false}
+      - {name: value_on_next_line, input: "password:\n  canaryNextLine0123456789", shouldFlag: false}
+
+  - ruleId: url_query_secret
+    cases:
+      - {name: first_parameter, input: 'https://api.example.com/export?token=canaryQueryTok0123456789&user=jane', shouldFlag: true}
+      - {name: later_parameter, input: 'https://api.example.com/cb?state=ok&access_token=canaryQueryTok0123456789', shouldFlag: true}
+      - {name: plural_name, input: 'https://api.example.com/v1?max_tokens=4096', shouldFlag: false}
+      - {name: name_only_contains_word, input: 'https://example.com/posts?author=jane-doe-2026x', shouldFlag: false}
+      - {name: angle_bracket_template, input: 'https://api.example.com/export?token=<token>', shouldFlag: false}
+      - {name: not_a_query_parameter, input: 'token=canaryQueryTok0123456789', shouldFlag: false}
+
+  - ruleId: cookie_header
+    cases:
+      - {name: request_header, input: 'Cookie: sessionid=canarySessionCookie0123456789abcdef', shouldFlag: true}
+      - {name: response_header, input: 'Set-Cookie: sessionid=canarySetCookie0123456789; Path=/; HttpOnly', shouldFlag: true}
+      - {name: lower_case_header, input: 'cookie: sessionid=canarySessionCookie0123456789abcdef', shouldFlag: true}
+      - {name: json_header_member, input: '"Cookie": "sessionid=canarySessionCookie0123456789abcdef"', shouldFlag: true}
+      - {name: prose_after_colon, input: 'Cookie: the browser stores a session cookie', shouldFlag: false}
+      - {name: variable_reference, input: 'Cookie: $SESSION_COOKIE', shouldFlag: false}
+      - {name: template_value, input: 'Cookie: sessionid=<session-id>', shouldFlag: false}
+      - {name: script_assignment, input: 'document.cookie = "theme=dark"', shouldFlag: false}
+      - {name: longer_word, input: 'mycookie: sessionid=canarySessionCookie0123456789abcdef', shouldFlag: false}
+
 residues:
   - {name: artifactory_api_token, ruleId: residue_artifactory_api_token, input: 'header: AKCshort1234567890'}
   - {name: artifactory_password, ruleId: residue_artifactory_password, input: 'pass: AP6short12345'}
@@ -281,3 +318,6 @@ coveredRuleIds:
   - pypi_test_token
   - square_oauth_secret
   - telegram_bot_token
+  - key_name_secret
+  - url_query_secret
+  - cookie_header

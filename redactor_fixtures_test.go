@@ -2,6 +2,9 @@ package redact
 
 import (
 	_ "embed"
+	"encoding/json"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/peasant-labs/schema"
@@ -29,6 +32,18 @@ type redactorBehaviorFixtures struct {
 	MetadataPaths           []metadataPathFixture  `yaml:"metadata_paths"`
 	RequiredCodePipelineIDs []string               `yaml:"required_code_pipeline_ids"`
 	CodePipeline            []codePipelineFixture  `yaml:"code_pipeline"`
+	RequiredJSONKeyIDs      []string               `yaml:"required_json_keys_ids"`
+	JSONKeys                []jsonKeyFixture       `yaml:"json_keys"`
+}
+
+// jsonKeyFixture drives RedactJSON on a whole document. JSON and Want are JSON
+// text; the test compares decoded values, so key order and spacing do not matter.
+type jsonKeyFixture struct {
+	ID    string         `yaml:"id"`
+	Why   string         `yaml:"why"`
+	Level RedactionLevel `yaml:"level"`
+	JSON  string         `yaml:"json"`
+	Want  string         `yaml:"want"`
 }
 
 // metadataPathFixture drives RedactMetadata, the context-aware stage that knows
@@ -91,6 +106,13 @@ func loadRedactorBehaviorFixtures(t *testing.T) redactorBehaviorFixtures {
 	checkFixtureFamily(t, "parity", fixtures.RequiredParityIDs, parityFixtureIDs(fixtures.Parity))
 	checkFixtureFamily(t, "metadata_paths", fixtures.RequiredMetadataPathIDs, metadataPathFixtureIDs(fixtures.MetadataPaths))
 	checkFixtureFamily(t, "code_pipeline", fixtures.RequiredCodePipelineIDs, codePipelineFixtureIDs(fixtures.CodePipeline))
+	checkFixtureFamily(t, "json_keys", fixtures.RequiredJSONKeyIDs, jsonKeyFixtureIDs(fixtures.JSONKeys))
+	for _, row := range fixtures.JSONKeys {
+		checkFixtureLevel(t, row.ID, row.Level)
+		if row.Why == "" || row.JSON == "" || row.Want == "" {
+			t.Fatalf("JSON key fixture %q is incomplete; why, json and want are required", row.ID)
+		}
+	}
 	for _, row := range fixtures.MetadataPaths {
 		checkFixtureLevel(t, row.ID, row.Level)
 		if row.Why == "" {
@@ -169,6 +191,13 @@ func codePipelineFixtureIDs(rows []codePipelineFixture) []string {
 	}
 	return ids
 }
+func jsonKeyFixtureIDs(rows []jsonKeyFixture) []string {
+	ids := make([]string, len(rows))
+	for i, row := range rows {
+		ids[i] = row.ID
+	}
+	return ids
+}
 func parityFixtureIDs(rows []parityFixture) []string {
 	ids := make([]string, len(rows))
 	for i, row := range rows {
@@ -224,4 +253,34 @@ func assertMetadataPathRow(t *testing.T, row metadataPathFixture, pass string, r
 			t.Errorf("%s redacted %s = %q, want %q", pass, field.name, field.got, field.want)
 		}
 	}
+}
+
+// TestRedactJSON_KeyNameFixtures pins how RedactJSON treats a string value
+// under an object key that names a secret, and that every skip the text form
+// makes holds for the JSON form too.
+func TestRedactJSON_KeyNameFixtures(t *testing.T) {
+	for _, row := range loadRedactorBehaviorFixtures(t).JSONKeys {
+		t.Run(row.ID, func(t *testing.T) {
+			redactor := mustNewRedactor(t, row.Level, nil)
+			got := redactor.RedactJSON(decodeJSONFixture(t, row.ID, row.JSON))
+			want := decodeJSONFixture(t, row.ID, row.Want)
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("RedactJSON(%s) = %#v, want %#v", row.JSON, got, want)
+			}
+			if again := redactor.RedactJSON(got); !reflect.DeepEqual(again, want) {
+				t.Errorf("second RedactJSON pass = %#v, want %#v; redaction must be idempotent", again, want)
+			}
+		})
+	}
+}
+
+func decodeJSONFixture(t *testing.T, id, text string) any {
+	t.Helper()
+	decoder := json.NewDecoder(strings.NewReader(text))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		t.Fatalf("JSON key fixture %q holds invalid JSON %q: %v", id, text, err)
+	}
+	return value
 }

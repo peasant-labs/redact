@@ -81,6 +81,21 @@ required_metadata_paths_ids:
 required_code_pipeline_ids:
   - standard_preserves_code_and_redacts_secret
   - maximum_anonymizes_identifier
+required_json_keys_ids:
+  - secret_named_key_redacts_value
+  - secret_named_key_redacts_value_at_minimal
+  - nested_secret_named_key
+  - secret_named_key_inside_array
+  - vendor_token_under_secret_name_keeps_label
+  - ordinary_key_with_same_value_unchanged
+  - variable_reference_value_unchanged
+  - placeholder_value_unchanged
+  - type_name_value_unchanged
+  - token_count_unchanged
+  - description_with_spaces_unchanged
+  - object_under_secret_name_is_walked
+  - strict_ending_short_value_unchanged
+  - text_inside_string_value_still_scanned
 secrets:
   - {id: anthropic_key, level: minimal, input: "sk-ant-api03-abc123def456abc123def456abc123def456abc123", contains: "<ANTHROPIC_KEY>"}
   - {id: openai_key, level: minimal, input: "sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789", contains: "<OPENAI_KEY>"}
@@ -162,6 +177,77 @@ code_pipeline:
 # the account name included, collapses into one placeholder in all three
 # separator forms. The prefixes come from every recorded path, so a value whose
 # shape differs from the working directory is covered too.
+json_keys:
+  - id: secret_named_key_redacts_value
+    why: a JSON object key names the value it holds, so a password under a secret name is redacted although the value alone has no known format
+    level: standard
+    json: '{"db_password": "canaryJsonPw0rd!2026", "user": "jane"}'
+    want: '{"db_password": "<SECRET>", "user": "jane"}'
+  - id: secret_named_key_redacts_value_at_minimal
+    why: the key-name rule is in the secrets category, so the JSON form is active at minimal like the text form
+    level: minimal
+    json: '{"db_password": "canaryJsonPw0rd!2026"}'
+    want: '{"db_password": "<SECRET>"}'
+  - id: nested_secret_named_key
+    why: the key test applies at every depth of the document
+    level: standard
+    json: '{"config": {"database": {"clientSecret": "canaryCamel-9f8e7d6c5b4a"}}}'
+    want: '{"config": {"database": {"clientSecret": "<SECRET>"}}}'
+  - id: secret_named_key_inside_array
+    why: objects inside an array are walked with the same key test
+    level: standard
+    json: '[{"name": "ci", "access_token": "canaryArrayTok0123456789"}]'
+    want: '[{"name": "ci", "access_token": "<SECRET>"}]'
+  - id: vendor_token_under_secret_name_keeps_label
+    why: a value a format rule covers whole keeps the more specific placeholder
+    level: standard
+    json: '{"token": "ghp_abcdefghijklmnopqrstuvwxyz0123456789"}'
+    want: '{"token": "<GITHUB_PAT>"}'
+  - id: ordinary_key_with_same_value_unchanged
+    why: the key decides; the same value under an ordinary name is not a finding
+    level: standard
+    json: '{"build_label": "canaryJsonPw0rd!2026"}'
+    want: '{"build_label": "canaryJsonPw0rd!2026"}'
+  - id: variable_reference_value_unchanged
+    why: a reference to a variable holds no credential
+    level: standard
+    json: '{"api_token": "${DEPLOY_TOKEN_VALUE}"}'
+    want: '{"api_token": "${DEPLOY_TOKEN_VALUE}"}'
+  - id: placeholder_value_unchanged
+    why: a template is not a credential
+    level: standard
+    json: '{"password": "<your-password>"}'
+    want: '{"password": "<your-password>"}'
+  - id: type_name_value_unchanged
+    why: a schema that names the type of a field holds no credential
+    level: standard
+    json: '{"password": "string", "token": "undefined"}'
+    want: '{"password": "string", "token": "undefined"}'
+  - id: token_count_unchanged
+    why: a number is never a string value, and a plural name does not end in a secret word
+    level: standard
+    json: '{"max_tokens": 4096, "input_tokens": 10, "token": 12}'
+    want: '{"max_tokens": 4096, "input_tokens": 10, "token": 12}'
+  - id: description_with_spaces_unchanged
+    why: a value with spaces under a secret name is a description, the same call the text form makes
+    level: standard
+    json: '{"token": "The API token to send with each request"}'
+    want: '{"token": "The API token to send with each request"}'
+  - id: object_under_secret_name_is_walked
+    why: only a string value is taken whole; an object under a secret name is walked, and its own keys are tested
+    level: standard
+    json: '{"auth": {"username": "jane", "password": "canaryNestedPw0rd!41"}}'
+    want: '{"auth": {"username": "jane", "password": "<SECRET>"}}'
+  - id: strict_ending_short_value_unchanged
+    why: a name that ends in auth often holds a scheme or a mode, so only a long value that mixes letters and digits is taken
+    level: standard
+    json: '{"auth": "basic-realm-2026"}'
+    want: '{"auth": "basic-realm-2026"}'
+  - id: text_inside_string_value_still_scanned
+    why: a string under an ordinary key is still scanned as text, so an assignment written inside it is redacted in place
+    level: standard
+    json: '{"command": "export INTERNAL_API_TOKEN=canary-9f8e7d6c5b4a3928"}'
+    want: '{"command": "export INTERNAL_API_TOKEN=<SECRET>"}'
 metadata_paths:
   - id: nested_project_becomes_path_project
     why: a project below an intermediate folder keeps only its own folder name, so a published path names the project and nothing about the machine it sat on

@@ -2793,3 +2793,846 @@ cases:
       body must be exactly 32 characters. A bare "SK" prefix with no body fails
       the length requirement.
     source: pattern_analysis
+
+  # ---------------------------------------------------------------------------
+  # Secrets identified by their key name (key_name_secret, url_query_secret),
+  # cookie headers (cookie_header), and Stripe keys with a longer body.
+  # A row whose reason starts with "Deliberately not redacted" records a value
+  # the rules leave alone by design.
+  # ---------------------------------------------------------------------------
+
+  - name: tp_key_name_env_assignment
+    input: "INTERNAL_API_TOKEN=canary-9f8e7d6c5b4a3928"
+    rule: key_name_secret
+    expect: match
+    reason: "An environment assignment whose name ends in \"token\" holds one credential value."
+    source: synthetic
+
+  - name: tp_key_name_env_assignment_minimal
+    input: "INTERNAL_API_TOKEN=canary-9f8e7d6c5b4a3928"
+    rule: key_name_secret
+    expect: match
+    level: minimal
+    reason: "The rule is in the secrets category, so it is active at minimal."
+    source: synthetic
+
+  - name: tp_key_name_export_line
+    input: "export GITHUB_APP_SECRET=canarySecret-4f9a2c7e1b"
+    rule: key_name_secret
+    expect: match
+    reason: "A shell export of a name that ends in \"secret\"."
+    source: synthetic
+
+  - name: tp_key_name_yaml_colon
+    input: "db_password: canaryYamlPw0rd!2026"
+    rule: key_name_secret
+    expect: match
+    reason: "A \"name: value\" line whose name ends in \"password\"."
+    source: synthetic
+
+  - name: tp_key_name_json_text
+    input: "{\"db_password\": \"canaryJsonPw0rd!2026\"}"
+    rule: key_name_secret
+    expect: match
+    reason: "A JSON member written as text. The quotes around the name and the value are part of the form."
+    source: synthetic
+
+  - name: tp_key_name_escaped_json_text
+    input: "{\\\"session_token\\\": \\\"canaryNested0123456789\\\"}"
+    rule: key_name_secret
+    expect: match
+    reason: "A JSON document carried inside a JSON string has escaped quotes. The rule reads through them."
+    source: synthetic
+
+  - name: tp_key_name_single_quoted
+    input: "password = 'canaryQuotedPw0rd#77'"
+    rule: key_name_secret
+    expect: match
+    reason: "A single-quoted literal assigned to a password name."
+    source: synthetic
+
+  - name: tp_key_name_go_declaration
+    input: "token := \"canaryGoTok0123456789\""
+    rule: key_name_secret
+    expect: match
+    reason: "A literal assigned with := is a hardcoded credential."
+    source: synthetic
+
+  - name: tp_key_name_flag_space
+    input: "deploy --db-password canaryFlagPw0rd!77 --verbose"
+    rule: key_name_secret
+    expect: match
+    reason: "A command flag followed by a space and its value."
+    source: synthetic
+
+  - name: tp_key_name_flag_equals
+    input: "deploy --auth-token=canaryFlagTok0123456789"
+    rule: key_name_secret
+    expect: match
+    reason: "A command flag joined to its value with an equals sign."
+    source: synthetic
+
+  - name: tp_key_name_header
+    input: "X-Auth-Token: canaryHeaderTok0123456789"
+    rule: key_name_secret
+    expect: match
+    reason: "A request header whose name ends in \"token\"."
+    source: synthetic
+
+  - name: tp_key_name_passphrase
+    input: "GPG_PASSPHRASE=canaryPassphrase-7c2e9a41"
+    rule: key_name_secret
+    expect: match
+    reason: "A name that ends in \"passphrase\"."
+    source: synthetic
+
+  - name: tp_key_name_passwd
+    input: "MYSQL_PASSWD=canaryPasswd!5d8b3f60"
+    rule: key_name_secret
+    expect: match
+    reason: "A name that ends in \"passwd\"."
+    source: synthetic
+
+  - name: tp_key_name_camel_case
+    input: "\"clientSecret\": \"canaryCamel-9f8e7d6c5b4a\""
+    rule: key_name_secret
+    expect: match
+    reason: "The name test ignores case, so a camel-case name ends in \"secret\" too."
+    source: synthetic
+
+  - name: tp_key_name_api_key_outside_generic_shape
+    input: "SERVICE_API_KEY=canaryKey0123.456789abcdef+xyz"
+    rule: key_name_secret
+    expect: match
+    reason: "A value with a dot and a plus sign is outside the character set of generic_api_key. The key name still identifies it."
+    source: synthetic
+
+  - name: tp_key_name_private_key_value
+    input: "signing_private_key: canarySigning0123456789abcdefXYZ"
+    rule: key_name_secret
+    expect: match
+    reason: "A long mixed value under a name that ends in \"private_key\"."
+    source: synthetic
+
+  - name: tp_key_name_access_key
+    input: "STORAGE_ACCESS_KEY=canaryAccess0123456789abcdef"
+    rule: key_name_secret
+    expect: match
+    reason: "A long mixed value under a name that ends in \"access_key\"."
+    source: synthetic
+
+  - name: tp_key_name_secret_key
+    input: "APP_SECRET_KEY=canaryAppKey0123456789abcdef!"
+    rule: key_name_secret
+    expect: match
+    reason: "A long mixed value under a name that ends in \"secret_key\"."
+    source: synthetic
+
+  - name: tp_key_name_credential
+    input: "SERVICE_CREDENTIAL=canaryCred0123456789abcdefgh"
+    rule: key_name_secret
+    expect: match
+    reason: "A long mixed value under a name that ends in \"credential\"."
+    source: synthetic
+
+  - name: tp_key_name_registry_auth
+    input: "\"auth\": \"Y2FuYXJ5OmNhbmFyeVB3MHJkMTIzNDU2\""
+    rule: key_name_secret
+    expect: match
+    reason: "A registry configuration stores an encoded user and password under \"auth\". The value is long and mixes letters and digits."
+    source: synthetic
+
+  - name: tp_key_name_password_then_other_parameters
+    input: "password=canaryFormPw0rd!66&user=jane"
+    rule: key_name_secret
+    expect: match
+    reason: "A form body with no leading ? or & is an ordinary assignment. The value runs to the next space, so the parameters after it are redacted with it."
+    source: synthetic
+
+  - name: fp_key_name_vendor_token_defers
+    input: "GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The github_pat rule covers the whole value, so the key-name rule gives way and the output keeps the more specific placeholder."
+    source: synthetic
+
+  - name: tp_github_pat_under_secret_name
+    input: "GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+    rule: github_pat
+    expect: match
+    reason: "The format rule still fires on a value that sits under a secret name."
+    source: synthetic
+
+  - name: fp_key_name_generic_api_key_defers
+    input: "api_key=abcdefghijklmnopqrstu"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The generic_api_key rule covers this value, so the key-name rule gives way and the existing output does not change."
+    source: synthetic
+
+  - name: fp_key_name_pem_header_left_to_block_rule
+    input: "private_key: -----BEGIN RSA PRIVATE KEY-----"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A PEM block belongs to private_key_block. The key-name rule does not take the header."
+    source: synthetic
+
+  - name: fp_key_name_bearer_scheme_left_to_bearer_rule
+    input: "X-Auth: Bearer canarybearer0123456789abcd"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The value after the name is the scheme word. The bearer_token rule owns the credential that follows it."
+    source: synthetic
+
+  - name: fp_key_name_query_parameter_left_to_query_rule
+    input: "https://api.example.com/export?token=canaryQueryTok0123456789&user=jane"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A URL query parameter belongs to url_query_secret, which stops at the next parameter."
+    source: synthetic
+
+  - name: fp_key_name_shell_variable
+    input: "API_TOKEN=$DEPLOY_TOKEN_VALUE"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The value is a shell variable reference, not a credential."
+    source: synthetic
+
+  - name: fp_key_name_shell_braced_variable
+    input: "API_TOKEN=${DEPLOY_TOKEN_VALUE}"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The value is a braced shell variable reference."
+    source: synthetic
+
+  - name: fp_key_name_quoted_shell_variable
+    input: "API_TOKEN=\"$DEPLOY_TOKEN_VALUE\""
+    rule: key_name_secret
+    expect: no_match
+    reason: "A quoted shell variable reference is still a reference."
+    source: synthetic
+
+  - name: fp_key_name_command_substitution
+    input: "DB_PASSWORD=$(cat /run/secrets/db_password)"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The value is a command substitution."
+    source: synthetic
+
+  - name: fp_key_name_process_env
+    input: "token: process.env.GITHUB_TOKEN"
+    rule: key_name_secret
+    expect: no_match
+    reason: "process.env.X is a dotted identifier that reads the environment."
+    source: synthetic
+
+  - name: fp_key_name_os_environ_index
+    input: "password = os.environ[\"DB_PASSWORD\"]"
+    rule: key_name_secret
+    expect: no_match
+    reason: "os.environ[...] reads the environment. The value before the bracket is a dotted identifier."
+    source: synthetic
+
+  - name: fp_key_name_os_environ_get
+    input: "password = os.environ.get(\"DB_PASSWORD\")"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A call expression is code, not a literal."
+    source: synthetic
+
+  - name: fp_key_name_go_getenv
+    input: "token := os.Getenv(\"SERVICE_TOKEN\")"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A call that reads the environment is code, not a literal."
+    source: synthetic
+
+  - name: fp_key_name_getpass_call
+    input: "password = getpass()"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A call that asks for the password holds no password."
+    source: synthetic
+
+  - name: fp_key_name_workflow_expression
+    input: "token: ${{ secrets.GITHUB_TOKEN }}"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A workflow expression refers to a stored secret and does not contain it."
+    source: synthetic
+
+  - name: fp_key_name_chart_template
+    input: "password: {{ .Values.databasePassword }}"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A chart template refers to a value and does not contain it."
+    source: synthetic
+
+  - name: fp_key_name_terraform_reference
+    input: "db_password = var.database_password"
+    rule: key_name_secret
+    expect: no_match
+    reason: "var.name is a dotted identifier that refers to an input variable."
+    source: synthetic
+
+  - name: fp_key_name_angle_template
+    input: "token=<token>"
+    rule: key_name_secret
+    expect: no_match
+    reason: "An angle-bracket template is a placeholder."
+    source: synthetic
+
+  - name: fp_key_name_quoted_angle_template
+    input: "\"password\": \"<your-password>\""
+    rule: key_name_secret
+    expect: no_match
+    reason: "A quoted angle-bracket template is a placeholder."
+    source: synthetic
+
+  - name: fp_key_name_your_api_key
+    input: "api_key=your_api_key"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A value of letters and underscores is a placeholder or an identifier."
+    source: synthetic
+
+  - name: fp_key_name_hyphenated_placeholder
+    input: "password=your-password-here"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A value of letters and hyphens is a placeholder."
+    source: synthetic
+
+  - name: fp_key_name_asterisk_mask
+    input: "password=************"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A mask has no letter in it. The value was removed before it reached the engine."
+    source: synthetic
+
+  - name: fp_key_name_ellipsis
+    input: "token: ..."
+    rule: key_name_secret
+    expect: no_match
+    reason: "An ellipsis stands for an omitted value."
+    source: synthetic
+
+  - name: fp_key_name_printf_verb
+    input: "password=%s"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A format verb is a template."
+    source: synthetic
+
+  - name: fp_key_name_named_format_field
+    input: "token=%(service_token)s"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A named format field is a template."
+    source: synthetic
+
+  - name: fp_key_name_brace_template
+    input: "token={service_token}"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A brace template is a placeholder."
+    source: synthetic
+
+  - name: fp_key_name_bracket_marker
+    input: "password: [REDACTED-BY-OWNER]"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A bracketed marker stands for a value that was removed."
+    source: synthetic
+
+  - name: fp_key_name_existing_placeholder
+    input: "INTERNAL_API_TOKEN=<SECRET>"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Output of this rule does not match again, so redaction is idempotent."
+    source: synthetic
+
+  - name: fp_key_name_type_string
+    input: "password: string"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A type name in a declaration."
+    source: synthetic
+
+  - name: fp_key_name_null
+    input: "token: null"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A null literal."
+    source: synthetic
+
+  - name: fp_key_name_json_true
+    input: "{\"secret\": true}"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A boolean literal."
+    source: synthetic
+
+  - name: fp_key_name_python_optional
+    input: "password: Optional[str] = None"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A type annotation."
+    source: synthetic
+
+  - name: fp_key_name_python_union
+    input: "token: str | None"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A type annotation."
+    source: synthetic
+
+  - name: fp_key_name_undefined
+    input: "secret: undefined"
+    rule: key_name_secret
+    expect: no_match
+    reason: "An undefined literal."
+    source: synthetic
+
+  - name: fp_key_name_rust_reference_type
+    input: "password: &str,"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A reference type in a signature."
+    source: synthetic
+
+  - name: fp_key_name_max_tokens
+    input: "max_tokens=4096"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A plural name does not end in \"token\", and the value is a count."
+    source: synthetic
+
+  - name: fp_key_name_input_tokens
+    input: "input_tokens: 10"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A token count, not a credential."
+    source: synthetic
+
+  - name: fp_key_name_total_tokens_json
+    input: "{\"total_tokens\": 1536, \"cache_read_input_tokens\": 20481}"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Usage counters in a model response."
+    source: synthetic
+
+  - name: fp_key_name_max_tokens_flag
+    input: "run --max-tokens 4096"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A plural flag name with a count."
+    source: synthetic
+
+  - name: fp_key_name_digits_only
+    input: "page_token: 1234567890"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A value with no letter in it is a number."
+    source: synthetic
+
+  - name: fp_key_name_author
+    input: "author=jane-doe-2026x"
+    rule: key_name_secret
+    expect: no_match
+    reason: "\"author\" contains \"auth\" and does not end in it."
+    source: synthetic
+
+  - name: fp_key_name_authority
+    input: "authority: registry.example.com:5000"
+    rule: key_name_secret
+    expect: no_match
+    reason: "\"authority\" contains \"auth\" and does not end in it."
+    source: synthetic
+
+  - name: fp_key_name_oauth_callback_url
+    input: "oauth_callback_url=https://app.example.com/callback"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name ends in \"url\"."
+    source: synthetic
+
+  - name: fp_key_name_authorization_endpoint
+    input: "authorization_endpoint: https://id.example.com/authorize"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name ends in \"endpoint\"."
+    source: synthetic
+
+  - name: fp_key_name_password_min_length
+    input: "PASSWORD_MIN_LENGTH=12characters"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name contains \"password\" and ends in \"length\". It holds a setting."
+    source: synthetic
+
+  - name: fp_key_name_token_ttl
+    input: "TOKEN_TTL=3600seconds9"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name contains \"token\" and ends in \"ttl\". It holds a setting."
+    source: synthetic
+
+  - name: fp_key_name_token_type
+    input: "token_type: bearer-v2-2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name ends in \"type\"."
+    source: synthetic
+
+  - name: fp_key_name_tokenizer
+    input: "tokenizer=cl100k_base_2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "\"tokenizer\" continues after \"token\"."
+    source: synthetic
+
+  - name: fp_key_name_secret_name
+    input: "secret_name: canary-secret-0123456789"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name ends in \"name\". It holds an identifier of a secret, not the secret."
+    source: synthetic
+
+  - name: fp_key_name_auth_scheme_name
+    input: "auth: basic-realm-2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A name that ends in \"auth\" often holds a scheme or a mode. Only a value of 20 or more characters that mixes letters and digits is taken."
+    source: synthetic
+
+  - name: fp_key_name_auth_user_pair
+    input: "deploy --auth admin:canaryPw0rd7"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Deliberately not redacted: the value under \"auth\" is shorter than the strict minimum of 20 characters."
+    source: synthetic
+
+  - name: fp_key_name_auth_image_tag
+    input: "image: example/auth:v1.2.3-alpine"
+    rule: key_name_secret
+    expect: no_match
+    reason: "An image tag after a repository named \"auth\" is not a credential."
+    source: synthetic
+
+  - name: fp_key_name_auth_mode_word
+    input: "\"auth\": \"required\""
+    rule: key_name_secret
+    expect: no_match
+    reason: "A mode word under \"auth\"."
+    source: synthetic
+
+  - name: fp_key_name_identifier_value
+    input: "password=hashedPassword"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A value of letters alone is an identifier."
+    source: synthetic
+
+  - name: fp_key_name_keyword_argument
+    input: "login(user=name, password=user_password)"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A keyword argument that passes a variable."
+    source: synthetic
+
+  - name: fp_key_name_member_access
+    input: "token: request.body.token,"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A dotted identifier is a member access."
+    source: synthetic
+
+  - name: fp_key_name_call_value
+    input: "secret: jwt.sign(payload, signingKey)"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A call expression is code."
+    source: synthetic
+
+  - name: fp_key_name_comparison
+    input: "if password == \"canaryCompare0123\":"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A comparison is not an assignment."
+    source: synthetic
+
+  - name: fp_key_name_not_equal
+    input: "token != expectedToken2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A comparison is not an assignment."
+    source: synthetic
+
+  - name: fp_key_name_arrow
+    input: "password => hashPassword2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "An arrow is not an assignment."
+    source: synthetic
+
+  - name: fp_key_name_struct_tag
+    input: "Token string `json:\"token\"`"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A struct tag names a field and holds no value."
+    source: synthetic
+
+  - name: fp_key_name_environment_index_assignment
+    input: "os.environ[\"API_TOKEN\"] = value_from_vault"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name is followed by a closing bracket, so the form is not a name and a value."
+    source: synthetic
+
+  - name: fp_key_name_regex_source
+    input: "token=\\w{20,}"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A value that starts with a backslash is an escape sequence or a pattern."
+    source: synthetic
+
+  - name: fp_key_name_version_tag
+    input: "sealed-secret:v0.24.1-rc1"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A version after a name that ends in \"secret\" is an image tag."
+    source: synthetic
+
+  - name: fp_key_name_flag_followed_by_flag
+    input: "login --password --verbose-mode-2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The text after the flag is the next flag, not a value."
+    source: synthetic
+
+  - name: fp_key_name_prose_after_colon
+    input: "Enter your password: it must be at least 12 characters"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The word after the colon is prose."
+    source: synthetic
+
+  - name: fp_key_name_quoted_sentence
+    input: "\"token\": \"The API token to send with each request\""
+    rule: key_name_secret
+    expect: no_match
+    reason: "A quoted value with spaces is a description."
+    source: synthetic
+
+  - name: fp_key_name_parenthesised_note
+    input: "password: (none)"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A parenthesised note is not a value."
+    source: synthetic
+
+  - name: fp_key_name_value_on_next_line
+    input: "auth:\n  username: canaryUser0123456789abcd"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The value must be on the same line as the name. A nested mapping is not the value of its parent key."
+    source: synthetic
+
+  - name: fp_key_name_home_relative_path
+    input: "private_key: ~/.ssh/id_ed25519_deploy_2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A path to a key file is not the key."
+    source: synthetic
+
+  - name: fp_key_name_absolute_path
+    input: "SSH_PRIVATE_KEY=/etc/ssl/private/server-2026.key"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A path to a key file is not the key."
+    source: synthetic
+
+  - name: fp_key_name_url_value
+    input: "reset_token=https://app.example.com/reset/2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Deliberately not redacted: a URL under a secret name is treated as a location."
+    source: synthetic
+
+  - name: fp_key_name_short_value
+    input: "password=hunter2"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Deliberately not redacted: a value shorter than 8 characters cannot be told apart from an ordinary word or a short identifier."
+    source: synthetic
+
+  - name: fp_key_name_dictionary_word
+    input: "password=changeme"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Deliberately not redacted: a value of letters alone cannot be told apart from an identifier."
+    source: synthetic
+
+  - name: fp_key_name_low_variety
+    input: "password=aaaaaaa1"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Deliberately not redacted: a value with very few different characters is a filler."
+    source: synthetic
+
+  - name: tp_url_query_token
+    input: "https://api.example.com/export?token=canaryQueryTok0123456789&user=jane"
+    rule: url_query_secret
+    expect: match
+    reason: "A query parameter whose name ends in \"token\"."
+    source: synthetic
+
+  - name: tp_url_query_token_minimal
+    input: "https://api.example.com/export?token=canaryQueryTok0123456789&user=jane"
+    rule: url_query_secret
+    expect: match
+    level: minimal
+    reason: "The rule is in the secrets category, so it is active at minimal."
+    source: synthetic
+
+  - name: tp_url_query_later_parameter
+    input: "https://api.example.com/cb?state=ok&access_token=canaryQueryTok0123456789#done"
+    rule: url_query_secret
+    expect: match
+    reason: "A parameter after & is read the same way, and the value stops at the fragment."
+    source: synthetic
+
+  - name: tp_url_query_relative
+    input: "GET /download?file=report&api_secret=canaryQuerySec-7c2e9a41 HTTP/1.1"
+    rule: url_query_secret
+    expect: match
+    reason: "A request line carries the same query form."
+    source: synthetic
+
+  - name: fp_url_query_shell_variable
+    input: "https://api.example.com/export?token=$EXPORT_TOKEN_VALUE"
+    rule: url_query_secret
+    expect: no_match
+    reason: "The value is a shell variable reference."
+    source: synthetic
+
+  - name: fp_url_query_brace_template
+    input: "https://api.example.com/export?token={export_token}"
+    rule: url_query_secret
+    expect: no_match
+    reason: "The value is a template."
+    source: synthetic
+
+  - name: fp_url_query_placeholder_word
+    input: "https://api.example.com/export?token=YOUR_TOKEN_HERE"
+    rule: url_query_secret
+    expect: no_match
+    reason: "The value is a placeholder of letters and underscores."
+    source: synthetic
+
+  - name: fp_url_query_max_tokens
+    input: "https://api.example.com/v1/complete?max_tokens=4096"
+    rule: url_query_secret
+    expect: no_match
+    reason: "A plural name with a count."
+    source: synthetic
+
+  - name: fp_url_query_author
+    input: "https://example.com/posts?author=jane-doe-2026x"
+    rule: url_query_secret
+    expect: no_match
+    reason: "\"author\" does not end in \"auth\"."
+    source: synthetic
+
+  - name: fp_url_query_vendor_token_defers
+    input: "https://api.example.com/hook?token=ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+    rule: url_query_secret
+    expect: no_match
+    reason: "The github_pat rule covers the whole value, so the query rule gives way."
+    source: synthetic
+
+  - name: tp_cookie_request_header
+    input: "Cookie: sessionid=canarySessionCookie0123456789abcdef"
+    rule: cookie_header
+    expect: match
+    reason: "A request header that carries a session cookie."
+    source: synthetic
+
+  - name: tp_cookie_request_header_minimal
+    input: "Cookie: sessionid=canarySessionCookie0123456789abcdef"
+    rule: cookie_header
+    expect: match
+    level: minimal
+    reason: "The rule is in the secrets category, so it is active at minimal."
+    source: synthetic
+
+  - name: tp_cookie_response_header
+    input: "Set-Cookie: sessionid=canarySetCookie0123456789; Path=/; HttpOnly"
+    rule: cookie_header
+    expect: match
+    reason: "A response header that sets a session cookie."
+    source: synthetic
+
+  - name: tp_cookie_curl_header
+    input: "curl -H 'Cookie: sessionid=canarySessionCookie0123456789abcdef' https://app.example.com"
+    rule: cookie_header
+    expect: match
+    reason: "A header passed on a command line."
+    source: synthetic
+
+  - name: tp_cookie_json_member
+    input: "{\"cookie\": \"sessionid=canarySessionCookie0123456789abcdef; theme=dark\"}"
+    rule: cookie_header
+    expect: match
+    reason: "A captured request written as JSON."
+    source: synthetic
+
+  - name: fp_cookie_prose
+    input: "Cookie: the browser stores a session cookie"
+    rule: cookie_header
+    expect: no_match
+    reason: "Prose after the word does not start with a name and an equals sign."
+    source: synthetic
+
+  - name: fp_cookie_variable
+    input: "Cookie: $SESSION_COOKIE"
+    rule: cookie_header
+    expect: no_match
+    reason: "A variable reference."
+    source: synthetic
+
+  - name: fp_cookie_template_value
+    input: "Cookie: sessionid=<session-id>"
+    rule: cookie_header
+    expect: no_match
+    reason: "A template value."
+    source: synthetic
+
+  - name: fp_cookie_script_assignment
+    input: "document.cookie = \"theme=dark\""
+    rule: cookie_header
+    expect: no_match
+    reason: "A script assignment is not a header."
+    source: synthetic
+
+  - name: fp_cookie_longer_word
+    input: "mycookie: sessionid=canarySessionCookie0123456789abcdef"
+    rule: cookie_header
+    expect: no_match
+    reason: "The header name must be the whole word."
+    source: synthetic
+
+  - name: tp_stripe_key_longer_body
+    input: "sk_live_abcdefghijklmnopqrstuvwxyz01"
+    rule: stripe_key
+    expect: match
+    reason: "A key with more than 24 characters after the prefix matches whole, so no tail is left in the output."
+    source: synthetic
+
+  - name: tp_stripe_key_restricted_test_longer_body
+    input: "rk_test_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH"
+    rule: stripe_key
+    expect: match
+    reason: "A long restricted test key matches whole."
+    source: synthetic
