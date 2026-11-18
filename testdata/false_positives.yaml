@@ -696,6 +696,13 @@ requiredCaseNames:
   - fp_cookie_header_after_upper_case_escape
   - fp_jwk_private_member_longer_name
   - fp_jwk_private_member_longer_name_at_start
+  - tp_openai_key_twenty_after_marker
+  - fp_openai_key_nineteen_after_marker
+  - tp_stripe_key_twenty_four_after_prefix
+  - fp_stripe_key_twenty_three_after_prefix
+  - tp_google_api_key_hyphen_and_underscore
+  - fp_huggingface_token_underscore_in_body
+  - fp_npm_token_underscore_in_body
 
 cases:
   # ---------------------------------------------------------------------------
@@ -6124,4 +6131,53 @@ cases:
     rule: jwk_private_member
     expect: no_match
     reason: 'At the start of the text no backslash stands before the "n", so "nd" is a longer name.'
+    source: synthetic
+
+  - name: tp_openai_key_twenty_after_marker
+    input: 'sk-canary0123456789abcdT3BlbkFJcanary0123456789abcd'
+    rule: openai_key
+    expect: match
+    reason: 'Twenty characters after the marker are the floor of the rule.'
+    source: synthetic
+
+  - name: fp_openai_key_nineteen_after_marker
+    input: 'sk-canary0123456789abcdT3BlbkFJcanary0123456789abc'
+    rule: openai_key
+    expect: no_match
+    reason: 'Nineteen characters after the marker are below the floor.'
+    source: synthetic
+
+  - name: tp_stripe_key_twenty_four_after_prefix
+    input: 'sk_live_canary0123456789abcdefgh'
+    rule: stripe_key
+    expect: match
+    reason: 'Twenty-four characters after the prefix are the floor of the rule.'
+    source: synthetic
+
+  - name: fp_stripe_key_twenty_three_after_prefix
+    input: 'sk_live_canary0123456789abcdefg'
+    rule: stripe_key
+    expect: no_match
+    reason: 'Twenty-three characters after the prefix are below the floor.'
+    source: synthetic
+
+  - name: tp_google_api_key_hyphen_and_underscore
+    input: 'AIzaSyCanary-0123_456789abcdefghijklmnop'
+    rule: google_api_key
+    expect: match
+    reason: 'The body of the key takes hyphens and underscores.'
+    source: synthetic
+
+  - name: fp_huggingface_token_underscore_in_body
+    input: 'hf_canary_0123456789abcdefghijklmn'
+    rule: huggingface_token
+    expect: no_match
+    reason: 'The body takes letters and digits only, so a run cut by an underscore is too short.'
+    source: synthetic
+
+  - name: fp_npm_token_underscore_in_body
+    input: 'npm_canary_0123456789abcdefghijklmn'
+    rule: npm_token
+    expect: no_match
+    reason: 'The body takes letters and digits only, so a run cut by an underscore is too short.'
     source: synthetic

@@ -124,6 +124,7 @@ required_json_keys_ids:
 required_observed_json_keys_ids:
   - value_under_secret_key
   - web_key_private_member
+  - value_under_header_key
 required_observed_text_ids:
   - value_covered_by_format_rule
   - value_cut_by_later_match
@@ -165,6 +166,7 @@ required_standard_text_outputs_ids:
   - absolute_path_value_with_equals
   - value_with_sigils_and_digits
   - words_with_digits_inside_a_word
+  - token_after_encoded_carriage_return
 required_value_rule_replacements_ids:
   - key_name_secret
   - url_query_secret
@@ -528,6 +530,11 @@ observed_json_keys:
     json: '{"kty": "oct", "k": "canarySymmetricKey0123456789abcd"}'
     rule: jwk_private_member
     category: secrets
+  - id: value_under_header_key
+    why: A value read as a header reaches the observer as the detection of the header rule, counted once.
+    json: '{"Authorization": "token canaryAuthTok0123456789abcd"}'
+    rule: authorization_token
+    category: secrets
 observed_text:
   - id: value_covered_by_format_rule
     why: The key-name match is dropped in detection, so an observer is told of the format rule alone.
@@ -631,6 +638,10 @@ standard_text_outputs:
     why: a name made of words in which digits sit inside a word, not at its end, is a credential
     input: 'password=canary_pass9x_word'
     want: 'password=<SECRET>'
+  - id: token_after_encoded_carriage_return
+    why: the letter of an encoded carriage return before a token prefix does not make the prefix part of a word
+    input: '{"out": "done\rhf_canarytoken0123456789abcdefghij"}'
+    want: '{"out": "done\r<HUGGINGFACE_TOKEN>"}'
 # The rules that replace a value and not their whole pattern match. Each
 # Replacement is the bare placeholder; the recovery path keeps the name.
 value_rule_replacements:
