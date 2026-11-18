@@ -45,10 +45,10 @@ const (
 	// with more digits is a token made of segments.
 	maxReferenceDigits = 2
 	// overlapLookahead is how far past a value otherRuleOwns scans for a match
-	// of another rule that starts inside the value and continues after it. The
-	// longest continuation a rule in the table needs is a scheme word, a space
-	// and a 20-character token. A larger window costs time on every key-name
-	// match and finds nothing more.
+	// of another rule that starts inside the value and continues after it. It
+	// is a trade: the scan runs on every key-name match, and 64 bytes hold a
+	// scheme word, a space and a token of 50 characters. A rule whose match
+	// would only complete further on is not seen.
 	overlapLookahead = 64
 )
 
@@ -81,6 +81,12 @@ var secretNamePattern = func() string {
 	return `[a-z0-9_.\-]*(?:` + strings.Join(endings, "|") + `)`
 }()
 
+// escapedCharPattern is a backslash and the character it escapes, inside an
+// unquoted value: the "\!" of a shell command. A backslash before n, r, t or a
+// quote is left out, because in a JSON string those end the line or the string
+// and are not part of the value.
+const escapedCharPattern = `\\[^nrt"'\s]`
+
 // keyNameSecretPattern matches a secret name, a separator and a value on one
 // line. It uses no lookaround and no backreference.
 //
@@ -101,14 +107,15 @@ var secretNamePattern = func() string {
 // A quoted value holds no space: a quoted text with spaces is a description,
 // and the pattern does not match it. An unquoted value does not start with =,
 // < or > (so ==, => and <template> are not values). It stops at a space, a
-// quote, a backslash (the "\n" of an encoded line end), < and >, and it does
-// not end in the punctuation that closes a call or a list.
+// quote, < and >, and at the encoded line end, tab or quote of a JSON string
+// (see escapedCharPattern), and it does not end in the punctuation that closes
+// a call or a list.
 var keyNameSecretPattern = regexp.MustCompile(
 	`(?i)(?P<before>--(?P<flag>` + secretNamePattern + `)[ \t]+|(?P<name>` + secretNamePattern + `)(?:\\*["'])?[ \t]*(?::=|[=:])[ \t]*)` +
 		`(?:(?P<dqo>")(?P<dq>(?:[^"\s\\]|\\[^\s])+)(?P<dqc>")` +
 		`|(?P<esco>\\+")(?P<esc>[^"\s\\]+)(?P<escc>\\+")` +
 		`|(?P<sqo>')(?P<sq>[^'\s]+)(?P<sqc>')` +
-		"|(?P<bare>[^\\s\"'`<>=\\\\](?:[^\\s\"'`<>\\\\]*[^\\s\"'`<>\\\\,;)\\]}])?))")
+		"|(?P<bare>[^\\s\"'`<>=\\\\](?:(?:[^\\s\"'`<>\\\\]|" + escapedCharPattern + ")*(?:[^\\s\"'`<>\\\\,;)\\]}]|" + escapedCharPattern + "))?))")
 
 // keyNameSecretReplacement keeps the text before the value and whichever pair
 // of quotes matched.
@@ -139,14 +146,17 @@ var (
 )
 
 // cookieHeaderPattern matches the value of a Cookie or Set-Cookie header, as a
-// header line or as a JSON member. The value must start with a cookie name, an
-// equals sign and a first value with no space in it, so prose after the word
-// "Cookie:" does not match, and the first value must not open a template or a
-// variable reference. Whatever follows the first pair after a semicolon goes
-// too: the other pairs, and the attributes of a Set-Cookie header. The value
-// stops at a quote or a backslash, which end the header inside a JSON string.
+// header line or as a JSON member. The value must start with a cookie name and
+// an equals sign, then a first value with no space in it (plain or quoted) or
+// a semicolon, so prose after the word "Cookie:" does not match, and the first
+// value must not open a template or a variable reference. Whatever follows the
+// first pair after a semicolon goes too: the other pairs, and the attributes
+// of a Set-Cookie header. After the first pair the value stops at a line end,
+// a quote or a backslash, which end the header inside a quoted argument or a
+// JSON string.
 var cookieHeaderPattern = regexp.MustCompile(
-	`(?i)\b(?P<before>(?:set-)?cookie(?:\\*["'])?:[ \t]*(?:\\*["'])?)[a-z0-9_.\-]+=[^\s;"'<${\\][^\s;"'\\]*(?:;[^\r\n"'\\]*)?`)
+	`(?i)\b(?P<before>(?:set-)?cookie(?:\\*["'])?:[ \t]*(?:\\*["'])?)[a-z0-9_.\-$]+=` +
+		`(?:(?:[^\s;"'<${\\][^\s;"'\\]*|\\*"[^\s;"'<${\\][^\s;"'\\]*\\*")(?:;[^\r\n"'\\]*)?|;[^\r\n"'\\]*)`)
 
 // secretNameKind says which value test a secret name asks for.
 type secretNameKind int
@@ -241,12 +251,7 @@ func secretShapedValue(kind secretNameKind, value string) bool {
 		versionValuePattern.MatchString(value) || relativeFilePattern.MatchString(value) {
 		return false
 	}
-	digits := strings.IndexFunc(value, isASCIIDigit)
-	if digits >= 0 {
-		digits = len(value) - len(strings.Map(dropASCIIDigit, value))
-	} else {
-		digits = 0
-	}
+	digits := len(value) - len(strings.Map(dropASCIIDigit, value))
 	if memberAccessPattern.MatchString(identifier) && digits <= maxReferenceDigits {
 		return false
 	}
@@ -286,21 +291,26 @@ func isKeyNameRule(id string) bool {
 //   - The other rule matches a span that contains the whole value. It knows
 //     the format, so the output keeps the more specific placeholder
 //     (GITHUB_TOKEN=<GITHUB_PAT>, not GITHUB_TOKEN=<SECRET>).
-//   - The other rule's match starts inside the value and continues after it
-//     (a scheme word and the token behind it, a path with a space in it).
-//     Redact keeps the first of two overlapping matches, so a key-name match
-//     here would drop the other rule's match and leave its tail in the output.
+//   - The other rule's match starts inside the value and continues more than
+//     one character after it: a scheme word glued to the end of the value and
+//     the token behind it, or a path with a space in it. Redact keeps the
+//     first of two overlapping matches, so a key-name match here would drop
+//     the other rule's match and leave its tail in the output. Giving way
+//     keeps what the other rule redacted before the key-name rules existed.
 //
-// A rule whose match lies inside the value and covers only part of it does not
-// count: giving way to it would leave the rest of the value in the output.
+// A rule whose match lies inside the value, or runs one character past it
+// because its pattern takes the character after its token, covers only part of
+// the value and does not count: giving way to it would leave the rest of the
+// value in the output.
 //
 // Only rules that are active whenever the key-name rules are can own the text:
 // the secrets and paths categories at their default level. Giving way to a
 // rule that is inactive at the current level would redact nothing.
 //
-// The scan runs from scanStart, the start of the key name, to overlapLookahead
-// bytes past the value. A rule that needs a boundary before or after its token
-// therefore sees the real neighbours of the value, not the edge of the window.
+// The scan runs from scanStart, which the caller sets to the start of its own
+// match or of the value, to overlapLookahead bytes past the value. A rule that
+// needs a boundary after its token therefore sees the real text after the
+// value, not the edge of the window.
 func otherRuleOwns(input string, scanStart, valueStart, valueEnd int) bool {
 	windowEnd := min(len(input), valueEnd+overlapLookahead)
 	window := input[scanStart:windowEnd]
@@ -313,7 +323,7 @@ func otherRuleOwns(input string, scanStart, valueStart, valueEnd int) bool {
 		for _, loc := range rule.Pattern.FindAllStringIndex(window, -1) {
 			start, end := scanStart+loc[0], scanStart+loc[1]
 			covers := start <= valueStart && end >= valueEnd
-			continues := start > valueStart && start < valueEnd && end > valueEnd
+			continues := start > valueStart && start < valueEnd && end > valueEnd+1
 			if !covers && !continues {
 				continue
 			}
