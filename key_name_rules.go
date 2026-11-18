@@ -245,10 +245,10 @@ var (
 	resourcePathPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z_\-]*(?:/(?:[0-9]+|[A-Za-z][A-Za-z_\-]*)){2,}$`)
 	// versionWordPattern is the version at the end of a name: v2.
 	versionWordPattern = regexp.MustCompile(`^v[0-9]{1,3}$`)
-	// shellReferencePattern is a value that reads a variable and holds nothing
-	// else: $TOKEN, ${TOKEN}, $(cat token), $1, $HOME/.token, $USER:$PASS,
-	// $user->token.
-	shellReferencePattern = regexp.MustCompile(`^\$(?:[{(]|[0-9@*#?!$]$|[A-Za-z_][A-Za-z0-9_]*(?:$|->|::|[./:\[]))`)
+	// shellReferencePattern is a value that reads a variable by name and holds
+	// nothing else: $TOKEN, $1, $HOME/.token, $USER:$PASS, $user->token. The
+	// braced and parenthesised forms are read by shellReference.
+	shellReferencePattern = regexp.MustCompile(`^\$(?:[0-9@*#?!$]$|[A-Za-z_][A-Za-z0-9_]*(?:$|->|::|[./:\[]))`)
 	// formatReferencePattern is a format verb or a variable between percent
 	// signs: %s, %(name)s, %{name}, %TOKEN%.
 	formatReferencePattern = regexp.MustCompile(`^%(?:[A-Za-z]$|[({]|[A-Za-z_][A-Za-z0-9_]*%$)`)
@@ -421,6 +421,41 @@ func startsWithPlaceholder(text string) bool {
 // reads. Every placeholder of this package is shorter.
 const maxPlaceholderLength = 64
 
+// shellReference reports whether value, which starts with "$", reads a
+// variable or a command and holds nothing else. ${VAR}, ${VAR:-default} and
+// $(cmd) end at their matching brace or parenthesis, and only the text a
+// variable name may be followed by (see referenceFollower) may come after it:
+// ${HOME}/.token is a reference, ${VAR}Xk9mQ2vL7pR4 is not. A brace or
+// parenthesis that is not closed is a reference the end of an unquoted value
+// cut short: $(cat /run/token gives "$(cat".
+func shellReference(value string) bool {
+	if len(value) < 2 || (value[1] != '{' && value[1] != '(') {
+		return shellReferencePattern.MatchString(value)
+	}
+	open, closer := value[1], byte('}')
+	if open == '(' {
+		closer = ')'
+	}
+	depth := 0
+	for i := 1; i < len(value); i++ {
+		switch value[i] {
+		case open:
+			depth++
+		case closer:
+			if depth--; depth == 0 {
+				return referenceFollower(value[i+1:])
+			}
+		}
+	}
+	return true
+}
+
+// referenceFollower reports whether rest may follow a variable reference in a
+// value that holds nothing else: nothing, a path, a member or another field.
+func referenceFollower(rest string) bool {
+	return rest == "" || strings.HasPrefix(rest, "->") || strings.HasPrefix(rest, "::") || strings.IndexByte("./:[", rest[0]) >= 0
+}
+
 // referenceOrStructure reports whether value is a reference to a value kept
 // elsewhere, a template, the start of a structure, a path, a type or a call.
 func referenceOrStructure(value string, whole bool) bool {
@@ -434,7 +469,7 @@ func referenceOrStructure(value string, whole bool) bool {
 	case '$':
 		// Quoted or not, a value that reads a variable and holds nothing else.
 		// $2a$10$N9qo8uLOickgx2ZMRZoMye is data.
-		return shellReferencePattern.MatchString(value)
+		return shellReference(value)
 	case '%':
 		return !whole || formatReferencePattern.MatchString(value)
 	case '{':

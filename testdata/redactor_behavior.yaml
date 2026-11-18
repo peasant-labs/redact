@@ -179,6 +179,8 @@ required_standard_text_outputs_ids:
   - credential_around_placeholder_unquoted
   - placeholders_alone_unchanged
   - template_before_text_unchanged
+  - braced_variable_followed_by_text
+  - command_substitution_followed_by_text
 required_value_rule_replacements_ids:
   - key_name_secret
   - url_query_secret
@@ -238,6 +240,10 @@ required_unchanged_text_ids:
   - nested_call_go_conversion
   - nested_call_hmac_digest
   - nested_call_hash_digest
+  - braced_variable_with_default
+  - braced_variable_then_path
+  - closed_command_substitution
+  - variable_then_path
   - curl_password_variable
   - curl_password_angle_template
   - curl_password_brace_template
@@ -712,6 +718,14 @@ standard_text_outputs:
     why: an angle-bracket template that is not a placeholder of this package does not open a value
     input: 'token=<TOKEN>canary12345x'
     want: 'token=<TOKEN>canary12345x'
+  - id: braced_variable_followed_by_text
+    why: a braced variable followed by literal text holds a credential
+    input: 'DB_PASSWORD=${VAR}canaryXk9mQ2vL7pR4'
+    want: 'DB_PASSWORD=<SECRET>'
+  - id: command_substitution_followed_by_text
+    why: the same for a command substitution followed by literal text
+    input: 'DB_PASSWORD=$(echo)canaryXk9mQ2vL7pR4'
+    want: 'DB_PASSWORD=<SECRET>'
 # The rules that replace a value and not their whole pattern match. Each
 # Replacement is the bare placeholder; the recovery path keeps the name.
 value_rule_replacements:
@@ -893,6 +907,18 @@ unchanged_text:
   - id: nested_call_hash_digest
     why: a digest of a hash of random bytes is code
     input: 'secret = hashlib.sha256(os.urandom(32)).hexdigest()'
+  - id: braced_variable_with_default
+    why: a braced variable with a default value is a reference
+    input: 'DB_PASSWORD=${DB_PASSWORD_2026:-canaryDefault9}'
+  - id: braced_variable_then_path
+    why: a braced variable followed by a path is a reference
+    input: 'TOKEN_FILE_SECRET=${HOME}/.canary/tok3n_2026'
+  - id: closed_command_substitution
+    why: a closed command substitution in quotes is a reference
+    input: 'DB_PASSWORD="$(cat /run/canary_pw2026)"'
+  - id: variable_then_path
+    why: a variable followed by a path is a reference
+    input: 'api_token=$HOME/.canary/tok3n_2026'
   - id: curl_password_variable
     why: a password that opens with a dollar sign is a variable reference
     input: 'curl -u admin:$CURL_PASSWORD_2026 https://api.example.com'
