@@ -143,7 +143,8 @@ var nextSettingPattern = regexp.MustCompile(`[,;][A-Za-z_][A-Za-z0-9_.\-]*=`)
 
 // keyNameSecretReplacement replaces a whole pattern match: it keeps the text
 // before the value and whichever pair of quotes matched. Detection replaces the
-// value alone (see keyNameSecretValues); this form serves the recovery path.
+// value alone (see keyNameSecretValues) with the rule's Replacement, the bare
+// placeholder; this form serves the recovery path only (see valueRule).
 const keyNameSecretReplacement = "${before}${dqo}${esco}${sqo}" + keyNameSecretPlaceholder + "${dqc}${escc}${sqc}"
 
 // Group indices of keyNameSecretPattern, resolved once by name.

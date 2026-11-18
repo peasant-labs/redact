@@ -160,8 +160,9 @@ var curlUserPasswordPattern = regexp.MustCompile(
 		"|(?P<bare>[^\\s:\"'`\\\\]*:(?:(?:[^\\s\"'`\\\\]|" + escapedCharPattern + ")*(?:[^\\s\"'`\\\\,;)\\]}]|" + escapedCharPattern + "))?))")
 
 // curlUserPasswordReplacement replaces a whole pattern match: it keeps the
-// option and whichever quotes matched. Detection replaces the pair alone; this
-// form serves the recovery path.
+// option and whichever quotes matched. Detection replaces the pair alone with
+// the rule's Replacement, the bare placeholder; this form serves the recovery
+// path only (see valueRule).
 const curlUserPasswordReplacement = "${before}${dqo}${sqo}" + curlUserPasswordPlaceholder + "${dqc}${sqc}"
 
 // The pair groups of curlUserPasswordPattern, resolved once by name.

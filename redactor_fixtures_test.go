@@ -48,6 +48,8 @@ type redactorBehaviorFixtures struct {
 	JSONKeySets             jsonKeySetsFixture     `yaml:"json_key_sets"`
 	RequiredTextOutputIDs   []string               `yaml:"required_standard_text_outputs_ids"`
 	TextOutputs             []textOutputFixture    `yaml:"standard_text_outputs"`
+	RequiredValueRuleIDs    []string               `yaml:"required_value_rule_replacements_ids"`
+	ValueRuleReplacements   []valueRuleFixture     `yaml:"value_rule_replacements"`
 	RequiredLinearTimeIDs   []string               `yaml:"required_linear_time_ids"`
 	LinearTime              []linearTimeFixture    `yaml:"linear_time"`
 }
@@ -59,6 +61,17 @@ type textOutputFixture struct {
 	Why   string `yaml:"why"`
 	Input string `yaml:"input"`
 	Want  string `yaml:"want"`
+}
+
+// valueRuleFixture is a rule that replaces a value and not its whole pattern
+// match: the placeholder its Replacement must be, and the output of the
+// recovery path, which applies the pattern alone, for one input.
+type valueRuleFixture struct {
+	ID             string `yaml:"id"`
+	Why            string `yaml:"why"`
+	Placeholder    string `yaml:"placeholder"`
+	RecoveryInput  string `yaml:"recovery_input"`
+	RecoveryOutput string `yaml:"recovery_output"`
 }
 
 // linearTimeFixture is a short text that RedactText must read in time that
@@ -226,6 +239,12 @@ func loadRedactorBehaviorFixtures(t *testing.T) redactorBehaviorFixtures {
 	for _, row := range fixtures.TextOutputs {
 		if row.Why == "" || row.Input == "" || row.Want == "" {
 			t.Fatalf("standard text output fixture %q is incomplete; why, input and want are required", row.ID)
+		}
+	}
+	checkFixtureFamily(t, "value_rule_replacements", fixtures.RequiredValueRuleIDs, fixtureNames(fixtures.ValueRuleReplacements, func(row valueRuleFixture) string { return row.ID }))
+	for _, row := range fixtures.ValueRuleReplacements {
+		if row.Why == "" || row.Placeholder == "" || row.RecoveryInput == "" || row.RecoveryOutput == "" {
+			t.Fatalf("value rule fixture %q is incomplete; why, placeholder, recovery_input and recovery_output are required", row.ID)
 		}
 	}
 	checkFixtureFamily(t, "linear_time", fixtures.RequiredLinearTimeIDs, fixtureNames(fixtures.LinearTime, func(row linearTimeFixture) string { return row.ID }))
@@ -605,6 +624,30 @@ func TestRedactText_StandardOutputFixtures(t *testing.T) {
 			}
 			if again := redactor.RedactText(got); again != got {
 				t.Errorf("second RedactText pass over %q = %q; redaction must be idempotent", got, again)
+			}
+		})
+	}
+}
+
+// TestRules_ValueRuleReplacementIsPlaceholder pins that the Replacement of a
+// rule that replaces a value is the placeholder Redact writes, with no group
+// reference, so a reader of the rule table shows what the output holds; and
+// that the recovery path still keeps the name in front of the value.
+func TestRules_ValueRuleReplacementIsPlaceholder(t *testing.T) {
+	for _, row := range loadRedactorBehaviorFixtures(t).ValueRuleReplacements {
+		t.Run(row.ID, func(t *testing.T) {
+			rule := findRuleByID(row.ID)
+			if rule == nil {
+				t.Fatalf("fixture rule %q is not compiled", row.ID)
+			}
+			if rule.Replacement != row.Placeholder {
+				t.Errorf("Replacement = %q, want the placeholder %q", rule.Replacement, row.Placeholder)
+			}
+			if value, ok := valueRules[rule.Pattern]; !ok || value.placeholder != row.Placeholder {
+				t.Errorf("value rule entry = %+v (present %v), want placeholder %q", value, ok, row.Placeholder)
+			}
+			if got := applyRule(*rule, row.RecoveryInput); got != row.RecoveryOutput {
+				t.Errorf("recovery applyRule(%q) = %q, want %q: %s", row.RecoveryInput, got, row.RecoveryOutput, row.Why)
 			}
 		})
 	}

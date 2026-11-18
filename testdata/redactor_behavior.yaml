@@ -142,6 +142,11 @@ required_standard_text_outputs_ids:
   - curl_pair_beside_commit_hash
   - url_query_value_percent_encoded
   - unquoted_value_with_dollar_signs
+required_value_rule_replacements_ids:
+  - key_name_secret
+  - url_query_secret
+  - cookie_header
+  - curl_user_password
 required_linear_time_ids:
   - settings_joined_by_commas
   - settings_joined_by_semicolons
@@ -518,6 +523,29 @@ standard_text_outputs:
     why: a dollar sign that does not start a variable name, a brace or a parenthesis is data
     input: 'DB_PASSWORD=$2a$10$canaryN9qo8uLOickgx2ZMRZoMye'
     want: 'DB_PASSWORD=<SECRET>'
+# The rules that replace a value and not their whole pattern match. Each
+# Replacement is the bare placeholder; the recovery path keeps the name.
+value_rule_replacements:
+  - id: key_name_secret
+    why: recovery keeps the name and the quotes around the value
+    placeholder: '<SECRET>'
+    recovery_input: 'DB_PASSWORD="canaryPw0rd2026"'
+    recovery_output: 'DB_PASSWORD="<SECRET>"'
+  - id: url_query_secret
+    why: recovery keeps the parameter name
+    placeholder: '<SECRET>'
+    recovery_input: 'https://api.example.com/v1?access_token=canaryQueryTok3n&x=1'
+    recovery_output: 'https://api.example.com/v1?access_token=<SECRET>&x=1'
+  - id: cookie_header
+    why: recovery keeps the header name
+    placeholder: '<COOKIE>'
+    recovery_input: 'Cookie: sid=canarySessi0nId99'
+    recovery_output: 'Cookie: <COOKIE>'
+  - id: curl_user_password
+    why: recovery keeps the option and the quotes around the pair
+    placeholder: '<USER_PASSWORD>'
+    recovery_input: 'curl -u "admin:canaryCurlPw0rd" https://api.example.com'
+    recovery_output: 'curl -u "<USER_PASSWORD>" https://api.example.com'
 linear_time:
   - id: settings_joined_by_commas
     why: every setting of the run is cut from one unquoted value and read once

@@ -449,16 +449,22 @@ func applyAllRules(input string) string {
 
 // applyRule replaces all matches of rule.Pattern with rule.Replacement.
 // It handles back-reference syntax (${1}, ${2}, etc.) used by path and sentinel-preserving rules.
+// A value rule with a recovery template (see valueRule in detect.go) uses that
+// template, which keeps the name in front of the value.
 // Rules with nil Pattern are silently skipped.
 func applyRule(rule Rule, s string) string {
 	if rule.Pattern == nil {
 		return s
 	}
-	if strings.Contains(rule.Replacement, "$") {
-		// Use ReplaceAllString which supports $1 / ${1} / ${2} back-references.
-		return rule.Pattern.ReplaceAllString(s, rule.Replacement)
+	replacement := rule.Replacement
+	if value, ok := valueRules[rule.Pattern]; ok && value.recovery != "" {
+		replacement = value.recovery
 	}
-	return rule.Pattern.ReplaceAllLiteralString(s, rule.Replacement)
+	if strings.Contains(replacement, "$") {
+		// Use ReplaceAllString which supports $1 / ${1} / ${2} back-references.
+		return rule.Pattern.ReplaceAllString(s, replacement)
+	}
+	return rule.Pattern.ReplaceAllLiteralString(s, replacement)
 }
 
 // maskCodeBlocks replaces fenced code blocks with <CODE_BLOCK> as a last-resort

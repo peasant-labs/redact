@@ -537,7 +537,7 @@ var Rules = []Rule{
 		ID:          curlUserPasswordRuleID,
 		Category:    CategorySecrets,
 		Pattern:     curlUserPasswordPattern,
-		Replacement: curlUserPasswordReplacement,
+		Replacement: curlUserPasswordPlaceholder,
 		FilterFn:    hasValue(curlUserPasswordValues),
 	},
 	{
@@ -560,7 +560,7 @@ var Rules = []Rule{
 		ID:          keyNameSecretRuleID,
 		Category:    CategorySecrets,
 		Pattern:     keyNameSecretPattern,
-		Replacement: keyNameSecretReplacement,
+		Replacement: keyNameSecretPlaceholder,
 		FilterFn:    hasValue(keyNameSecretValues),
 	},
 	{
@@ -568,7 +568,7 @@ var Rules = []Rule{
 		ID:          urlQuerySecretRuleID,
 		Category:    CategorySecrets,
 		Pattern:     urlQuerySecretPattern,
-		Replacement: "${1}" + keyNameSecretPlaceholder,
+		Replacement: keyNameSecretPlaceholder,
 		FilterFn:    hasValue(urlQuerySecretValues),
 	},
 	{
@@ -576,7 +576,7 @@ var Rules = []Rule{
 		ID:          cookieHeaderRuleID,
 		Category:    CategorySecrets,
 		Pattern:     cookieHeaderPattern,
-		Replacement: "${1}" + cookieHeaderPlaceholder,
+		Replacement: cookieHeaderPlaceholder,
 		FilterFn:    hasValue(cookieHeaderValues),
 	},
 

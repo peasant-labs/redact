@@ -112,13 +112,18 @@ type valueFinder func(matched, input string, offset int) []valueSpan
 // valueRule describes a rule that replaces only a part of what its pattern
 // matches: the value after a key name, not the name. Detection reports one
 // match for each span that find returns, in place of the pattern match, and
-// Redact replaces each with placeholder.
+// Redact replaces each with placeholder, which is also the rule's
+// Replacement.
 //
-// The rule's own Pattern and Replacement still describe the whole construct.
-// They serve the recovery path, which applies a pattern without its filter.
+// recovery, when set, replaces a whole pattern match and keeps the name and
+// the quotes around the value. It serves the recovery path, which applies a
+// pattern without its filter or finder (see applyRule). It stays here and
+// not in Rule.Replacement, so a reader of the rule table sees the placeholder
+// that is written.
 type valueRule struct {
 	find        valueFinder
 	placeholder string
+	recovery    string
 	// knowsFormat is set on a rule that recognises the text itself and uses
 	// find only to say where in the pattern match it starts. Its matches are
 	// left as they are when overlaps are settled, like those of any rule
@@ -130,10 +135,10 @@ type valueRule struct {
 // valueRules holds the value rules by their pattern. The entry lives beside
 // the rule table and not in Rule, whose field layout is public.
 var valueRules = map[*regexp.Regexp]valueRule{
-	keyNameSecretPattern:    {find: keyNameSecretValues, placeholder: keyNameSecretPlaceholder},
-	urlQuerySecretPattern:   {find: urlQuerySecretValues, placeholder: keyNameSecretPlaceholder},
-	cookieHeaderPattern:     {find: cookieHeaderValues, placeholder: cookieHeaderPlaceholder},
-	curlUserPasswordPattern: {find: curlUserPasswordValues, placeholder: curlUserPasswordPlaceholder},
+	keyNameSecretPattern:    {find: keyNameSecretValues, placeholder: keyNameSecretPlaceholder, recovery: keyNameSecretReplacement},
+	urlQuerySecretPattern:   {find: urlQuerySecretValues, placeholder: keyNameSecretPlaceholder, recovery: "${before}" + keyNameSecretPlaceholder},
+	cookieHeaderPattern:     {find: cookieHeaderValues, placeholder: cookieHeaderPlaceholder, recovery: "${before}" + cookieHeaderPlaceholder},
+	curlUserPasswordPattern: {find: curlUserPasswordValues, placeholder: curlUserPasswordPlaceholder, recovery: curlUserPasswordReplacement},
 	// The rules built by prefixTokenRule add themselves.
 }
 
