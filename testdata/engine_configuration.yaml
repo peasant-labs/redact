@@ -1,0 +1,37 @@
+engines: [go-regexp, go-re2]
+required_names: [stdlib_identity, re2_identity, unknown_identity, empty_identity]
+cases:
+  - {name: stdlib_identity, value: go-regexp, want: go-regexp}
+  - {name: re2_identity, value: go-re2, want: go-re2}
+  - {name: unknown_identity, value: re2, error: true}
+  - {name: empty_identity, value: '', error: true}
+residue_only_pattern: 'residue-only-construction-probe'
+routing:
+  patterns:
+    - id: configured_route
+      category: secrets
+      pattern: '(configured-)(secret-value)'
+      replacement: '${1}<HIDDEN>'
+  xdg_data_home: /data/alice/share
+  required_names: [configured_backreference, xdg_literal, xdg_backreference]
+  cases:
+    - name: configured_backreference
+      rule: configured_route
+      input: configured-secret-value
+      output: configured-<HIDDEN>
+      expect_replacement: true
+    - name: xdg_literal
+      rule: xdg_data_home
+      input: /data/alice/config
+      output: /data/<USER>/config
+      expect_replacement: false
+    - name: xdg_backreference
+      rule: xdg_data_home
+      input: /data/alice/config
+      output: /data/<USER>/config
+      # Generated replacements are normally literal. Inject a backreference
+      # into this test instance to exercise the engine rewrite branch using
+      # the real generated pattern. Its absent group expands to empty, so the
+      # expected output stays identical to the unmodified XDG replacement.
+      replacement_override: '${1}/data/<USER>'
+      expect_replacement: true
