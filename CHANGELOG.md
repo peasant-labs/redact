@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.8
+
+- redact secrets identified by their key name, add missing token formats, and close two pattern gaps (#99)
+
 ## v0.1.7
 
 - redact hyphenated cards and cards after an SSN (#100)
