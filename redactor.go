@@ -29,6 +29,7 @@ type Redactor interface {
 	// Applies regex rules and entropy detection to plain text.
 	RedactText(input string) string
 	// RedactJSON recursively applies RedactText to all string values in a JSON-decoded value.
+	// A string value under an object key that names a secret is replaced whole.
 	RedactJSON(value any) any
 	// RedactMetadata applies RedactText to sensitive fields in a DEEP COPY of the metadata.
 	// The original pointer is never mutated.
@@ -562,6 +563,8 @@ func (r *DefaultRedactor) redactText(input string, call *observationCall) (outpu
 }
 
 // RedactJSON recursively descends through a JSON-decoded value and redacts strings.
+// A string under an object key that names a secret (see key_name_rules.go) is
+// replaced whole; every other string goes through RedactText.
 // Supported types: string, []any, map[string]any, json.Number. Other types pass through unchanged.
 // json.Number is returned as-is: integers > 2^53 decoded via UseNumber() retain full precision.
 func (r *DefaultRedactor) RedactJSON(value any) any {
@@ -583,12 +586,30 @@ func (r *DefaultRedactor) redactJSON(value any, call *observationCall) any {
 	case map[string]any:
 		result := make(map[string]any, len(v))
 		for key, val := range v {
+			if text, ok := val.(string); ok && r.redactsValueUnderKey(key, text) {
+				result[key] = keyNameSecretPlaceholder
+				r.recordRedaction(keyNameSecretRuleID, CategorySecrets, 1)
+				continue
+			}
 			result[key] = r.redactJSON(val, call)
 		}
 		return result
 	default:
 		return value
 	}
+}
+
+// redactsValueUnderKey reports whether the string value of an object key is
+// replaced whole because the key names a secret. It applies the test of the
+// key_name_secret rule to the key, so the JSON form and the text form
+// ("key": "value") make one decision. The rule must be compiled and active at
+// the configured level.
+func (r *DefaultRedactor) redactsValueUnderKey(key, value string) bool {
+	rule := findRuleByID(keyNameSecretRuleID)
+	if rule == nil || rule.Pattern == nil || !r.isActiveRule(*rule) {
+		return false
+	}
+	return secretValueUnderKey(key, value)
 }
 
 // privateMetadata holds the path-bearing values of one session's metadata.
