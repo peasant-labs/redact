@@ -109,6 +109,12 @@ required_json_keys_ids:
   - basic_authorization_header_key
   - header_key_value_is_counted_once
   - cookie_header_key_is_counted_once
+  - value_with_trailing_line_end
+  - value_with_brackets_inside
+  - value_starting_with_slash
+  - weak_password_value
+  - whole_value_call_unchanged
+  - identifier_value_with_digit_unchanged
 required_unchanged_text_ids:
   - shell_variable
   - braced_shell_variable
@@ -350,6 +356,40 @@ json_keys:
     json: '{"Cookie": "sessionid=canarySessionCookie0123456789abcdef"}'
     want: '{"Cookie": "<COOKIE>"}'
     counts: {cookie_header: 1}
+  - id: value_with_trailing_line_end
+    why: A decoded string is known whole, so the line end after the value is not part of it and does not make the value a description. The whole string is replaced.
+    level: standard
+    json: '{"password": "canaryPw0rd99x\n", "db_password": "  canaryPw0rd98x  "}'
+    want: '{"password": "<SECRET>", "db_password": "<SECRET>"}'
+    key_redactions: 2
+  - id: value_with_brackets_inside
+    why: A parenthesis or an angle bracket inside a value does not make it a call or a template; only a value that is one of those as a whole is kept.
+    level: standard
+    json: '{"password": "Xk9(canary2<vL7pR4", "db_password": "$ecret!Canary99", "token": "[canaryB3xkd92"}'
+    want: '{"password": "<SECRET>", "db_password": "<SECRET>", "token": "<SECRET>"}'
+    key_redactions: 3
+  - id: value_starting_with_slash
+    why: A credential in the base64 alphabet may start with a slash. One long segment that mixes letters and digits is not a path.
+    level: standard
+    json: '{"secret_key": "/canary0Fk29dLq0Pz71Xn5Rv3Tb6Yc4Wm2Qe8H", "private_key": "/etc/ssl/private/server-2026.key"}'
+    want: '{"secret_key": "<SECRET>", "private_key": "/etc/ssl/private/server-2026.key"}'
+    key_redactions: 1
+  - id: weak_password_value
+    why: A value of 8 or more characters that mixes letters and digits is redacted. Shorter values, letters alone and digits alone stay by decision.
+    level: standard
+    json: '{"password": "Summer2024", "db_password": "hunter2", "admin_password": "changeme", "pin_secret": "12345678"}'
+    want: '{"password": "<SECRET>", "db_password": "hunter2", "admin_password": "changeme", "pin_secret": "12345678"}'
+    key_redactions: 1
+  - id: whole_value_call_unchanged
+    why: A value that is a call, a type or a template as a whole is code, not a credential.
+    level: standard
+    json: '{"token": "getToken(user1)", "secret": "Optional<String1>", "password": "{password1}"}'
+    want: '{"token": "getToken(user1)", "secret": "Optional<String1>", "password": "{password1}"}'
+  - id: identifier_value_with_digit_unchanged
+    why: A name made of words in which digits only end a word is an identifier.
+    level: standard
+    json: '{"token": "oauth2_token", "password": "sha256_password", "existingSecret": "db-credentials-prod2"}'
+    want: '{"token": "oauth2_token", "password": "sha256_password", "existingSecret": "db-credentials-prod2"}'
 unchanged_text:
   - id: shell_variable
     why: a variable reference holds no credential

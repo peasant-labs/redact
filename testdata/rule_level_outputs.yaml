@@ -1166,6 +1166,96 @@ cases:
         active: true
         output: '{"stdout": "kty: oct\nk: <JWK_PRIVATE_KEY>\n"}'
 
+  - name: key_name_weak_password
+    ruleId: key_name_secret
+    category: secrets
+    input: 'DB_PASSWORD=Summer2024'
+    expectations:
+      minimal:
+        active: true
+        output: 'DB_PASSWORD=<SECRET>'
+      standard:
+        active: true
+        output: 'DB_PASSWORD=<SECRET>'
+      maximum:
+        active: true
+        output: 'DB_PASSWORD=<SECRET>'
+
+  - name: key_name_value_continues_past_angle_bracket
+    ruleId: key_name_secret
+    category: secrets
+    input: 'DB_PASSWORD=canaryB3xkd92Lq<Zw81 PORT=5432'
+    expectations:
+      minimal:
+        active: true
+        output: 'DB_PASSWORD=<SECRET> PORT=5432'
+      standard:
+        active: true
+        output: 'DB_PASSWORD=<SECRET> PORT=5432'
+      maximum:
+        active: true
+        output: 'DB_PASSWORD=<SECRET> PORT=5432'
+
+  - name: key_name_value_ends_at_markup
+    ruleId: key_name_secret
+    category: secrets
+    input: '<td>password=canaryPw0rd9</td><td>password=canaryPw0rd8<br></td>'
+    expectations:
+      minimal:
+        active: true
+        output: '<td>password=<SECRET></td><td>password=<SECRET><br></td>'
+      standard:
+        active: true
+        output: '<td>password=<SECRET></td><td>password=<SECRET><br></td>'
+      maximum:
+        active: true
+        output: '<td>password=<SECRET></td><td>password=<SECRET><br></td>'
+
+  - name: key_name_quoted_value_with_parentheses
+    ruleId: key_name_secret
+    category: secrets
+    input: 'DB_PASSWORD="canaryB3x(92)LqZw81"'
+    expectations:
+      minimal:
+        active: true
+        output: 'DB_PASSWORD="<SECRET>"'
+      standard:
+        active: true
+        output: 'DB_PASSWORD="<SECRET>"'
+      maximum:
+        active: true
+        output: 'DB_PASSWORD="<SECRET>"'
+
+  - name: key_name_base64_value_with_leading_slash
+    ruleId: key_name_secret
+    category: secrets
+    input: 'SECRET_KEY=/canary0Fk29dLq0Pz71Xn5Rv3Tb6Yc4Wm2Qe8H'
+    expectations:
+      minimal:
+        active: true
+        output: 'SECRET_KEY=<SECRET>'
+      standard:
+        active: true
+        output: 'SECRET_KEY=<SECRET>'
+      maximum:
+        active: true
+        output: 'SECRET_KEY=<SECRET>'
+
+  - name: key_name_parser_message_unchanged
+    ruleId: key_name_secret
+    category: secrets
+    input: 'SyntaxError: Unexpected token: identifier1234'
+    expectations:
+      minimal:
+        active: false
+        output: 'SyntaxError: Unexpected token: identifier1234'
+      standard:
+        active: false
+        output: 'SyntaxError: Unexpected token: identifier1234'
+      maximum:
+        active: false
+        output: 'SyntaxError: Unexpected token: identifier1234'
+
 requiredSecretCaseNames:
   - key_name_env_assignment
   - key_name_json_text
@@ -1230,3 +1320,9 @@ requiredSecretCaseNames:
   - prefix_token_after_encoded_line_end
   - cookie_header_after_encoded_line_end
   - jwk_private_member_yaml_in_json_string
+  - key_name_weak_password
+  - key_name_value_continues_past_angle_bracket
+  - key_name_value_ends_at_markup
+  - key_name_quoted_value_with_parentheses
+  - key_name_base64_value_with_leading_slash
+  - key_name_parser_message_unchanged

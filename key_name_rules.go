@@ -2,6 +2,7 @@ package redact
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 )
@@ -33,23 +34,29 @@ const (
 )
 
 // Value thresholds. A name in credentialNameEndings names one credential
-// value, and a password may be short and hold no digit, so its value is held
-// to the lower pair. A name in keyMaterialNameEndings also names many values
-// that are not credentials (a key identifier, an authentication mode), so its
-// value is held to the higher pair and must mix letters and digits.
+// value, and a password may be short, so its value is held to the lower
+// length. A name in keyMaterialNameEndings also names many values that are not
+// credentials (a key identifier, an authentication mode), so its value is held
+// to the higher length, must hold a digit and must look random. The decision
+// table is on secretShapedValue.
 const (
 	minCredentialValueLength  = 8
-	minCredentialValueEntropy = 3.0
 	minKeyMaterialValueLength = 20
 	minKeyMaterialEntropy     = 3.5
-	// minSymbolValueEntropy replaces minCredentialValueEntropy for a value that
-	// holds a symbol. No identifier holds one, so only a filler such as
-	// ******a* has to be kept out, and P@ssw0rd must not be.
-	minSymbolValueEntropy = 2.0
 	// maxReferenceDigits is the number of digits a dotted name may hold and
 	// still be read as a member access (config.oauth2.token). A dotted value
 	// with more digits is a token made of segments.
 	maxReferenceDigits = 2
+	// maxIdentifierDigits is the number of digits a name made of words may
+	// hold and still be read as an identifier: sha256_password holds three.
+	maxIdentifierDigits = 3
+	// minWordLettersBeforeDigits is the number of letters a word of such a
+	// name holds before its digits: "oauth2" is a word, "a1" is not.
+	minWordLettersBeforeDigits = 2
+	// minPathSegmentCredentialLength is the length from which one segment of a
+	// path that mixes letters and digits is read as a credential and not as a
+	// file or folder name.
+	minPathSegmentCredentialLength = 20
 )
 
 // credentialNameEndings is the closed list of name endings, compared without
@@ -109,7 +116,15 @@ const escapedCharPattern = `\\[^nrt"'\s]`
 // < or > (so ==, => and <template> are not values). It stops at a space, a
 // quote, < and >, and at the encoded line end, tab or quote of a JSON string
 // (see escapedCharPattern), and it does not end in the punctuation that closes
-// a call or a list.
+// a call or a list. keyNameSecretValues then moves the end of an unquoted
+// value where the pattern cannot: back to the start of the next setting
+// (nextSettingPattern), or on past an angle bracket that no markup follows
+// (unquotedTail).
+//
+// Forms the pattern does not read, and so leaves in the output: a value in
+// Markdown backticks or bold (password: `value`, **password**: value), the
+// "=>" separator, an XML element (<password>value</password>), and a value
+// with spaces in it (a passphrase).
 var keyNameSecretPattern = regexp.MustCompile(
 	`(?i)(?P<before>--(?P<flag>` + secretNamePattern + `)[ \t]+|(?P<name>` + secretNamePattern + `)(?:\\*["'])?[ \t]*(?::=|[=:])[ \t]*)` +
 		`(?:(?P<dqo>")(?P<dq>(?:[^"\s\\]|\\[^\s])+)(?P<dqc>")` +
@@ -206,8 +221,8 @@ var (
 	wordValuePattern = regexp.MustCompile(`^[A-Za-z_\-]+(?:[_\-]v[0-9]{1,3})?$`)
 	// memberAccessPattern is a member access or an environment read:
 	// process.env.TOKEN, request.body.token, var.database_password,
-	// session?.accessToken, oauth2::AccessToken.
-	memberAccessPattern = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*(?:(?:\.|\?\.|::)[A-Za-z_$][A-Za-z0-9_$]*)+$`)
+	// session?.accessToken, oauth2::AccessToken, user->token.
+	memberAccessPattern = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*(?:(?:\.|\?\.|::|->)[A-Za-z_$][A-Za-z0-9_$]*)+$`)
 	// indexedIdentifierPattern is an identifier that is then indexed:
 	// os.environ[, ENV[, argv[.
 	indexedIdentifierPattern = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$.]*\[`)
@@ -216,43 +231,96 @@ var (
 	// relativeFilePattern is a relative path to a file with an extension:
 	// config/secrets.yml, src/auth/token.ts.
 	relativeFilePattern = regexp.MustCompile(`^[A-Za-z0-9_.\-]+(?:/[A-Za-z0-9_.\-]+)+\.[A-Za-z0-9]{1,5}$`)
-	// identifierCharsPattern is a value no symbol appears in.
-	identifierCharsPattern = regexp.MustCompile(`^[A-Za-z0-9_.\-]+$`)
+	// resourcePathPattern is the name of a stored resource: three or more
+	// segments, each one a word or a number, as in
+	// projects/123456/secrets/my-secret/versions/1.
+	resourcePathPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z_\-]*(?:/(?:[0-9]+|[A-Za-z][A-Za-z_\-]*)){2,}$`)
+	// versionWordPattern is the version at the end of a name: v2.
+	versionWordPattern = regexp.MustCompile(`^v[0-9]{1,3}$`)
+	// shellReferencePattern is a value that reads a variable and holds nothing
+	// else: $TOKEN, ${TOKEN}, $(cat token), $1, $HOME/.token, $USER:$PASS,
+	// $user->token.
+	shellReferencePattern = regexp.MustCompile(`^\$(?:[{(]|[0-9@*#?!$]$|[A-Za-z_][A-Za-z0-9_]*(?:$|->|::|[./:\[]))`)
+	// formatReferencePattern is a format verb or a variable between percent
+	// signs: %s, %(name)s, %{name}, %TOKEN%.
+	formatReferencePattern = regexp.MustCompile(`^%(?:[A-Za-z]$|[({]|[A-Za-z_][A-Za-z0-9_]*%$)`)
+	// genericTypePattern is a type with a type argument: Optional<String>.
+	genericTypePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]*<.+>[?\[\]]*$`)
+	// callPattern is a call, up to its closing parenthesis or a member of its
+	// result: os.getenv(NAME), secrets.token_hex(16), f(x).value. A value with
+	// more text after the closing parenthesis is not a call: aB3xkd(92)LqZw81.
+	callPattern = regexp.MustCompile(`^[A-Za-z_$@][A-Za-z0-9_$.:>\-]*\(.*\)(?:[;,]?|\.[A-Za-z_$][^()]*)$`)
+	// openCallPattern is a call that the end of an unquoted value cut short:
+	// "token = get_token(client, scope)" gives the value "get_token(client,".
+	openCallPattern = regexp.MustCompile(`^[A-Za-z_$@][A-Za-z0-9_$.:>\-]*\([^)]*$`)
 )
 
-// notCredentialPrefixes open a value that is a reference, a template, a
-// structure, a path or an escape instead of a credential:
+// notCredentialPrefixes open a value that is a reference, a path or an escape
+// instead of a credential, however it continues:
 //
-//	$VAR ${VAR} $(cmd)   variable reference or command substitution
-//	%s %(name)s %VAR%    format verb or variable reference
 //	#{name}              interpolation
-//	{name} {{ .Value }}  template or the start of an object
-//	[REDACTED] [a, b]    marker or the start of a list
-//	/etc/x ~/x ./x ../x  path to a file
+//	~/x ./x ../x         path to a file
 //	\u0041 \w            escape sequence or pattern source
 //	arn: vault: file: env:  a reference to where the secret is stored
-var notCredentialPrefixes = []string{"$", "%", "#{", "{", "[", "/", "~/", "./", "../", `\`, "arn:", "vault:", "file:", "env:"}
+var notCredentialPrefixes = []string{"#{", "~/", "./", "../", `\`, "arn:", "vault:", "file:", "env:"}
 
 // secretShapedValue reports whether value, found under a secret name of the
 // given kind, is a credential and not a reference, a template, a literal, a
 // count, a description or code.
-func secretShapedValue(kind secretNameKind, value string) bool {
-	minLength, minEntropy := minCredentialValueLength, minCredentialValueEntropy
+//
+// whole says that the extent of the value is known: it was quoted, or it is a
+// decoded JSON string. An unquoted value is whatever the pattern stopped at, so
+// a value that only opens a bracket may be the start of a list or an object;
+// a whole value that opens a bracket and does not close it is not one. Space
+// around a whole value is not part of it.
+//
+// The decision, in the order the tests run. The first row that fits decides.
+//
+//	value                                                    result
+//	-------------------------------------------------------  --------
+//	shorter than 8 characters (20 for key material)          kept
+//	holds a space (a description, a passphrase)              kept
+//	holds "://" (a location)                                 kept
+//	a reference: $VAR ${VAR} $(cmd) %s %VAR% #{x} arn:...    kept
+//	a template or a structure: <token> {name} [a, b] (none)  kept
+//	a path: /etc/x ~/x ./x config/x.yml a/123/b              kept
+//	a type or a call: Optional<String> getToken() f(x).y     kept
+//	no letter: digits only, a mask such as ********          kept
+//	letters only, as words: hashedPassword, your-api-key     kept
+//	a version, a member access, an indexed name              kept
+//	words where digits only end a word: oauth2_token,
+//	  sha256_password, db-credentials-prod2                  kept
+//	key material: no digit, or entropy below 3.5             kept
+//	one character fills more than half: aaaaaaa1, ******a*   kept
+//	anything else                                            redacted
+//
+// So under a credential name a value of 8 or more characters that mixes letters
+// with digits or symbols is redacted (Summer2024, P4ssw0rd, pass1234,
+// P@ssword), unless it is one of the shapes above. Three kinds of weak
+// password stay in the output by decision: shorter than 8 characters, letters
+// only, digits only.
+//
+// Known gaps, kept in the output because the shape is ambiguous: a password
+// made of words where digits only end a word (Welcome1-Again), a password that
+// reads as a variable ($ecretPw99x) or as a call (Pass(123)), and a passphrase
+// with spaces. In the other direction an identifier in camel case that holds a
+// digit (oauth2Token) is redacted.
+func secretShapedValue(kind secretNameKind, value string, whole bool) bool {
+	if whole {
+		value = strings.TrimSpace(value)
+	}
+	minLength := minCredentialValueLength
 	if kind == keyMaterialName {
-		minLength, minEntropy = minKeyMaterialValueLength, minKeyMaterialEntropy
+		minLength = minKeyMaterialValueLength
 	}
 	if kind == notSecretName || len(value) < minLength {
 		return false
 	}
-	// A space makes the value a description. A bracket or "(" makes it a
-	// template, a generic type or a call. "://" makes it a location.
-	if strings.ContainsFunc(value, unicode.IsSpace) || strings.ContainsAny(value, "<>(") || strings.Contains(value, "://") {
+	if strings.ContainsFunc(value, unicode.IsSpace) || strings.Contains(value, "://") {
 		return false
 	}
-	for _, prefix := range notCredentialPrefixes {
-		if strings.HasPrefix(value, prefix) {
-			return false
-		}
+	if referenceOrStructure(value, whole) {
+		return false
 	}
 	// No letter: a count, a number, or a mask such as ********.
 	if strings.IndexFunc(value, unicode.IsLetter) < 0 {
@@ -261,7 +329,8 @@ func secretShapedValue(kind secretNameKind, value string) bool {
 	// Sigils around an identifier are not part of it: &name, :name, @name, NAME!.
 	identifier := strings.TrimRight(strings.TrimLeft(value, "&*:@"), "!?")
 	if wordValuePattern.MatchString(identifier) || indexedIdentifierPattern.MatchString(identifier) ||
-		versionValuePattern.MatchString(value) || relativeFilePattern.MatchString(value) {
+		versionValuePattern.MatchString(value) || relativeFilePattern.MatchString(value) ||
+		resourcePathPattern.MatchString(value) || wordsWithTrailingDigits(identifier) {
 		return false
 	}
 	digits := len(value) - len(strings.Map(dropASCIIDigit, value))
@@ -269,17 +338,107 @@ func secretShapedValue(kind secretNameKind, value string) bool {
 		return false
 	}
 	if kind == keyMaterialName {
-		if digits == 0 {
+		return digits > 0 && shannonEntropy(value) >= minKeyMaterialEntropy
+	}
+	return !isFiller(value)
+}
+
+// referenceOrStructure reports whether value is a reference to a value kept
+// elsewhere, a template, the start of a structure, a path, a type or a call.
+func referenceOrStructure(value string, whole bool) bool {
+	for _, prefix := range notCredentialPrefixes {
+		if strings.HasPrefix(value, prefix) {
+			return true
+		}
+	}
+	last := value[len(value)-1]
+	switch value[0] {
+	case '$':
+		return !whole || shellReferencePattern.MatchString(value)
+	case '%':
+		return !whole || formatReferencePattern.MatchString(value)
+	case '{':
+		// {name}, {{ .Value }}, or the start of an object.
+		return !whole || last == '}'
+	case '[':
+		// [REDACTED], or the start of a list.
+		return !whole || last == ']'
+	case '(':
+		// (none), (optional).
+		return !whole || last == ')'
+	case '<':
+		// <token>, <your-api-key>.
+		return last == '>'
+	case '/':
+		return absolutePath(value)
+	}
+	return genericTypePattern.MatchString(value) || callPattern.MatchString(value) || (!whole && openCallPattern.MatchString(value))
+}
+
+// absolutePath reports whether a value that starts with a slash is a path to a
+// file and not a credential in the base64 alphabet, which also uses the slash.
+// It is a credential when it holds "+" or "=", or when one segment is long and
+// mixes letters and digits: /a8Fk29dLq0Pz71Xn5Rv3Tb6Yc4Wm2Qe8Hs1Jg.
+func absolutePath(value string) bool {
+	if strings.ContainsAny(value, "+=") {
+		return false
+	}
+	for segment := range strings.SplitSeq(value, "/") {
+		if len(segment) >= minPathSegmentCredentialLength && strings.ContainsFunc(segment, isASCIIDigitRune) && strings.ContainsFunc(segment, unicode.IsLetter) {
 			return false
 		}
-	} else if !identifierCharsPattern.MatchString(value) {
-		minEntropy = minSymbolValueEntropy
 	}
-	// Few different characters: a filler such as aaaaaaa1.
-	return shannonEntropy(value) >= minEntropy
+	return true
+}
+
+// wordsWithTrailingDigits reports whether value is a name made of two or more
+// words joined by underscores or hyphens, in which digits only end a word:
+// oauth2_token, sha256_password, base64_token, db-credentials-prod2,
+// oauth2-authorization-code. A generated credential and most passwords hold a
+// digit somewhere else, or hold more digits.
+//
+// At least one word holds no digit, every word with digits starts with two or
+// more letters, and the name holds three digits at most. A version at the end
+// (v2) is not counted.
+func wordsWithTrailingDigits(value string) bool {
+	words := strings.FieldsFunc(value, func(r rune) bool { return r == '_' || r == '-' })
+	if len(words) > 1 && versionWordPattern.MatchString(words[len(words)-1]) {
+		words = words[:len(words)-1]
+	}
+	if len(words) < 2 {
+		return false
+	}
+	plain, digits := 0, 0
+	for _, word := range words {
+		letters := strings.IndexFunc(word, func(r rune) bool { return !isASCIILetterRune(r) })
+		if letters < 0 {
+			plain++
+			continue
+		}
+		if letters < minWordLettersBeforeDigits || !isDigits(word[letters:]) {
+			return false
+		}
+		digits += len(word) - letters
+	}
+	return plain > 0 && digits > 0 && digits <= maxIdentifierDigits
+}
+
+// isFiller reports whether one character makes up more than half of value:
+// aaaaaaa1, ******a*, xxxx-xxxx-xxx1.
+func isFiller(value string) bool {
+	counts := make(map[rune]int)
+	total, most := 0, 0
+	for _, r := range value {
+		counts[r]++
+		total++
+		most = max(most, counts[r])
+	}
+	return 2*most > total
 }
 
 func isASCIIDigitRune(r rune) bool { return r >= '0' && r <= '9' }
+
+func isASCIILetterRune(r rune) bool { return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') }
 
 // dropASCIIDigit removes digits; strings.Map drops a rune mapped below zero.
 // A digit is one byte, so the byte lengths before and after differ by the
@@ -330,13 +489,18 @@ func keyNameSecretValues(matched, input string, offset int) []valueSpan {
 			break
 		}
 		_, _, bare := group(keyNameBareGroup)
-		if bare {
-			if cut := nextSettingPattern.FindStringIndex(matched[valueStart:valueEnd]); cut != nil {
-				valueEnd = valueStart + cut[0]
-				next = valueEnd + 1
-			}
-		}
 		value := matched[valueStart:valueEnd]
+		if bare {
+			if valueEnd == len(matched) {
+				// The pattern stops an unquoted value at an angle bracket.
+				value += unquotedTail(input[offset+valueEnd:])
+			}
+			if cut := nextSettingPattern.FindStringIndex(value); cut != nil {
+				value = value[:cut[0]]
+				next = min(next, valueStart+cut[0]+1)
+			}
+			valueEnd = valueStart + len(value)
+		}
 		nameStart, nameEnd, flagForm := group(keyNameFlagGroup)
 		if flagForm {
 			// "--password --verbose": the text after the flag is the next flag.
@@ -353,11 +517,78 @@ func keyNameSecretValues(matched, input string, offset int) []valueSpan {
 				continue
 			}
 		}
-		if secretShapedValue(secretNameKindOf(matched[nameStart:nameEnd]), value) {
+		kind := secretNameKindOf(matched[nameStart:nameEnd])
+		if !flagForm && messageAbout(input, offset+nameStart, matched[nameStart:nameEnd]) {
+			kind = keyMaterialName
+		}
+		if secretShapedValue(kind, value, !bare) {
 			spans = append(spans, valueSpan{offset + valueStart, offset + valueEnd})
 		}
 	}
 	return spans
+}
+
+// markupAfterValuePattern is an angle bracket that ends an unquoted value: a
+// closing tag, a comment or instruction, or a whole tag or template.
+var markupAfterValuePattern = regexp.MustCompile(`^<[/!?]|<[^<>]*>`)
+
+// unquotedTail returns what an unquoted value continues with when the pattern
+// stopped it at "<" or ">": the text up to the next space, quote or backslash.
+// rest is the input after the pattern match. The pattern stops there so that
+// "token=abc<br>" and "<password>abc</password>" keep their markup; a value
+// such as aB3xkd92Lq<Zw81 has no markup after it and continues. The tail is
+// empty when it holds a tag, or when the line goes on to close one with ">".
+func unquotedTail(rest string) string {
+	if rest == "" || (rest[0] != '<' && rest[0] != '>') {
+		return ""
+	}
+	tail := rest
+	if end := strings.IndexAny(rest, " \t\r\n\"'`\\"); end >= 0 {
+		tail = rest[:end]
+	}
+	if markupAfterValuePattern.MatchString(tail) {
+		return ""
+	}
+	line := rest[len(tail):]
+	if end := strings.IndexAny(line, "\r\n"); end >= 0 {
+		line = line[:end]
+	}
+	if strings.Contains(tail, "<") && strings.Contains(line, ">") {
+		return ""
+	}
+	return tail
+}
+
+// messageSubject is the one name that messages from parsers and validators
+// use for something that is not a credential, and messageWords are the words
+// such a message puts before it: "Unexpected token: identifier",
+// "invalid token: abc (expected number)".
+const messageSubject = "token"
+
+var messageWords = []string{
+	"unexpected", "expected", "invalid", "unknown", "unrecognized", "unrecognised",
+	"illegal", "bad", "malformed", "missing", "stray", "extra",
+	"next", "previous", "current", "first", "last",
+}
+
+// messageAbout reports whether the name at input[nameStart:] is the subject of
+// a message and not the name of a setting: the name is "token" and the word
+// before it is one of messageWords. Its value is then held to the test for key
+// material, so a real token quoted in an error message is still redacted and a
+// short word is not.
+func messageAbout(input string, nameStart int, name string) bool {
+	if !strings.EqualFold(name, messageSubject) {
+		return false
+	}
+	before := strings.TrimRight(input[:nameStart], " \t")
+	if len(before) == nameStart {
+		return false
+	}
+	word := len(before)
+	for word > 0 && isASCIILetterRune(rune(before[word-1])) {
+		word--
+	}
+	return slices.Contains(messageWords, strings.ToLower(before[word:]))
 }
 
 // flagSettingPattern is a flag value that is itself a setting: id=npmrc.
@@ -372,7 +603,7 @@ func urlQuerySecretValues(matched, input string, offset int) []valueSpan {
 	}
 	name := matched[groups[2*urlQueryNameGroup]:groups[2*urlQueryNameGroup+1]]
 	valueStart, valueEnd := groups[2*urlQueryValueGroup], groups[2*urlQueryValueGroup+1]
-	if !secretShapedValue(secretNameKindOf(name), matched[valueStart:valueEnd]) {
+	if !secretShapedValue(secretNameKindOf(name), matched[valueStart:valueEnd], false) {
 		return nil
 	}
 	return []valueSpan{{offset + valueStart, offset + valueEnd}}
@@ -390,7 +621,8 @@ func cookieHeaderValues(matched, input string, offset int) []valueSpan {
 
 // secretValueUnderKey reports whether the string value of an object key is a
 // credential by the test of the text rule for "key": "value": the key ends in
-// a secret word and the value is shaped like a credential.
+// a secret word and the value, whose extent is known, is shaped like a
+// credential.
 func secretValueUnderKey(key, value string) bool {
-	return secretShapedValue(secretNameKindOf(key), value)
+	return secretShapedValue(secretNameKindOf(key), value, true)
 }

@@ -3475,7 +3475,7 @@ cases:
     input: "password=aaaaaaa1"
     rule: key_name_secret
     expect: no_match
-    reason: "Deliberately not redacted: a value with very few different characters is a filler."
+    reason: "One character fills more than half of the value, so it is read as a filler and not as a password."
     source: synthetic
 
   - name: tp_url_query_token
@@ -4655,4 +4655,452 @@ cases:
     rule: jwk_private_member
     expect: no_match
     reason: 'Two backslashes are one literal backslash, so "nk" is not the member "k" on a new line.'
+    source: synthetic
+
+  - name: tp_key_name_eight_characters
+    input: 'password=hunter22'
+    rule: key_name_secret
+    expect: match
+    reason: 'A value of 8 characters that mixes letters and digits is redacted. One character fewer is not (fp_key_name_short_value).'
+    source: synthetic
+
+  - name: tp_key_name_word_and_year
+    input: 'DB_PASSWORD=Summer2024'
+    rule: key_name_secret
+    expect: match
+    reason: 'A word and a year is a password. Few different characters do not keep it in the output.'
+    source: synthetic
+
+  - name: tp_key_name_digits_for_letters
+    input: 'password=P4ssw0rd'
+    rule: key_name_secret
+    expect: match
+    reason: 'A word with digits in place of letters is a password.'
+    source: synthetic
+
+  - name: tp_key_name_digits_inside_word
+    input: 'password=Tr0ub4dor'
+    rule: key_name_secret
+    expect: match
+    reason: 'The digits sit inside the word, so the value is not an identifier.'
+    source: synthetic
+
+  - name: tp_key_name_service_and_year
+    input: 'password=redis2024'
+    rule: key_name_secret
+    expect: match
+    reason: 'Four digits after one word: more than an identifier holds.'
+    source: synthetic
+
+  - name: tp_key_name_word_and_sequence
+    input: 'password=pass1234'
+    rule: key_name_secret
+    expect: match
+    reason: 'A word and a run of digits is a password.'
+    source: synthetic
+
+  - name: tp_key_name_word_and_trailing_digit
+    input: 'password=Passw0rd1'
+    rule: key_name_secret
+    expect: match
+    reason: 'One word with digits is not a name made of words.'
+    source: synthetic
+
+  - name: tp_key_name_half_one_character
+    input: 'password=aaaa1234'
+    rule: key_name_secret
+    expect: match
+    reason: 'One character fills exactly half of the value. A filler needs more than half.'
+    source: synthetic
+
+  - name: fp_key_name_more_than_half_one_character
+    input: 'password=aaaaa123'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'One character fills more than half of the value, so it is read as a filler.'
+    source: synthetic
+
+  - name: fp_key_name_mask_with_one_letter
+    input: 'password=******a*'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'A mask with one letter in it is a filler.'
+    source: synthetic
+
+  - name: fp_key_name_grouped_mask
+    input: 'card_token=xxxx-xxxx-xxx1'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'A grouped mask is a filler: one character fills more than half of it.'
+    source: synthetic
+
+  - name: tp_key_name_word_then_number
+    input: 'password=Summer-2024'
+    rule: key_name_secret
+    expect: match
+    reason: 'A part that is digits alone is not a word, so the value is not an identifier.'
+    source: synthetic
+
+  - name: tp_key_name_two_words_digits_inside
+    input: 'password=My-P4ssw0rd'
+    rule: key_name_secret
+    expect: match
+    reason: 'Digits inside a word, not at its end, make the value a password.'
+    source: synthetic
+
+  - name: tp_key_name_every_word_has_digits
+    input: 'password=canary2-canary2'
+    rule: key_name_secret
+    expect: match
+    reason: 'An identifier holds at least one word with no digit.'
+    source: synthetic
+
+  - name: fp_key_name_identifier_oauth2_token
+    input: 'token = oauth2_token'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'Two words, one of which ends in a digit: the name of a variable.'
+    source: synthetic
+
+  - name: fp_key_name_identifier_sha256_password
+    input: 'password = sha256_password'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'Three digits at the end of a word is the most an identifier holds.'
+    source: synthetic
+
+  - name: fp_key_name_identifier_base64_token
+    input: 'auth_token = base64_token'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'Two words, one of which ends in digits: the name of a variable.'
+    source: synthetic
+
+  - name: fp_key_name_identifier_with_version
+    input: 'token: oauth2_token_v2'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The version at the end is not counted among the digits.'
+    source: synthetic
+
+  - name: fp_key_name_named_object_with_digit
+    input: 'existingSecret: db-credentials-prod2'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The name of another object, made of words joined by hyphens.'
+    source: synthetic
+
+  - name: fp_key_name_grant_type_name
+    input: 'auth: oauth2-authorization-code'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The name of a grant type under a strict name.'
+    source: synthetic
+
+  - name: tp_key_name_words_with_four_digits
+    input: 'password = sha2560_password'
+    rule: key_name_secret
+    expect: match
+    reason: 'Four digits are more than an identifier holds.'
+    source: synthetic
+
+  - name: fp_key_name_two_letters_before_digit
+    input: 'token = ab1_token_name'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'Two letters before the digit make a word.'
+    source: synthetic
+
+  - name: tp_key_name_one_letter_before_digit
+    input: 'token = a1_token_name'
+    rule: key_name_secret
+    expect: match
+    reason: 'One letter before the digit does not make a word.'
+    source: synthetic
+
+  - name: fp_key_name_parser_message
+    input: 'SyntaxError: Unexpected token: identifier1234'
+    rule: key_name_secret
+    expect: no_match
+    reason: '"Unexpected token" is a message from a parser. Its value is held to the test for key material and is too short for it.'
+    source: synthetic
+
+  - name: fp_key_name_validation_message
+    input: 'error: invalid token: abc12345 (expected number)'
+    rule: key_name_secret
+    expect: no_match
+    reason: '"invalid token" is a message. Its value is held to the test for key material and is too short for it.'
+    source: synthetic
+
+  - name: tp_key_name_token_quoted_in_message
+    input: 'error: invalid token: canaryRealTok0123456789abcd'
+    rule: key_name_secret
+    expect: match
+    reason: 'A long value that mixes letters and digits is redacted in a message too.'
+    source: synthetic
+
+  - name: tp_key_name_token_after_other_word
+    input: 'refresh token: canary77'
+    rule: key_name_secret
+    expect: match
+    reason: '"refresh" is not a word that messages put before "token", so the lower test applies.'
+    source: synthetic
+
+  - name: tp_key_name_password_in_sentence
+    input: 'Your temporary password: Xy12345a'
+    rule: key_name_secret
+    expect: match
+    reason: 'The message test applies to the name "token" alone. A password in a sentence is redacted.'
+    source: synthetic
+
+  - name: tp_key_name_invalid_password_message
+    input: 'login failed: invalid password: Summer2024'
+    rule: key_name_secret
+    expect: match
+    reason: 'The message test applies to the name "token" alone.'
+    source: synthetic
+
+  - name: fp_key_name_resource_path
+    input: 'credential: projects/123456/secrets/my-secret/versions/1'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'Segments that are words or numbers name a stored resource.'
+    source: synthetic
+
+  - name: tp_key_name_path_like_with_mixed_segment
+    input: 'credential: projects/canary0Fk29dLq0Pz71Xn5'
+    rule: key_name_secret
+    expect: match
+    reason: 'A segment that mixes letters and digits is not the name of a resource.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_parentheses
+    input: 'DB_PASSWORD="canaryB3x(92)LqZw81"'
+    rule: key_name_secret
+    expect: match
+    reason: 'Text follows the closing parenthesis, so the quoted value is not a call.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_brackets_inside
+    input: '{"password": "Xk9(canary2<vL7pR4"}'
+    rule: key_name_secret
+    expect: match
+    reason: 'A parenthesis and an angle bracket inside a quoted value do not make it a template or a call.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_call
+    input: '"token": "getToken(user1)"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The whole quoted value is a call.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_call_member
+    input: '"token": "client.auth(scope1).value"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The whole quoted value is a member of the result of a call.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_generic_type
+    input: '"token": "Optional<String1>"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The whole quoted value is a type with a type argument.'
+    source: synthetic
+
+  - name: fp_key_name_unquoted_open_call
+    input: 'token = get_token(client1, scope)'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'An unquoted value ends at the space, inside the call.'
+    source: synthetic
+
+  - name: tp_key_name_unquoted_parentheses_inside
+    input: 'DB_PASSWORD=canaryB3x(92)LqZw81'
+    rule: key_name_secret
+    expect: match
+    reason: 'Text follows the closing parenthesis, so the value is not a call.'
+    source: synthetic
+
+  - name: tp_key_name_base64_with_leading_slash
+    input: 'SECRET_KEY=/canary0Fk29dLq0Pz71Xn5Rv3Tb6Yc4Wm2Qe8H'
+    rule: key_name_secret
+    expect: match
+    reason: 'One long segment that mixes letters and digits is a credential in the base64 alphabet, not a path.'
+    source: synthetic
+
+  - name: tp_key_name_base64_with_slash_and_padding
+    input: 'SECRET_KEY=/canary/29dLq0+Pz71Xn5Rv3Tb6Yc4Wm2Qe8H='
+    rule: key_name_secret
+    expect: match
+    reason: 'A path holds no "+" and no "=".'
+    source: synthetic
+
+  - name: fp_key_name_path_segment_nineteen
+    input: 'SECRET_KEY=/srv/canary0Fk29dLq0Pz71'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'A segment of 19 characters is a file name.'
+    source: synthetic
+
+  - name: tp_key_name_path_segment_twenty
+    input: 'SECRET_KEY=/srv/canary0Fk29dLq0Pz71X'
+    rule: key_name_secret
+    expect: match
+    reason: 'A segment of 20 characters that mixes letters and digits is a credential.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_dollar_password
+    input: '"password": "$ecret!Canary99"'
+    rule: key_name_secret
+    expect: match
+    reason: 'The quoted value starts with "$" and does not continue as a variable reference.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_variable_path
+    input: '"password": "$HOME/.pw12345"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'A variable and a path after it is a reference.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_variable_member
+    input: '"password": "$user->password1"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'A member of a variable is a reference.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_percent_password
+    input: '"password": "%canaryB3xkd92"'
+    rule: key_name_secret
+    expect: match
+    reason: 'The quoted value starts with "%" and is not a format verb or a variable.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_named_format_field
+    input: '"password": "%(password1)s"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The quoted value is a named format field.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_open_bracket
+    input: '"password": "[canaryB3xkd92"'
+    rule: key_name_secret
+    expect: match
+    reason: 'A quoted value that opens a bracket and does not close it is not a list or a marker.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_bracket_marker
+    input: '"password": "[REDACTED1]"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The whole quoted value is a marker in brackets.'
+    source: synthetic
+
+  - name: fp_key_name_unquoted_open_bracket
+    input: 'password=[canaryB3xkd92, other]'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'An unquoted value that opens a bracket may be the start of a list.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_open_brace
+    input: '"password": "{canaryB3xkd92"'
+    rule: key_name_secret
+    expect: match
+    reason: 'A quoted value that opens a brace and does not close it is not a template.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_brace_template
+    input: '"password": "{password1}"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The whole quoted value is a template.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_open_parenthesis
+    input: '"password": "(canaryB3xkd92"'
+    rule: key_name_secret
+    expect: match
+    reason: 'A quoted value that opens a parenthesis and does not close it is not a note.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_parenthesised_note
+    input: '"password": "(optional1)"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The whole quoted value is a note in parentheses.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_open_angle
+    input: '"password": "<canaryB3xkd92"'
+    rule: key_name_secret
+    expect: match
+    reason: 'A quoted value that opens an angle bracket and does not close it is not a template.'
+    source: synthetic
+
+  - name: tp_key_name_value_continues_past_angle_bracket
+    input: 'DB_PASSWORD=canaryB3xkd92Lq<Zw81'
+    rule: key_name_secret
+    expect: match
+    reason: 'No markup follows the angle bracket, so the value continues to the space.'
+    source: synthetic
+
+  - name: fp_key_name_arrow_member_access
+    input: 'token=user->token1'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The value continues past ">" and is a member access.'
+    source: synthetic
+
+  - name: fp_key_name_strict_nineteen_characters
+    input: 'SERVICE_ACCESS_KEY=canary0.Fk29+dLq0Pz'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'A value under a strict name is at least 20 characters long.'
+    source: synthetic
+
+  - name: tp_key_name_strict_twenty_characters
+    input: 'SERVICE_ACCESS_KEY=canary0.Fk29+dLq0Pz7'
+    rule: key_name_secret
+    expect: match
+    reason: 'A value of 20 characters under a strict name that mixes letters and digits.'
+    source: synthetic
+
+  - name: fp_key_name_strict_entropy_below_floor
+    input: 'SERVICE_ACCESS_KEY=abcdef12345abcdef12345'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'Eleven different characters, each twice, give an entropy of 3.46: below the floor of 3.5.'
+    source: synthetic
+
+  - name: tp_key_name_strict_entropy_above_floor
+    input: 'SERVICE_ACCESS_KEY=abcdef123456abcdef123456'
+    rule: key_name_secret
+    expect: match
+    reason: 'Twelve different characters, each twice, give an entropy of 3.58: above the floor of 3.5.'
+    source: synthetic
+
+  - name: fp_key_name_member_access_two_digits
+    input: 'token: config2.oauth2.clientToken'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'A dotted name with two digits is still a member access.'
+    source: synthetic
+
+  - name: tp_key_name_dotted_three_digits
+    input: 'token: config2.oauth2.client3Token'
+    rule: key_name_secret
+    expect: match
+    reason: 'A dotted value with three digits is a token made of segments.'
+    source: synthetic
+
+  - name: tp_key_name_value_before_markup
+    input: 'password=canaryPw0rd9<br>'
+    rule: key_name_secret
+    expect: match
+    reason: 'The value ends at the tag.'
     source: synthetic
