@@ -167,6 +167,11 @@ required_standard_text_outputs_ids:
   - value_with_sigils_and_digits
   - words_with_digits_inside_a_word
   - token_after_encoded_carriage_return
+  - quoted_setting_after_unquoted_setting
+  - single_quoted_setting_after_unquoted_setting
+  - escaped_quoted_setting_after_unquoted_setting
+  - unquoted_setting_after_quoted_setting
+  - quoted_setting_between_other_settings
 required_value_rule_replacements_ids:
   - key_name_secret
   - url_query_secret
@@ -177,6 +182,7 @@ required_linear_time_ids:
   - settings_joined_by_semicolons
   - values_before_an_opening_angle_bracket
   - values_before_a_closing_angle_bracket
+  - quoted_settings_after_unquoted_settings
 required_unchanged_text_ids:
   - shell_variable
   - braced_shell_variable
@@ -642,6 +648,26 @@ standard_text_outputs:
     why: the letter of an encoded carriage return before a token prefix does not make the prefix part of a word
     input: '{"out": "done\rhf_canarytoken0123456789abcdefghij"}'
     want: '{"out": "done\r<HUGGINGFACE_TOKEN>"}'
+  - id: quoted_setting_after_unquoted_setting
+    why: a double-quoted setting after an unquoted one in a comma-separated run is judged on the first pass
+    input: 'password=canary12345,token="canaryXyz12345"'
+    want: 'password=<SECRET>,token="<SECRET>"'
+  - id: single_quoted_setting_after_unquoted_setting
+    why: the same for a single-quoted setting after a semicolon
+    input: 'password=canary12345;token=''canaryXyz12345'' next'
+    want: 'password=<SECRET>;token=''<SECRET>'' next'
+  - id: escaped_quoted_setting_after_unquoted_setting
+    why: the same for an escaped double-quoted setting inside a JSON string
+    input: '{"cmd": "run password=canary12345,token=\"canaryXyz12345\" now"}'
+    want: '{"cmd": "run password=<SECRET>,token=\"<SECRET>\" now"}'
+  - id: unquoted_setting_after_quoted_setting
+    why: an unquoted setting after a single-quoted one is judged too
+    input: 'a_token=''canaryAbc12345'';db_password=canaryPw0rd99'
+    want: 'a_token=''<SECRET>'';db_password=<SECRET>'
+  - id: quoted_setting_between_other_settings
+    why: settings that are not secret around the quoted one stay
+    input: 'password=canary12345,user=jane,token="canaryXyz12345",mode=x'
+    want: 'password=<SECRET>,user=jane,token="<SECRET>",mode=x'
 # The rules that replace a value and not their whole pattern match. Each
 # Replacement is the bare placeholder; the recovery path keeps the name.
 value_rule_replacements:
@@ -678,6 +704,9 @@ linear_time:
   - id: values_before_a_closing_angle_bracket
     why: the same for a closing angle bracket
     unit: 'token=abcd1234>'
+  - id: quoted_settings_after_unquoted_settings
+    why: the quoted value after the last setting of each run is read up to its closing quote, once
+    unit: 'a=b,db_token="canaryQ1w2e3"'
 unchanged_text:
   - id: shell_variable
     why: a variable reference holds no credential

@@ -557,9 +557,11 @@ func keyNameSecretValues(matched, input string, offset int) []valueSpan {
 	cuts := nextSettingPattern.FindAllStringIndex(input[valueStart:end], -1)
 	var spans []valueSpan
 	for k := 0; ; k++ {
-		pair.valueEnd = end
-		if k < len(cuts) {
-			pair.valueEnd = valueStart + cuts[k][0]
+		if pair.bare {
+			pair.valueEnd = end
+			if k < len(cuts) {
+				pair.valueEnd = valueStart + cuts[k][0]
+			}
 		}
 		spans = appendKeyNameValue(spans, input, pair)
 		if k == len(cuts) {
@@ -567,11 +569,16 @@ func keyNameSecretValues(matched, input string, offset int) []valueSpan {
 		}
 		// The next setting starts after the comma or semicolon and ends at
 		// the next cut. It holds no space and no quote, because the unquoted
-		// value it was cut from holds none.
+		// value it was cut from holds none, except that the last one may
+		// end in its separator with a quoted value after it, which the
+		// unquoted value stopped at: password=abc12345,token="def67890".
+		// The last setting then runs on to the end of that quoted value.
 		start := valueStart + cuts[k][0] + 1
 		stop := end
 		if k+1 < len(cuts) {
 			stop = valueStart + cuts[k+1][0]
+		} else {
+			stop = quotedValueEnd(input, end)
 		}
 		next, found := keyNamePairAt(input, start, keyNameSecretPattern.FindStringSubmatchIndex(input[start:stop]))
 		if !found {
@@ -580,6 +587,32 @@ func keyNameSecretValues(matched, input string, offset int) []valueSpan {
 		}
 		pair = next
 	}
+}
+
+// quotedValueEnd returns the end of the quoted value that opens at
+// input[at], with its closing quote: "value", 'value' or \"value\". It
+// returns at when no quoted value without a space opens there. It reads up to
+// the closing quote or the first space, text the scan reads next in any case.
+func quotedValueEnd(input string, at int) int {
+	open := at
+	for open < len(input) && input[open] == '\\' {
+		open++
+	}
+	if open == len(input) || (input[open] != '"' && input[open] != '\'') {
+		return at
+	}
+	quote := input[open]
+	for i := open + 1; i < len(input); i++ {
+		switch c := input[i]; {
+		case c == ' ' || c == '\t' || c == '\r' || c == '\n':
+			return at
+		case c == quote && !(quote == '"' && open == at && input[i-1] == '\\'):
+			// Inside a plain double-quoted value an escaped quote does not
+			// close it.
+			return i + 1
+		}
+	}
+	return at
 }
 
 // keyNamePair is one name and its value in a key_name_secret match, as
