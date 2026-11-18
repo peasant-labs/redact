@@ -13,6 +13,8 @@ import (
 //go:embed testdata/engine_lookup.yaml
 var engineLookupData []byte
 
+const engineLookupTestFixturePath = "testdata/engine_lookup.yaml"
+
 type engineLookupCase struct {
 	Name string `yaml:"name"`
 }
@@ -32,7 +34,7 @@ func loadEngineLookupFixtures(t *testing.T) engineLookupFixtures {
 	if err := yaml.Unmarshal(engineLookupData, &fixtures); err != nil {
 		t.Fatal(err)
 	}
-	if err := requireFixtureNames("testdata/engine_lookup.yaml", "required_names", fixtures.RequiredNames, fixtureNames(fixtures.Cases, func(row engineLookupCase) string { return row.Name })); err != nil {
+	if err := requireFixtureNames(engineLookupTestFixturePath, "required_names", fixtures.RequiredNames, fixtureNames(fixtures.Cases, func(row engineLookupCase) string { return row.Name })); err != nil {
 		t.Fatal(err)
 	}
 	if fixtures.ProbeRuleID == "" || fixtures.ProbePattern == "" || fixtures.ProbeInput == "" || fixtures.ProbeReplacement == "" {
