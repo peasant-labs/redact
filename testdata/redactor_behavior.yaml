@@ -106,6 +106,9 @@ required_json_keys_ids:
   - authorization_header_key
   - cookie_header_key
   - header_key_with_placeholder_unchanged
+  - basic_authorization_header_key
+  - header_key_value_is_counted_once
+  - cookie_header_key_is_counted_once
 required_unchanged_text_ids:
   - shell_variable
   - braced_shell_variable
@@ -329,6 +332,24 @@ json_keys:
     level: minimal
     json: '{"headers": {"Authorization": "token YOUR-TOKEN", "Cookie": "$SESSION_COOKIE"}}'
     want: '{"headers": {"Authorization": "token YOUR-TOKEN", "Cookie": "$SESSION_COOKIE"}}'
+  - id: basic_authorization_header_key
+    why: basic_auth replaces the header name together with the value, so nothing of the name is left to take off. The placeholder is the redacted value, and the value is not scanned a second time without its name.
+    level: standard
+    json: '{"Authorization": "Basic Y2FuYXJ5OmNhbmFyeXBhc3N3b3Jk"}'
+    want: '{"Authorization": "<BASIC_AUTH>"}'
+    counts: {basic_auth: 1}
+  - id: header_key_value_is_counted_once
+    why: The rule takes the space after the colon, so the redacted line no longer starts with the whole name. The value is still redacted in one pass and counted once.
+    level: standard
+    json: '{"authorization": "AKCcanary0123456789"}'
+    want: '{"authorization": "<ARTIFACTORY_API_TOKEN>"}'
+    counts: {artifactory_api_token: 1}
+  - id: cookie_header_key_is_counted_once
+    why: A value under a header key is one redaction in the report.
+    level: standard
+    json: '{"Cookie": "sessionid=canarySessionCookie0123456789abcdef"}'
+    want: '{"Cookie": "<COOKIE>"}'
+    counts: {cookie_header: 1}
 unchanged_text:
   - id: shell_variable
     why: a variable reference holds no credential

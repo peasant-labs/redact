@@ -696,14 +696,22 @@ func (r *DefaultRedactor) matchesWhole(value string) bool {
 
 // redactHeaderValue redacts the string under an object key that names a header
 // (see headerValueKeys). The rules for these headers match the header name and
-// the value together, so the value is redacted as the line "Name: value" and
-// the name is taken off again. Every other rule sees the value as usual.
+// the value together, so the value is redacted once, as the line "Name: value",
+// and the name is taken off the result. Every other rule sees the value in the
+// same pass.
+//
+// A rule may replace the name with the value (basic_auth) or take the space
+// after the colon (artifactory_api_token). What is left of the name is then
+// shorter than the name, and the rest of the line, placeholder first, is the
+// redacted value.
 func (r *DefaultRedactor) redactHeaderValue(key, value string, call *observationCall) string {
-	prefix := key + ": "
-	if line := r.redactTextChild(prefix+value, call); strings.HasPrefix(line, prefix) {
-		return line[len(prefix):]
+	name := key + ": "
+	line := r.redactTextChild(name+value, call)
+	kept := 0
+	for kept < len(name) && kept < len(line) && line[kept] == name[kept] {
+		kept++
 	}
-	return r.redactTextChild(value, call)
+	return line[kept:]
 }
 
 // privateMetadata holds the path-bearing values of one session's metadata.

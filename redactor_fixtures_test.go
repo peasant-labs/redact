@@ -58,6 +58,8 @@ type jsonKeyFixture struct {
 	// KeyRedactions is the number of redactions Report() counts for the
 	// key-name rule and the JSON Web Key rule after the first pass.
 	KeyRedactions int `yaml:"key_redactions"`
+	// Counts, when set, is every count Report() holds after the first pass.
+	Counts map[string]int `yaml:"counts"`
 }
 
 // metadataPathFixture drives RedactMetadata, the context-aware stage that knows
@@ -297,6 +299,9 @@ func TestRedactJSON_KeyNameFixtures(t *testing.T) {
 			counts := redactor.Report().Counts
 			if counted := counts[keyNameSecretRuleID] + counts[jwkPrivateMemberRuleID]; counted != row.KeyRedactions {
 				t.Errorf("Report() counts %d key redactions, want %d (counts: %v)", counted, row.KeyRedactions, counts)
+			}
+			if row.Counts != nil && !reflect.DeepEqual(counts, row.Counts) {
+				t.Errorf("Report() counts = %v, want exactly %v", counts, row.Counts)
 			}
 			if again := redactor.RedactJSON(got); !reflect.DeepEqual(again, want) {
 				t.Errorf("second RedactJSON pass = %#v, want %#v; redaction must be idempotent", again, want)
