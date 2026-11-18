@@ -524,13 +524,6 @@ func dropASCIIDigit(r rune) rune {
 	return r
 }
 
-// isKeyNameRule reports whether id is one of the rules in this file. They come
-// after every format rule in the rule table, so that a format rule wins when
-// its match and a value match span the same text.
-func isKeyNameRule(id string) bool {
-	return id == keyNameSecretRuleID || id == urlQuerySecretRuleID || id == cookieHeaderRuleID
-}
-
 // keyNameSecretValues returns the credential values in one key_name_secret
 // match. It is usually one value. An unquoted value that runs through the
 // start of another setting (see nextSettingPattern) is cut there, so each

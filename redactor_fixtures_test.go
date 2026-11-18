@@ -460,6 +460,13 @@ func TestRedactText_UnchangedFixtures(t *testing.T) {
 	}
 }
 
+// isKeyNameRule reports whether id is one of the rules in key_name_rules.go.
+// They come after every format rule in the rule table, so that a format rule
+// wins when its match and a value match span the same text.
+func isKeyNameRule(id string) bool {
+	return id == keyNameSecretRuleID || id == urlQuerySecretRuleID || id == cookieHeaderRuleID
+}
+
 // TestRules_KeyNameRulesComeLast pins the table order the overlap rules rely
 // on: two matches of equal offset and length resolve by table order, so every
 // rule that knows a format must come before the rules that read a key name.
