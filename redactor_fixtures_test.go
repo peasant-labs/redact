@@ -3,10 +3,12 @@ package redact
 import (
 	_ "embed"
 	"encoding/json"
+	"math"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/peasant-labs/schema"
 	"gopkg.in/yaml.v3"
@@ -44,6 +46,17 @@ type redactorBehaviorFixtures struct {
 	RequiredInactiveRuleIDs []string               `yaml:"required_inactive_json_key_rules_ids"`
 	InactiveJSONKeyRules    []inactiveRuleFixture  `yaml:"inactive_json_key_rules"`
 	JSONKeySets             jsonKeySetsFixture     `yaml:"json_key_sets"`
+	RequiredLinearTimeIDs   []string               `yaml:"required_linear_time_ids"`
+	LinearTime              []linearTimeFixture    `yaml:"linear_time"`
+}
+
+// linearTimeFixture is a short text that RedactText must read in time that
+// follows the length of the input when the text is repeated with no space
+// between the copies.
+type linearTimeFixture struct {
+	ID   string `yaml:"id"`
+	Why  string `yaml:"why"`
+	Unit string `yaml:"unit"`
 }
 
 // observedKeyFixture is a JSON document in which RedactJSON replaces exactly
@@ -196,6 +209,12 @@ func loadRedactorBehaviorFixtures(t *testing.T) redactorBehaviorFixtures {
 	for _, row := range fixtures.InactiveJSONKeyRules {
 		if row.Why == "" || row.JSON == "" || row.Rule == "" {
 			t.Fatalf("inactive JSON key rule fixture %q is incomplete; why, rule and json are required", row.ID)
+		}
+	}
+	checkFixtureFamily(t, "linear_time", fixtures.RequiredLinearTimeIDs, fixtureNames(fixtures.LinearTime, func(row linearTimeFixture) string { return row.ID }))
+	for _, row := range fixtures.LinearTime {
+		if row.Why == "" || row.Unit == "" {
+			t.Fatalf("linear time fixture %q is incomplete; why and unit are required", row.ID)
 		}
 	}
 	if len(fixtures.JSONKeySets.JWKPrivateMembers) == 0 || len(fixtures.JSONKeySets.HeaderValueKeys) == 0 {
@@ -554,5 +573,49 @@ func TestRedactJSON_KeyListsAreClosed(t *testing.T) {
 		if !slices.Equal(got, want) {
 			t.Errorf("%s = %v, want exactly %v, the json_key_sets list of the redactor behavior fixture", list.name, got, want)
 		}
+	}
+}
+
+// Sizes and tolerance of TestRedactText_LinearTimeFixtures. The larger input
+// is linearTimeFactor times the smaller one, so time that follows the length
+// grows by that factor and time that follows its square grows by its square.
+// The test allows twice the linear growth: a ratio above
+// linearTimeMaxRatio fails, which is still half of what quadratic time gives.
+const (
+	linearTimeSmallBytes = 16 << 10
+	linearTimeFactor     = 4
+	linearTimeMaxRatio   = 2 * linearTimeFactor
+	linearTimeRuns       = 3
+)
+
+// TestRedactText_LinearTimeFixtures pins that the time RedactText takes on a
+// long run of settings with no space between them grows with the length of
+// the run and not with its square. It compares two sizes of the same input
+// instead of a time budget, so a slow machine does not fail it. Each size is
+// timed linearTimeRuns times and the fastest run counts, which keeps a pause
+// of the machine out of the ratio.
+func TestRedactText_LinearTimeFixtures(t *testing.T) {
+	if testing.Short() {
+		t.Skip("times RedactText on inputs of up to 64 KiB")
+	}
+	redactor := mustNewRedactor(t, Standard, nil)
+	fastest := func(input string) time.Duration {
+		best := time.Duration(math.MaxInt64)
+		for range linearTimeRuns {
+			start := time.Now()
+			redactor.RedactText(input)
+			best = min(best, time.Since(start))
+		}
+		return max(best, time.Microsecond)
+	}
+	for _, row := range loadRedactorBehaviorFixtures(t).LinearTime {
+		t.Run(row.ID, func(t *testing.T) {
+			copies := linearTimeSmallBytes / len(row.Unit)
+			small := fastest(strings.Repeat(row.Unit, copies))
+			large := fastest(strings.Repeat(row.Unit, copies*linearTimeFactor))
+			if ratio := float64(large) / float64(small); ratio > linearTimeMaxRatio {
+				t.Errorf("RedactText took %v on %d copies of %q and %v on %d times as many: a ratio of %.1f, more than %d; the time must follow the length of the input (%s)", small, copies, row.Unit, large, linearTimeFactor, ratio, linearTimeMaxRatio, row.Why)
+			}
+		})
 	}
 }

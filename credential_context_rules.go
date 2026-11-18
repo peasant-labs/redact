@@ -58,7 +58,7 @@ func prefixTokenValues(pattern *regexp.Regexp) valueFinder {
 				if strings.IndexFunc(matched[start:end], isASCIIDigitRune) < 0 {
 					return nil
 				}
-				return []valueSpan{{at, offset + end}}
+				return []valueSpan{{start: at, end: offset + end, construct: at}}
 			}
 			inside := pattern.FindStringIndex(matched[start+1:])
 			if inside == nil {
@@ -236,7 +236,7 @@ func curlUserPasswordValues(matched, input string, offset int) []valueSpan {
 	if !curlCommandPattern.MatchString(commandBefore(input, offset)) {
 		return nil
 	}
-	return []valueSpan{{offset + pairStart, offset + pairEnd}}
+	return []valueSpan{{start: offset + pairStart, end: offset + pairEnd, construct: offset}}
 }
 
 func isDigits(s string) bool {

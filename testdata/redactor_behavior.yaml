@@ -133,6 +133,11 @@ required_inactive_json_key_rules_ids:
 json_key_sets:
   jwk_private_members: [d, p, q, dp, dq, qi, k]
   header_value_keys: [authorization, cookie, set-cookie]
+required_linear_time_ids:
+  - settings_joined_by_commas
+  - settings_joined_by_semicolons
+  - values_before_an_opening_angle_bracket
+  - values_before_a_closing_angle_bracket
 required_unchanged_text_ids:
   - shell_variable
   - braced_shell_variable
@@ -462,6 +467,19 @@ inactive_json_key_rules:
     why: RedactJSON replaces a private member only while jwk_private_member is active at the configured level.
     rule: jwk_private_member
     json: '{"kty": "oct", "k": "canarySymmetricKey0123456789abcd"}'
+linear_time:
+  - id: settings_joined_by_commas
+    why: every setting of the run is cut from one unquoted value and read once
+    unit: 'db_password=a1b2c3d4,'
+  - id: settings_joined_by_semicolons
+    why: the same for settings joined by semicolons, with settings that are not secret between them
+    unit: 'password=abc12345;b=1,'
+  - id: values_before_an_opening_angle_bracket
+    why: the text read past an angle bracket after each value is bounded
+    unit: 'token=abcd1234<'
+  - id: values_before_a_closing_angle_bracket
+    why: the same for a closing angle bracket
+    unit: 'token=abcd1234>'
 unchanged_text:
   - id: shell_variable
     why: a variable reference holds no credential

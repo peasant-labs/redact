@@ -93,7 +93,9 @@ func (r *DefaultRedactor) scan(input string, call *observationCall) []Match {
 }
 
 // valueSpan is a part of the input that a rule replaces: input[start:end].
-type valueSpan struct{ start, end int }
+// construct is where the construct the value was found in starts: the start of
+// the name in "name=value".
+type valueSpan struct{ start, end, construct int }
 
 // valueFinder returns the parts of the input that a rule replaces for one match
 // of its pattern, in ascending order and without overlap. matched is the
@@ -161,7 +163,7 @@ func detectWithRulesInto(input string, rules []Rule, patterns compiledPatterns, 
 			matched := input[loc[0]:loc[1]]
 			if values.find != nil {
 				for _, span := range values.find(matched, input, loc[0]) {
-					found.add(Match{Rule: rule.ID, Offset: span.start, Length: span.end - span.start, Category: rule.Category, MatchedText: input[span.start:span.end]}, matchSource{rule: index, value: !values.knowsFormat, construct: loc[0]})
+					found.add(Match{Rule: rule.ID, Offset: span.start, Length: span.end - span.start, Category: rule.Category, MatchedText: input[span.start:span.end]}, matchSource{rule: index, value: !values.knowsFormat, construct: span.construct})
 					valueMatches = valueMatches || !values.knowsFormat
 				}
 				continue
@@ -202,8 +204,9 @@ type detectedMatches struct {
 
 // matchSource is the index of a match's rule in the scanned rule list. For a
 // value that resolveValueOverlaps settles (see valueRule.knowsFormat) it also
-// holds where the pattern match that the value was found in starts: the start
-// of the name in "name=value".
+// holds where the construct that the value was found in starts: the start of
+// the name in "name=value", which for the second setting of
+// "password=abc12345,token=def67890" is the start of "token".
 type matchSource struct {
 	rule      int
 	value     bool

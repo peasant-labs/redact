@@ -459,79 +459,135 @@ func isKeyNameRule(id string) bool {
 
 // keyNameSecretValues returns the credential values in one key_name_secret
 // match. It is usually one value. An unquoted value that runs through the
-// start of another setting (see nextSettingPattern) is cut there, and the rest
-// of the match is read again, so each setting on the line is judged by its own
-// name: "password=abc12345,token=def67890" holds two values.
+// start of another setting (see nextSettingPattern) is cut there, so each
+// setting on the line is judged by its own name:
+// "password=abc12345,token=def67890" holds two values.
+//
+// The cuts are found once, and each setting between two cuts is read on its
+// own, so the time taken follows the length of the match: a line of thousands
+// of settings with no space between them is read once, not once per setting.
 func keyNameSecretValues(matched, input string, offset int) []valueSpan {
+	pair, ok := keyNamePairAt(input, offset, keyNameSecretPattern.FindStringSubmatchIndex(matched))
+	if !ok {
+		return nil
+	}
+	if !pair.bare {
+		return appendKeyNameValue(nil, input, pair)
+	}
+	end := pair.valueEnd
+	if end == offset+len(matched) {
+		// The pattern stops an unquoted value at an angle bracket.
+		end += len(unquotedTail(input[end:]))
+	}
+	valueStart := pair.valueStart
+	cuts := nextSettingPattern.FindAllStringIndex(input[valueStart:end], -1)
 	var spans []valueSpan
-	for next := 0; next < len(matched); {
-		base := next
-		groups := keyNameSecretPattern.FindStringSubmatchIndex(matched[base:])
-		if groups == nil {
+	for k := 0; ; k++ {
+		pair.valueEnd = end
+		if k < len(cuts) {
+			pair.valueEnd = valueStart + cuts[k][0]
+		}
+		spans = appendKeyNameValue(spans, input, pair)
+		if k == len(cuts) {
+			return spans
+		}
+		// The next setting starts after the comma or semicolon and ends at
+		// the next cut. It holds no space and no quote, because the unquoted
+		// value it was cut from holds none.
+		start := valueStart + cuts[k][0] + 1
+		stop := end
+		if k+1 < len(cuts) {
+			stop = valueStart + cuts[k+1][0]
+		}
+		next, found := keyNamePairAt(input, start, keyNameSecretPattern.FindStringSubmatchIndex(input[start:stop]))
+		if !found {
+			pair = keyNamePair{}
+			continue
+		}
+		pair = next
+	}
+}
+
+// keyNamePair is one name and its value in a key_name_secret match, as
+// positions in the input.
+type keyNamePair struct {
+	pairStart            int
+	nameStart, nameEnd   int
+	valueStart, valueEnd int
+	bare, flag, present  bool
+}
+
+// keyNamePairAt reads the groups of keyNameSecretPattern, found in the input
+// at offset, as a keyNamePair.
+func keyNamePairAt(input string, offset int, groups []int) (keyNamePair, bool) {
+	if groups == nil {
+		return keyNamePair{}, false
+	}
+	group := func(index int) (start, end int, ok bool) {
+		if groups[2*index] < 0 {
+			return 0, 0, false
+		}
+		return offset + groups[2*index], offset + groups[2*index+1], true
+	}
+	pair := keyNamePair{pairStart: offset + groups[0], present: true}
+	found := false
+	for _, index := range keyNameValueGroups {
+		if start, end, ok := group(index); ok {
+			pair.valueStart, pair.valueEnd, found = start, end, true
 			break
-		}
-		group := func(index int) (start, end int, ok bool) {
-			if groups[2*index] < 0 {
-				return 0, 0, false
-			}
-			return base + groups[2*index], base + groups[2*index+1], true
-		}
-		pairStart := base + groups[0]
-		next = base + groups[1]
-		valueStart, valueEnd := -1, -1
-		for _, index := range keyNameValueGroups {
-			if start, end, ok := group(index); ok {
-				valueStart, valueEnd = start, end
-				break
-			}
-		}
-		if valueStart < 0 {
-			break
-		}
-		_, _, bare := group(keyNameBareGroup)
-		value := matched[valueStart:valueEnd]
-		if bare {
-			if valueEnd == len(matched) {
-				// The pattern stops an unquoted value at an angle bracket.
-				tail := unquotedTail(input[offset+valueEnd:])
-				value = input[offset+valueStart : offset+valueEnd+len(tail)]
-			}
-			if cut := nextSettingPattern.FindStringIndex(value); cut != nil {
-				value = value[:cut[0]]
-				next = min(next, valueStart+cut[0]+1)
-			}
-			valueEnd = valueStart + len(value)
-		}
-		nameStart, nameEnd, flagForm := group(keyNameFlagGroup)
-		if flagForm {
-			// "--password --verbose": the text after the flag is the next flag.
-			// "--secret id=npmrc,src=.npmrc": a list of settings, not a value.
-			if strings.HasPrefix(value, "-") || flagSettingPattern.MatchString(value) {
-				continue
-			}
-		} else {
-			nameStart, nameEnd, _ = group(keyNameNameGroup)
-			tight := nameEnd < len(matched) && matched[nameEnd] == '='
-			if before := offset + pairStart - 1; bare && tight && before >= 0 && (input[before] == '?' || input[before] == '&') {
-				// An unquoted URL query parameter. url_query_secret owns it and
-				// stops the value at the next parameter.
-				continue
-			}
-		}
-		kind := secretNameKindOf(matched[nameStart:nameEnd])
-		if !flagForm && messageAbout(input, offset+nameStart, matched[nameStart:nameEnd]) {
-			kind = keyMaterialName
-		}
-		if secretShapedValue(kind, value, !bare) {
-			spans = append(spans, valueSpan{offset + valueStart, offset + valueEnd})
 		}
 	}
-	return spans
+	if !found {
+		return keyNamePair{}, false
+	}
+	_, _, pair.bare = group(keyNameBareGroup)
+	if pair.nameStart, pair.nameEnd, pair.flag = group(keyNameFlagGroup); !pair.flag {
+		pair.nameStart, pair.nameEnd, _ = group(keyNameNameGroup)
+	}
+	return pair, true
+}
+
+// appendKeyNameValue appends the value of pair to spans when it is a
+// credential.
+func appendKeyNameValue(spans []valueSpan, input string, pair keyNamePair) []valueSpan {
+	if !pair.present || pair.valueStart >= pair.valueEnd {
+		return spans
+	}
+	value := input[pair.valueStart:pair.valueEnd]
+	name := input[pair.nameStart:pair.nameEnd]
+	if pair.flag {
+		// "--password --verbose": the text after the flag is the next flag.
+		// "--secret id=npmrc,src=.npmrc": a list of settings, not a value.
+		if strings.HasPrefix(value, "-") || flagSettingPattern.MatchString(value) {
+			return spans
+		}
+	} else {
+		tight := pair.nameEnd < len(input) && input[pair.nameEnd] == '='
+		if before := pair.pairStart - 1; pair.bare && tight && before >= 0 && (input[before] == '?' || input[before] == '&') {
+			// An unquoted URL query parameter. url_query_secret owns it and
+			// stops the value at the next parameter.
+			return spans
+		}
+	}
+	kind := secretNameKindOf(name)
+	if !pair.flag && messageAbout(input, pair.nameStart, name) {
+		kind = keyMaterialName
+	}
+	if !secretShapedValue(kind, value, !pair.bare) {
+		return spans
+	}
+	return append(spans, valueSpan{start: pair.valueStart, end: pair.valueEnd, construct: pair.pairStart})
 }
 
 // markupAfterValuePattern is an angle bracket that ends an unquoted value: a
 // closing tag, a comment or instruction, or a whole tag or template.
 var markupAfterValuePattern = regexp.MustCompile(`^<[/!?]|<[^<>]*>`)
+
+// maxTailLookahead bounds how far unquotedTail reads past the pattern match,
+// so that a long line with an angle bracket after every value is still read in
+// time that follows its length. A value continues past an angle bracket for at
+// most this many bytes.
+const maxTailLookahead = 256
 
 // unquotedTail returns what an unquoted value continues with when the pattern
 // stopped it at "<" or ">": the text up to the next space, quote or backslash.
@@ -539,10 +595,12 @@ var markupAfterValuePattern = regexp.MustCompile(`^<[/!?]|<[^<>]*>`)
 // "token=abc<br>" and "<password>abc</password>" keep their markup; a value
 // such as aB3xkd92Lq<Zw81 has no markup after it and continues. The tail is
 // empty when it holds a tag, or when the line goes on to close one with ">".
+// It reads no more than maxTailLookahead bytes of rest.
 func unquotedTail(rest string) string {
 	if rest == "" || (rest[0] != '<' && rest[0] != '>') {
 		return ""
 	}
+	rest = rest[:min(len(rest), maxTailLookahead)]
 	tail := rest
 	if end := strings.IndexAny(rest, " \t\r\n\"'`\\"); end >= 0 {
 		tail = rest[:end]
@@ -607,7 +665,7 @@ func urlQuerySecretValues(matched, input string, offset int) []valueSpan {
 	if !secretShapedValue(secretNameKindOf(name), matched[valueStart:valueEnd], false) {
 		return nil
 	}
-	return []valueSpan{{offset + valueStart, offset + valueEnd}}
+	return []valueSpan{{start: offset + valueStart, end: offset + valueEnd, construct: offset}}
 }
 
 // cookieHeaderValues returns the part of a cookie_header match after the
@@ -622,7 +680,7 @@ func cookieHeaderValues(matched, input string, offset int) []valueSpan {
 	if strings.IndexByte(encodedBreakLetters, matched[0]|0x20) >= 0 && !endsEncodedBreak(input, offset+1) {
 		return nil
 	}
-	return []valueSpan{{offset + groups[2*cookieHeaderBeforeGroup+1], offset + len(matched)}}
+	return []valueSpan{{start: offset + groups[2*cookieHeaderBeforeGroup+1], end: offset + len(matched), construct: offset}}
 }
 
 // secretValueUnderKey reports whether the string value of an object key is a
