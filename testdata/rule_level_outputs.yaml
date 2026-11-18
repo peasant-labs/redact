@@ -504,6 +504,10 @@ cases:
         active: true
         output: "<API_KEY>"
 
+  # This row records what generic_api_key does to the header today, so that a
+  # change to it is seen. The output is not the wanted one: the rule matches
+  # from "api-key" and its placeholder replaces part of the header name. The
+  # rows around it show the output the newer rules give ("name: <SECRET>").
   - name: x_api_key_header
     ruleId: generic_api_key
     category: secrets

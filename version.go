@@ -67,22 +67,34 @@ package redact
 //	         form and keeps non-Luhn 16-digit IDs suppressed; a match that is part
 //	         of a longer dash-separated identifier stays suppressed.
 //	3.2.0 — rules that use the name of the key or the construct around a
-//	         credential, token formats with a documented prefix, and one pattern
-//	         gap. +key_name_secret (a value under a name that ends in a secret
-//	         word; the lists are in key_name_rules.go), +url_query_secret,
-//	         +cookie_header; a key-name match gives way to a rule that covers
-//	         the whole value or continues past it. +github_fine_grained_pat,
-//	         +npm_token, +huggingface_token, +vercel_token, +supabase_token,
-//	         each with a residue rule. +authorization_token (the "token" and
-//	         "Bot" schemes), +curl_user_password, +jwk_private_member.
-//	         RedactJSON applies the key-name test to object keys, replaces the
-//	         private members of a JSON Web Key, reads a value under a header
-//	         key as that header, and leaves the "token" of a log-probability
-//	         entry alone. stripe_key matches 24 or more characters after the
-//	         prefix (was exactly 24), so a longer key no longer leaves its tail.
-//	         +google_api_key and +openai_project_key, from the prefixes the
-//	         open-source scanners use; openai_key takes the whole part after
-//	         its marker (was exactly 20 characters).
+//	         credential, token formats with a known prefix, and two pattern
+//	         gaps.
+//	         +key_name_secret (a value under a name that ends in a secret
+//	         word; the name lists and the decision table for the value are in
+//	         key_name_rules.go), +url_query_secret, +cookie_header,
+//	         +curl_user_password. Each of these reports the value as its
+//	         match, not the name. Detection settles its overlaps: it is
+//	         dropped where another rule matches the whole value and
+//	         shortened where another match covers its start or runs past its
+//	         end, so no match of another rule is lost to it.
+//	         +github_fine_grained_pat, +npm_token, +huggingface_token,
+//	         +vercel_token, +supabase_token, +google_api_key (35 or more
+//	         characters after the prefix), +openai_project_key (the body
+//	         holds a run of 20 characters with no hyphen), each with a
+//	         residue rule. The prefix must start a word and the body must
+//	         hold a digit.
+//	         +authorization_token (the "token" and "Bot" schemes),
+//	         +jwk_private_member.
+//	         A prefix-token rule, cookie_header and jwk_private_member also
+//	         match after an encoded line end in JSON-encoded text.
+//	         RedactJSON applies the key-name test to object keys, replaces
+//	         the private members of a JSON Web Key, reads a value under a
+//	         header key as that header, and leaves the "token" of a
+//	         log-probability entry alone.
+//	         stripe_key matches 24 or more characters after the prefix (was
+//	         exactly 24), and openai_key takes the whole part after its
+//	         marker (was exactly 20 letters or digits), so a longer key no
+//	         longer leaves its tail.
 //	         Detect orders matches at one offset longest first.
 const RuleSetVersion = "3.2.0"
 

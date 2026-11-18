@@ -379,6 +379,10 @@ func isJWKPrivateMember(key, value string) bool {
 // headerValueKeys are the object keys whose string value RedactJSON reads as
 // the value of that header. The rules for these headers need the header name
 // in front of the value, and a decoded object holds the two apart.
+//
+// The list is closed. Not read as a header, and so left to the rules that
+// need no header name: a value under "proxy-authorization", and a header
+// whose value is a list of strings ({"Cookie": ["a=b"]}).
 var headerValueKeys = []string{"authorization", "cookie", "set-cookie"}
 
 // isHeaderValueKey reports whether key names one of headerValueKeys.

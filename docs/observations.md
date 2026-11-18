@@ -86,6 +86,11 @@ unmeasured even for empty/no-op calls. Metadata contextual counts remain
 unmeasured even when no contextual rewrite occurred.
 
 Detection counts include accepted regex matches **before overlap removal**.
+One kind of match is settled earlier, in detection itself: a match of a rule
+that reports the value alone (`key_name_secret`, `url_query_secret`,
+`cookie_header`, `curl_user_password`) is dropped when a match of another rule
+covers the whole value, and is then not counted. See `resolveValueOverlaps` in
+`detect.go`.
 `Rules` contains only rules with accepted matches, in source order, with their
 actual categories. These counts exclude AST and entropy changes and residue
 warnings. They are not exact applied replacement counts. The legacy cumulative

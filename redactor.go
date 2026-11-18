@@ -581,6 +581,10 @@ func (r *DefaultRedactor) redactText(input string, call *observationCall) (outpu
 // a private member of a JSON Web Key (see credential_context_rules.go), is
 // replaced whole. A string under a key that names a header is redacted as the
 // value of that header. Every other string goes through RedactText.
+//
+// Only a string directly under the key is read by its key. A list under a
+// secret key ({"tokens": ["...", "..."]}) is walked, and each string in it goes
+// through RedactText like any other.
 // Supported types: string, []any, map[string]any, json.Number. Other types pass through unchanged.
 // json.Number is returned as-is: integers > 2^53 decoded via UseNumber() retain full precision.
 //

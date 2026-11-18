@@ -21,6 +21,30 @@ Panic recovery and residue preview scrubbing deliberately retain the original
 stdlib patterns, independently of the normal-path engine. Title markup cleanup
 and contextual path normalization also remain unchanged.
 
+## What the injected engine does not run
+
+The engine finds the spans of each rule's pattern. Everything that then reads
+a span runs on the standard library, whichever engine was injected:
+
+- A rule's `FilterFn`. A filter that uses a regular expression of its own
+  (`awsSecretKeyFilter`, `emailFilter`, `jwkPrivateMemberFilter`) uses Go's
+  `regexp`.
+- A value finder (`valueRules` in `detect.go`). The key-name rules, the curl
+  rule and the prefix-token rules read their own pattern match a second time
+  with Go's `regexp` to find the groups, and apply the value test in
+  `key_name_rules.go`, which is made of small anchored patterns.
+- The decisions `RedactJSON` makes from an object key alone: the value test
+  for a key that names a secret, and the member name and value shape of a JSON
+  Web Key.
+
+These run once per pattern match or per string under a matching key, on the
+match and not on the whole input, so their cost follows the number of matches.
+
+`RedactJSON` does go through the injected engine for the one scan that asks
+whether a format rule matches the whole of a value under a secret key, and for
+every string it passes to the text pipeline. `TestEngineJSONKeyRouting` pins
+those scan counts.
+
 The go-re2 adapter is included unless built with `-tags no_re2`, but it is not
 selected by any public constructor. The module requires Go 1.26.0 and pins
 go-re2 v1.13.0, matching the benchmarked implementation. Its runtime uses a
