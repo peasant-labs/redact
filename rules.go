@@ -102,9 +102,12 @@ var Rules = []Rule{
 		// (base64 of "OpenAI"). Covers both legacy keys (sk-{20}T3BlbkFJ{20})
 		// and project-scoped keys (sk-proj-{name}-{20}T3BlbkFJ{20}).
 		// ref: https://community.openai.com/t/what-are-the-valid-characters-for-the-apikey/288643
-		ID:          "openai_key",
-		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`sk-[A-Za-z0-9_-]*[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}`),
+		ID:       "openai_key",
+		Category: CategorySecrets,
+		// The part after the marker is open-ended and takes "_" and "-": a
+		// current key carries more than 20 characters there, and an exact {20}
+		// would leave its tail in the output.
+		Pattern:     regexp.MustCompile(`sk-[A-Za-z0-9_-]*[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9_-]{20,}`),
 		Replacement: "<OPENAI_KEY>",
 	},
 	{
@@ -154,10 +157,12 @@ var Rules = []Rule{
 		// Extended to also cover test keys (sk_test_, rk_test_) which detect-secrets
 		// does not cover — Stripe documents both live and test variants:
 		//   https://docs.stripe.com/keys
-		// Real Stripe keys are exactly 24 chars after the prefix.
+		// A key has at least 24 chars after the prefix. Current keys are longer,
+		// so the body is open-ended: an exact {24} would leave the tail of a
+		// longer key in the output.
 		ID:          "stripe_key",
 		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`(?:r|s)k_(?:live|test)_[0-9a-zA-Z]{24}`),
+		Pattern:     regexp.MustCompile(`(?:r|s)k_(?:live|test)_[0-9a-zA-Z]{24,}`),
 		Replacement: "<STRIPE_KEY>",
 	},
 	{
@@ -452,6 +457,127 @@ var Rules = []Rule{
 		Category:    CategorySecrets,
 		Pattern:     regexp.MustCompile(`(?:^|[^0-9A-Za-z])\d{8,10}:[0-9A-Za-z_-]{35}(?:[^A-Za-z0-9_-]|$)`),
 		Replacement: "<TELEGRAM_BOT_TOKEN>",
+	},
+
+	// --- Secrets: token formats with a documented prefix ---
+	// For each of these the vendor documents the prefix and publishes no length
+	// and no alphabet for the token. The character class and the 20-character
+	// floor of each rule are therefore the rule's own choice, made to keep a
+	// bare prefix out; they are not statements about the format.
+	// prefixTokenRule (credential_context_rules.go) keeps identifiers out.
+
+	// GitHub fine-grained personal access token. The prefix table in
+	//   https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github
+	// lists "github_pat_" next to the ghp_/gho_/ghu_/ghs_/ghr_ prefixes that
+	// github_pat covers. The body uses the character class of that rule.
+	prefixTokenRule("github_fine_grained_pat", `github_pat_[A-Za-z0-9_]{20,}`, "<GITHUB_PAT>"),
+
+	// npm access token outside an .npmrc line (npm_auth_token covers that
+	// line). The prefix is stated in
+	//   https://github.blog/changelog/2021-09-23-npm-has-a-new-access-token-format/
+	// which also says the last six characters are a Base62 checksum. It states
+	// no alphabet for the rest. The body takes letters and digits only, so an
+	// environment name such as npm_config_registry or npm_package_version does
+	// not match.
+	prefixTokenRule("npm_token", `npm_[A-Za-z0-9]{20,}`, "<NPM_TOKEN>"),
+
+	// Hugging Face user access token. The vendor's page shows the prefix in
+	// its example ("hf_...") and states no more:
+	//   https://huggingface.co/docs/hub/security-tokens
+	// The body takes letters and digits only, so a library name such as
+	// hf_hub_download does not match.
+	prefixTokenRule("huggingface_token", `hf_[A-Za-z0-9]{20,}`, "<HUGGINGFACE_TOKEN>"),
+
+	// Vercel tokens and API keys. The prefixes are listed in
+	//   https://vercel.com/changelog/new-token-formats-and-secret-scanning
+	// (vcp personal access token, vci integration token, vca app access
+	// token, vcr app refresh token, vck API key). A token issued before that
+	// change has no prefix and no documented format, and this rule does not
+	// cover it.
+	prefixTokenRule("vercel_token", `vc[piark]_[A-Za-z0-9_\-]{20,}`, "<VERCEL_TOKEN>"),
+
+	// Supabase secret key and personal access token.
+	//   sb_secret_: the key-type table in https://supabase.com/docs/guides/api/api-keys
+	//   sbp_:       the request example in https://supabase.com/docs/reference/api/introduction
+	// The publishable key (sb_publishable_) is meant to be public and is not
+	// redacted.
+	prefixTokenRule("supabase_token", `(?:sbp|sb_secret)_[A-Za-z0-9_\-]{20,}`, "<SUPABASE_TOKEN>"),
+
+	// --- Secrets: token formats with a well-known prefix ---
+	// The vendor publishes no format for these two. Each prefix is the one
+	// that keys of the kind are issued with, and the bodies are this rule
+	// set's own choice, as above.
+
+	// Google API key: "AIza" and 35 or more characters. Keys in use hold 35.
+	// The body is open-ended, because an exact length would leave the tail of
+	// a longer run in the output behind the placeholder.
+	prefixTokenRule("google_api_key", `AIza[A-Za-z0-9_\-]{35,}`, "<GOOGLE_API_KEY>"),
+
+	// OpenAI project, service-account and admin keys. openai_key needs 20
+	// letters or digits straight before its marker, and a current key often
+	// holds "_" or "-" there, so that rule misses it. This rule reads the
+	// prefix and takes the whole key.
+	//
+	// The body must hold a run of 20 characters with no hyphen. A generated
+	// key does; a name made of words joined by hyphens does not, such as the
+	// style class sk-proj-header-navigation-item-2col.
+	prefixTokenRule("openai_project_key", `sk-(?:proj|svcacct|admin)-[A-Za-z0-9_\-]*[A-Za-z0-9_]{20}[A-Za-z0-9_\-]*`, "<OPENAI_KEY>"),
+
+	// --- Secrets: identified by the construct around them ---
+	// Patterns and filters are in credential_context_rules.go.
+	{
+		// Authorization header with the "token" or "Bot" scheme.
+		ID:          authorizationTokenRuleID,
+		Category:    CategorySecrets,
+		Pattern:     authorizationTokenPattern,
+		Replacement: "${1}<AUTH_TOKEN>",
+	},
+	{
+		// The pair in curl -u user:password and --user user:password.
+		ID:          curlUserPasswordRuleID,
+		Category:    CategorySecrets,
+		Pattern:     curlUserPasswordPattern,
+		Replacement: curlUserPasswordPlaceholder,
+		FilterFn:    hasValue(curlUserPasswordValues),
+	},
+	{
+		// A private member of a JSON Web Key.
+		ID:          jwkPrivateMemberRuleID,
+		Category:    CategorySecrets,
+		Pattern:     jwkPrivateMemberPattern,
+		Replacement: "${1}" + jwkPrivateMemberPlaceholder,
+		FilterFn:    jwkPrivateMemberFilter,
+	},
+
+	// --- Secrets: identified by key name or header, not by value format ---
+	// Patterns, name lists and value tests are in key_name_rules.go. Each of
+	// these rules reports the value as its match (see valueRules in detect.go).
+	// They come after every format rule, so a format rule wins where both
+	// match the same text.
+	{
+		// A value under a name that ends in a secret word: NAME=value,
+		// NAME: value, "name": "value", --name value.
+		ID:          keyNameSecretRuleID,
+		Category:    CategorySecrets,
+		Pattern:     keyNameSecretPattern,
+		Replacement: keyNameSecretPlaceholder,
+		FilterFn:    hasValue(keyNameSecretValues),
+	},
+	{
+		// The same names as a URL query parameter: ?name=value, &name=value.
+		ID:          urlQuerySecretRuleID,
+		Category:    CategorySecrets,
+		Pattern:     urlQuerySecretPattern,
+		Replacement: keyNameSecretPlaceholder,
+		FilterFn:    hasValue(urlQuerySecretValues),
+	},
+	{
+		// The value of a Cookie or Set-Cookie header.
+		ID:          cookieHeaderRuleID,
+		Category:    CategorySecrets,
+		Pattern:     cookieHeaderPattern,
+		Replacement: cookieHeaderPlaceholder,
+		FilterFn:    hasValue(cookieHeaderValues),
 	},
 
 	// --- PII ---

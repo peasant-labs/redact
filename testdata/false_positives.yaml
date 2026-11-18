@@ -1,3 +1,709 @@
+# Every row below is listed in this reviewed manifest. The tests assert that
+# the manifest and the rows agree exactly, so a deleted row and a new row that
+# is not listed both fail. Add the name here in the change that adds the row.
+requiredCaseNames:
+  - fp_file_path_with_slashes
+  - fp_alphabet_digits_no_aws_context
+  - fp_git_sha_no_context
+  - fp_base64_no_aws_context
+  - fp_go_sum_hash
+  - fp_npm_package_hash
+  - fp_docker_layer_hash
+  - fp_config_base64_no_context
+  - fp_base64_end_of_string
+  - fp_padded_base64_end_of_string
+  - tp_aws_secret_key_with_aws_keyword
+  - tp_aws_secret_key_amazon_context
+  - tp_aws_secret_key_aws_secret_keyword
+  - fp_aws_secret_key_bare_secret_keyword
+  - tp_aws_access_key_akia
+  - tp_akia_proximity_unlocks_secret
+  - tp_email_address
+  - tp_github_pat
+  - fp_github_pat_too_short_32_chars
+  - tp_anthropic_key
+  - tp_private_key_header
+  - tp_bearer_token
+  - tp_slack_token
+  - fp_slack_token_no_numeric_segments
+  - tp_openai_key_legacy
+  - tp_openai_key_project
+  - fp_openai_key_no_t3blbkfj_marker
+  - fp_openai_key_old_format_no_marker
+  - tp_github_pat_user
+  - tp_github_pat_server
+  - tp_github_pat_oauth
+  - tp_github_pat_refresh
+  - fp_github_pat_url
+  - fp_github_pat_short
+  - tp_aws_access_key_agpa
+  - tp_aws_access_key_asia
+  - fp_aws_access_key_prefix_only
+  - tp_aws_secret_key_credential_keyword
+  - tp_aws_secret_key_secret_access_key_keyword
+  - fp_aws_secret_key_bare_password_keyword
+  - fp_aws_secret_key_uuid_body
+  - fp_aws_secret_key_go_sum_padded
+  - fp_aws_secret_key_base64_config_padded
+  - tp_stripe_key_live
+  - tp_stripe_key_test
+  - tp_stripe_key_restricted_live
+  - fp_stripe_key_too_short_20_chars
+  - tp_twilio_key
+  - fp_twilio_key_uppercase
+  - tp_sendgrid_key
+  - fp_sendgrid_key_short_second_segment
+  - fp_sendgrid_key_one_segment
+  - tp_jwt_token_full
+  - tp_jwt_token_in_log
+  - fp_jwt_token_incomplete
+  - fp_jwt_token_base64_only
+  - fp_jwt_tiny_segments
+  - tp_private_key_ec
+  - tp_private_key_openssh
+  - tp_private_key_generic
+  - fp_private_key_public
+  - fp_private_key_certificate
+  - ds_private_key_pgp_block
+  - tp_generic_api_key_env
+  - tp_generic_api_key_quoted
+  - tp_generic_api_key_hyphenated
+  - fp_generic_api_key_short
+  - fp_generic_api_key_env_var
+  - tp_bearer_token_opaque
+  - tp_bearer_token_base64url
+  - fp_bearer_token_short
+  - fp_bearer_token_env_var
+  - tp_basic_auth_header
+  - tp_basic_auth_assignment
+  - fp_basic_auth_short
+  - tp_email_subdomain
+  - tp_email_plus_addressing
+  - fp_email_no_tld
+  - tp_phone_us_dotted
+  - tp_phone_us_international
+  - tp_phone_us_part_number
+  - tp_ssn
+  - tp_ssn_date_like
+  - fp_ssn_too_many_digits
+  - tp_credit_card_visa
+  - tp_credit_card_with_dashes
+  - tp_credit_card_with_spaces
+  - fp_credit_card_16digit_id
+  - fp_credit_card_order_number
+  - fp_credit_card_short_sequence
+  - fp_credit_card_uuid_fragment
+  - tp_credit_card_dashed_with_dashes
+  - tp_ip_address_private
+  - tp_ip_address_loopback
+  - tp_ip_address_version_number
+  - fp_ip_address_invalid_range
+  - tp_unix_home_path_linux
+  - tp_unix_home_path_macos
+  - fp_unix_home_path_etc
+  - fp_unix_home_path_var
+  - tp_windows_home_path
+  - fp_windows_home_path_other_drive
+  - tp_claude_project_slug
+  - fp_claude_project_slug_word_prefix
+  - tp_peasant_host_slug
+  - tp_artifactory_api_token
+  - fp_artifactory_api_token_embedded
+  - fp_artifactory_api_token_in_url
+  - tp_artifactory_password
+  - fp_artifactory_password_lowercase_hex
+  - tp_azure_storage_key
+  - fp_azure_storage_key_short
+  - tp_discord_bot_token
+  - fp_discord_bot_token_wrong_prefix
+  - tp_gitlab_pat
+  - tp_gitlab_deploy_token
+  - fp_gitlab_pat_short
+  - tp_gitlab_runner_registration
+  - fp_gitlab_runner_wrong_prefix
+  - tp_gitlab_cicd_plain
+  - tp_gitlab_cicd_partitioned
+  - tp_gitlab_incoming_mail
+  - fp_gitlab_incoming_mail_wrong_len
+  - tp_gitlab_trigger
+  - fp_gitlab_trigger_short
+  - tp_gitlab_agent
+  - fp_gitlab_agent_short
+  - tp_gitlab_oauth_secret
+  - fp_gitlab_oauth_secret_short
+  - tp_mailchimp_api_key
+  - fp_mailchimp_api_key_uppercase
+  - tp_npm_auth_token_npm_prefix
+  - tp_npm_auth_token_uuid
+  - fp_npm_auth_token_env_placeholder
+  - tp_pypi_api_token
+  - fp_pypi_api_token_wrong_prefix
+  - tp_pypi_test_token
+  - tp_square_oauth_secret
+  - fp_square_oauth_secret_short
+  - tp_telegram_bot_token
+  - fp_telegram_bot_token_short_id
+  - tp_git_remote_https_github
+  - tp_git_remote_https_gitlab
+  - tp_git_remote_https_bitbucket
+  - fp_git_remote_https_self_hosted
+  - fp_git_remote_https_bare_host
+  - tp_git_remote_ssh_github
+  - tp_git_remote_ssh_gitlab
+  - fp_git_remote_ssh_other_host
+  - tp_go_import_path
+  - tp_go_import_subpackage
+  - fp_go_import_bare_org
+  - tp_go_module_path
+  - fp_go_module_bare_org
+  - tp_npm_repo_url_repository
+  - tp_npm_repo_url_homepage
+  - fp_npm_repo_url_description
+  - tp_docker_image_ref_from
+  - tp_docker_image_ref_yaml
+  - fp_docker_image_ref_official
+  - tp_ghcr_image_ref
+  - tp_ghcr_image_ref_digest
+  - fp_ghcr_image_ref_missing_repo
+  - tp_git_branch_current
+  - tp_git_branch_remote_tracking
+  - fp_git_branch_single_word
+  - tp_gitlab_ci_project_name
+  - tp_gitlab_ci_project_url
+  - fp_gitlab_ci_other_variable
+  - tp_github_actions_repo_equals
+  - tp_github_actions_repo_colon
+  - fp_github_actions_other_var
+  - ds_artifactory_tp_00_ap6xxxxxxxxxx
+  - ds_artifactory_tp_01_ap2xxxxxxxxxx
+  - ds_artifactory_tp_02_ap3xxxxxxxxxx
+  - ds_artifactory_tp_03_ap5xxxxxxxxxx
+  - ds_artifactory_tp_04_apaxxxxxxxxxx
+  - ds_artifactory_tp_05_apbxxxxxxxxxx
+  - ds_artifactory_tp_06_akcxxxxxxxxxx
+  - ds_artifactory_tp_07_ap6xxxxxxxxxx
+  - ds_artifactory_tp_08_akcxxxxxxxxxx
+  - ds_artifactory_tp_09_ap6xxxxxxxxxx
+  - ds_artifactory_tp_10_akcxxxxxxxxxx
+  - ds_artifactory_tp_11_ap6xxxxxxxxxx
+  - ds_artifactory_tp_12_akcxxxxxxxxxx
+  - ds_artifactory_tp_13_artif_key_ap6xxxxxxxxxx
+  - ds_artifactory_tp_14_artif_key_akcxxxxxxxxxx
+  - ds_artifactory_tp_15_x_jfrog_art_api__akcxxxx
+  - ds_artifactory_tp_16_x_jfrog_art_api__ap6xxxx
+  - ds_artifactory_tp_17_artifactoryx__password_a
+  - ds_artifactory_tp_18_artifactoryx__password_a
+  - ds_artifactory_fp_19_testakcwithinsomeirrelev
+  - ds_artifactory_fp_20_testap6withinsomeirrelev
+  - ds_artifactory_fp_21_x_jfrog_art_api___api_ke
+  - ds_artifactory_fp_22_x_jfrog_art_api___passwo
+  - ds_artifactory_fp_23_artifactory__password_ap
+  - ds_artifactory_fp_24_artifactory__password_ak
+  - ds_aws_key_tp_00_akiazzzzzzzzzzzzzzzz
+  - ds_aws_key_fp_01_akiazzzzzzzzzzzzzzzz
+  - ds_aws_key_fp_02_akiazzz
+  - ds_aws_key_tp_03_a3t0zzzzzzzzzzzzzzzz
+  - ds_aws_key_tp_04_abiazzzzzzzzzzzzzzzz
+  - ds_aws_key_tp_05_accazzzzzzzzzzzzzzzz
+  - ds_aws_key_tp_06_asiazzzzzzzzzzzzzzzz
+  - ds_azure_storage_key_tp_00_accountkey_ljzrc1ydhaaa2
+  - ds_basic_auth_tp_00_https___username_passwor
+  - ds_basic_auth_fp_01_http___localhost_5000
+  - ds_basic_auth_fp_02_https___url_8000___some
+  - ds_basic_auth_fp_03_https___url_8000___some
+  - ds_basic_auth_fp_04_https___url_8000__someth
+  - ds_basic_auth_fp_05_https___url_8000___somet
+  - ds_discord_tp_00_mtk4njiyndgzndcxoti1mjq4
+  - ds_discord_tp_01_nzk5mjgxndk0ndc2ndu1otg3
+  - ds_discord_tp_02_mz1ygvktje0ry0cv8i47cjaa
+  - ds_discord_tp_03_otuyned5mdk2mtmxnzc2mkez
+  - ds_discord_tp_04_otuyned5mdk2mtmxnzc2mkez
+  - ds_discord_tp_05_mtayotq4mtn5otu5mtdwmecx
+  - ds_discord_tp_06_atmyotq4mtn5otu5mtdwmecx
+  - ds_discord_tp_07_mtayotq4mtn5otu5mtdwmec
+  - ds_discord_tp_08_mtayotq4mtn5otu5mtdwmecx
+  - ds_discord_fp_09_mz1ygvktj0ry0cv8i47cjaa
+  - ds_discord_fp_10_mz1ygvktj0ry0cv8i47cjaa
+  - ds_discord_fp_11_mz1ygvktje0ry0cv8i47cjaa
+  - ds_discord_fp_12_mz1ygvktje0ry0cv8i47cjaa
+  - ds_discord_fp_13_mz1ygvktje0ry0cv8i47cjaa
+  - ds_discord_fp_14_pz1ygvktje0ry0cv8i47cjaa
+  - ds_discord_fp_15_mtayotq4mtn5otu5mtdwmecx
+  - ds_github_token_tp_00_ghp_wwpw5k4axcat4fnp0ucn
+  - ds_github_token_fp_01_foo_wwpw5k4axcat4fnp0ucn
+  - ds_github_token_fp_02_foo
+  - ds_gitlab_token_tp_00_glpat_helloworld380_test
+  - ds_gitlab_token_fp_01_glpat_helloworld380_test
+  - ds_gitlab_token_fp_02_glpat_helloworld380_test
+  - ds_gitlab_token_tp_03_gldt_hwllouhfw_wu0rld_ye
+  - ds_gitlab_token_fp_04_gldt_seems_too000sshorty
+  - ds_gitlab_token_fp_05_foo_hello_world80_testin
+  - ds_gitlab_token_tp_06_glsoat_prefix_helloworld
+  - ds_gitlab_token_fp_07_glsoat_prefix_helloworld
+  - ds_gitlab_token_fp_08_ghp_wwpw5k4axcat4fnp0ucn
+  - ds_gitlab_token_tp_09_gr1348941prefix_hellowor
+  - ds_gitlab_token_tp_10_gr1348941prefix_hellowor
+  - ds_gitlab_token_fp_11_gr1348941prefix_hellowor
+  - ds_gitlab_token_fp_12_gr1348941helloword0
+  - ds_gitlab_token_tp_13_glcbt_helloworld380_test
+  - ds_gitlab_token_tp_14_glimt_my_tokens_are_corr
+  - ds_gitlab_token_fp_15_glimt_my_tokens_are_corr
+  - ds_gitlab_token_fp_16_glimt_my_tokens_are_corr
+  - ds_gitlab_token_tp_17_glptt_need5_t00_be_exact
+  - ds_gitlab_token_fp_18_glptt_need5_t00_be_exact
+  - ds_gitlab_token_fp_19_glptt_helloworld380_test
+  - ds_gitlab_token_tp_20_glagent_need5_t00_bee_lo
+  - ds_gitlab_token_tp_21_glagent_need5_t00_bee_lo
+  - ds_gitlab_token_fp_22_glagent_helloworld380_te
+  - ds_gitlab_token_tp_23_gloas_checking_length_is
+  - ds_gitlab_token_fp_24_gloas_checking_length_is
+  - ds_gitlab_token_fp_25_gloas_checking_length_is
+  - ds_jwt_tp_00_eyjhbgcioijiuzi1niisinr5
+  - ds_jwt_tp_01_eyj0exaioijkv1qila0kimfs
+  - ds_jwt_tp_02_eyj0exaioijkv1qilcjhbgci
+  - ds_jwt_tp_03_eyjhbgcioijiuzi1niisinr5
+  - ds_jwt_tp_04_eyjhbgcioijiuzi1niisinr5
+  - ds_jwt_tp_05_eyjhbgcioijiuzi1niisinr5
+  - ds_jwt_fp_06_alg___hs256___typ___jw
+  - ds_jwt_fp_07_bm90x3zhbglkx2pzb25fyxrf
+  - ds_jwt_fp_08_eyjhbgcioijiuzi1niisinr5
+  - ds_jwt_fp_09_jwt
+  - ds_jwt_fp_10_eyjhbasdgcioijiuaddasdas
+  - ds_jwt_fp_11_eyjhbgcioijiuzi1niisinr5
+  - ds_jwt_fp_12_eyjaaaa_eyjbbb
+  - ds_jwt_fp_13_eyjbb_eyjcc_eyjdddd
+  - ds_mailchimp_key_tp_00_343ea45721923ed956e2b38c
+  - ds_mailchimp_key_tp_01_a2937653ed38c31a43ea46e2
+  - ds_mailchimp_key_fp_02_3ea4572956e2b381923ed34c
+  - ds_mailchimp_key_fp_03_aea462953eb192d38c31a433
+  - ds_mailchimp_key_fp_04_9276a43e2951aa46e2b1c33e
+  - ds_mailchimp_key_fp_05_3a5633e829d3c71_us2
+  - ds_npm_tp_00_registry_npmjs_org___a
+  - ds_npm_tp_01_registry_npmjs_org___a
+  - ds_npm_tp_02_registry_npmjs_org___a
+  - ds_npm_tp_03_registry_npmjs_org___a
+  - ds_npm_fp_04_registry_npmjs_org__au
+  - ds_npm_fp_05_registry_npmjs_org___aut
+  - ds_npm_fp_06_authtoken_743b294a
+  - ds_npm_fp_07_authtoken_743b294a_cd03
+  - ds_npm_fp_08_foo
+  - ds_npm_fp_09_registry_npmjs_org___a
+  - ds_openai_tp_00_sk_xi8tcnihv9awbccviltet
+  - ds_openai_tp_01_sk_proj_xi8tdmjhv6pmbbbw
+  - ds_openai_fp_02_sk_proj_xi8tdmjhv6pmbbbw
+  - ds_private_key_tp_00_begin_rsa_private_k
+  - ds_private_key_tp_01_some_text_here______begi
+  - ds_pypi_token_tp_00_pypi_ageichlwas5vcmccjdu
+  - ds_pypi_token_tp_01_pypi_agendgvzdc5wexbplm9
+  - ds_pypi_token_fp_02_pypi_ageichlwas5vcmccjdu
+  - ds_sendgrid_tp_00_sg_ngevfqfyqlku0ufo8x5d1
+  - ds_sendgrid_fp_01_sg_ngevfqfyqlku0ufo8x5d1
+  - ds_sendgrid_fp_02_ag_ngevfqfyqlku0ufo8x5d1
+  - ds_sendgrid_fp_03_foo
+  - ds_slack_tp_00_xoxp_523423_234243_23423
+  - ds_slack_tp_01_xoxo_523423_234243_23423
+  - ds_slack_tp_02_xoxs_523423_234243_23423
+  - ds_slack_tp_03_xoxa_511111111_311111111
+  - ds_slack_tp_04_xoxa_2_511111111_3111111
+  - ds_slack_tp_05_xoxr_523423_234243_23423
+  - ds_slack_tp_06_xoxb_34532454_e039d02840
+  - ds_slack_tp_07_https___hooks_slack_com
+  - ds_square_oauth_tp_00_square_oauth___sq0csp_ab
+  - ds_stripe_key_tp_00_sk_live_retllpyqyfizu2jn
+  - ds_stripe_key_tp_01_rk_live_5tcwfjkmjgpql9hj
+  - ds_stripe_key_fp_02_pk_live_j5kry8xtgicdahdb
+  - ds_stripe_key_fp_03_sk_live
+  - ds_telegram_token_fp_00_bot110201543_aahdqtcvch1
+  - ds_telegram_token_tp_01_110201543_aahdqtcvch1vgw
+  - ds_telegram_token_tp_02_7213808860_aah1bjqpkkw3m
+  - ds_telegram_token_fp_03_foo_aah1bjqpkkw3marspaxz
+  - ds_telegram_token_fp_04_foo
+  - ds_telegram_token_fp_05_arn_aws_sns_aaa_11112222
+  - ds_twilio_tp_00_skxxxxxxxxxxxxxxxxxxxxxx
+  - ds_twilio_tp_01_acxxxxxxxxxxxxxxxxxxxxxx
+  - fp_slack_webhook_url_incomplete_missing_bot_and_token
+  - fp_basic_auth_uri_no_credentials
+  - fp_twilio_auth_token_too_short
+  - tp_key_name_env_assignment
+  - tp_key_name_env_assignment_minimal
+  - tp_key_name_export_line
+  - tp_key_name_yaml_colon
+  - tp_key_name_json_text
+  - tp_key_name_escaped_json_text
+  - tp_key_name_single_quoted
+  - tp_key_name_go_declaration
+  - tp_key_name_flag_space
+  - tp_key_name_flag_equals
+  - tp_key_name_header
+  - tp_key_name_passphrase
+  - tp_key_name_passwd
+  - tp_key_name_camel_case
+  - tp_key_name_api_key_outside_generic_shape
+  - tp_key_name_private_key_value
+  - tp_key_name_access_key
+  - tp_key_name_secret_key
+  - tp_key_name_credential
+  - tp_key_name_registry_auth
+  - tp_key_name_password_then_other_parameters
+  - fp_key_name_vendor_token_defers
+  - tp_github_pat_under_secret_name
+  - fp_key_name_generic_api_key_defers
+  - fp_key_name_pem_header_left_to_block_rule
+  - fp_key_name_bearer_scheme_left_to_bearer_rule
+  - fp_key_name_query_parameter_left_to_query_rule
+  - fp_key_name_shell_variable
+  - fp_key_name_shell_braced_variable
+  - fp_key_name_quoted_shell_variable
+  - fp_key_name_command_substitution
+  - fp_key_name_process_env
+  - fp_key_name_os_environ_index
+  - fp_key_name_os_environ_get
+  - fp_key_name_go_getenv
+  - fp_key_name_getpass_call
+  - fp_key_name_workflow_expression
+  - fp_key_name_chart_template
+  - fp_key_name_terraform_reference
+  - fp_key_name_angle_template
+  - fp_key_name_quoted_angle_template
+  - fp_key_name_your_api_key
+  - fp_key_name_hyphenated_placeholder
+  - fp_key_name_asterisk_mask
+  - fp_key_name_ellipsis
+  - fp_key_name_printf_verb
+  - fp_key_name_named_format_field
+  - fp_key_name_brace_template
+  - fp_key_name_bracket_marker
+  - fp_key_name_existing_placeholder
+  - fp_key_name_type_string
+  - fp_key_name_null
+  - fp_key_name_json_true
+  - fp_key_name_python_optional
+  - fp_key_name_python_union
+  - fp_key_name_undefined
+  - fp_key_name_rust_reference_type
+  - fp_key_name_max_tokens
+  - fp_key_name_input_tokens
+  - fp_key_name_total_tokens_json
+  - fp_key_name_max_tokens_flag
+  - fp_key_name_digits_only
+  - fp_key_name_author
+  - fp_key_name_authority
+  - fp_key_name_oauth_callback_url
+  - fp_key_name_authorization_endpoint
+  - fp_key_name_password_min_length
+  - fp_key_name_token_ttl
+  - fp_key_name_token_type
+  - fp_key_name_tokenizer
+  - fp_key_name_secret_name
+  - fp_key_name_auth_scheme_name
+  - fp_key_name_auth_user_pair
+  - fp_key_name_auth_image_tag
+  - fp_key_name_auth_mode_word
+  - fp_key_name_identifier_value
+  - fp_key_name_keyword_argument
+  - fp_key_name_member_access
+  - fp_key_name_call_value
+  - fp_key_name_comparison
+  - fp_key_name_not_equal
+  - fp_key_name_arrow
+  - fp_key_name_struct_tag
+  - fp_key_name_environment_index_assignment
+  - fp_key_name_regex_source
+  - fp_key_name_version_tag
+  - fp_key_name_flag_followed_by_flag
+  - fp_key_name_prose_after_colon
+  - fp_key_name_quoted_sentence
+  - fp_key_name_parenthesised_note
+  - fp_key_name_value_on_next_line
+  - fp_key_name_home_relative_path
+  - fp_key_name_absolute_path
+  - fp_key_name_url_value
+  - fp_key_name_short_value
+  - fp_key_name_dictionary_word
+  - fp_key_name_low_variety
+  - tp_url_query_token
+  - tp_url_query_token_minimal
+  - tp_url_query_later_parameter
+  - tp_url_query_relative
+  - fp_url_query_shell_variable
+  - fp_url_query_brace_template
+  - fp_url_query_placeholder_word
+  - fp_url_query_max_tokens
+  - fp_url_query_author
+  - fp_url_query_vendor_token_defers
+  - tp_cookie_request_header
+  - tp_cookie_request_header_minimal
+  - tp_cookie_response_header
+  - tp_cookie_curl_header
+  - tp_cookie_json_member
+  - fp_cookie_prose
+  - fp_cookie_variable
+  - fp_cookie_template_value
+  - fp_cookie_script_assignment
+  - fp_cookie_longer_word
+  - tp_stripe_key_longer_body
+  - tp_stripe_key_restricted_test_longer_body
+  - fp_key_name_named_parameter
+  - fp_key_name_windows_variable
+  - fp_key_name_ruby_interpolation
+  - fp_key_name_relative_path_dot
+  - fp_key_name_relative_path_parent
+  - fp_key_name_relative_file
+  - fp_key_name_strict_no_digit
+  - fp_key_name_strict_low_variety
+  - fp_key_name_rust_path_type
+  - fp_key_name_optional_chaining
+  - fp_key_name_versioned_identifier
+  - fp_key_name_named_object
+  - fp_key_name_stored_secret_reference
+  - fp_key_name_vault_reference
+  - fp_key_name_flag_setting_list
+  - tp_key_name_segmented_token
+  - tp_key_name_symbol_password
+  - tp_key_name_stops_at_encoded_line_end
+  - tp_key_name_quoted_query_parameter
+  - fp_key_name_digit_identifier_known
+  - tp_github_fine_grained_pat
+  - tp_github_fine_grained_pat_minimal
+  - fp_github_fine_grained_pat_bare_prefix
+  - fp_github_fine_grained_pat_short
+  - fp_key_name_fine_grained_pat_defers
+  - tp_npm_token
+  - tp_npm_token_minimal
+  - fp_npm_token_environment_name
+  - fp_npm_token_lifecycle_name
+  - fp_npm_token_short
+  - tp_huggingface_token
+  - tp_huggingface_token_minimal
+  - fp_huggingface_library_function
+  - fp_huggingface_placeholder
+  - fp_huggingface_long_identifier
+  - tp_vercel_personal_token
+  - tp_vercel_personal_token_minimal
+  - tp_vercel_api_key
+  - fp_vercel_other_prefix
+  - fp_vercel_short
+  - tp_supabase_personal_access_token
+  - tp_supabase_personal_access_token_minimal
+  - tp_supabase_secret_key
+  - fp_supabase_publishable_key
+  - fp_supabase_short
+  - tp_authorization_token_scheme
+  - tp_authorization_token_scheme_minimal
+  - tp_authorization_bot_scheme
+  - tp_authorization_json_member
+  - fp_authorization_token_placeholder
+  - fp_authorization_token_variable
+  - fp_authorization_other_scheme
+  - fp_authorization_scheme_prefix_word
+  - tp_header_api_key
+  - tp_header_x_api_key
+  - tp_header_x_api_key_outside_generic_shape
+  - tp_header_auth_token
+  - tp_header_access_token
+  - tp_header_access_token_minimal
+  - fp_header_api_key_variable
+  - fp_header_api_key_placeholder
+  - tp_curl_short_user_option
+  - tp_curl_short_user_option_minimal
+  - tp_curl_long_user_option
+  - tp_curl_user_option_equals
+  - tp_curl_continued_line
+  - fp_curl_other_command_sort
+  - fp_curl_other_command_git
+  - fp_curl_command_on_previous_line
+  - fp_curl_variable_pair
+  - fp_curl_variable_password
+  - fp_curl_user_only
+  - fp_curl_placeholder_password
+  - fp_curl_longer_command_word
+  - tp_jwk_private_member
+  - tp_jwk_private_member_minimal
+  - tp_jwk_private_member_before_key_type
+  - tp_jwk_prime_member
+  - tp_jwk_symmetric_key
+  - tp_jwk_escaped_quotes
+  - fp_jwk_member_without_key_type
+  - fp_jwk_public_members
+  - fp_jwk_short_member
+  - fp_cookie_prose_after_pair
+  - tp_unlisted_format_under_api_key_name
+  - tp_unlisted_format_after_bearer
+  - tp_unlisted_format_under_secret_name
+  - fp_curl_piped_into_other_command
+  - tp_curl_url_with_ampersand_before_option
+  - fp_vercel_snake_case_identifier
+  - fp_github_fine_grained_pat_variable_name
+  - fp_supabase_prefix_inside_word
+  - fp_huggingface_class_name
+  - fp_npm_prefix_inside_word
+  - tp_curl_token_as_user_name
+  - tp_curl_empty_user_name
+  - tp_curl_bundled_short_options
+  - tp_curl_attached_value
+  - tp_curl_argument_list
+  - tp_curl_option_after_quoted_semicolon
+  - tp_curl_option_after_quoted_and
+  - tp_curl_after_other_command
+  - tp_curl_exe
+  - tp_curl_option_on_continuation_line_start
+  - fp_curl_other_command_after_semicolon
+  - fp_curl_other_command_after_and
+  - fp_curl_user_and_group_numbers
+  - fp_curl_other_command_on_encoded_next_line
+  - fp_curl_template_password
+  - fp_curl_option_inside_word
+  - tp_key_name_escaped_password_characters
+  - tp_key_name_ends_where_continuing_match_starts
+  - tp_bearer_token_after_key_name_value
+  - tp_credit_card_after_key_name_value
+  - fp_key_name_setting_after_value_is_not_secret
+  - tp_key_name_keeps_value_past_partial_match
+  - fp_key_name_file_reference
+  - fp_key_name_environment_reference
+  - fp_key_name_relative_directory_dot
+  - fp_key_name_member_access_with_digit
+  - tp_cookie_empty_first_value
+  - tp_cookie_quoted_first_value
+  - tp_jwk_single_quoted_members
+  - tp_jwk_unquoted_members
+  - fp_jwk_member_name_inside_word
+  - tp_google_api_key
+  - tp_google_api_key_minimal
+  - fp_google_api_key_short
+  - fp_google_api_key_inside_word
+  - tp_openai_project_key
+  - tp_openai_project_key_minimal
+  - tp_openai_service_account_key
+  - fp_openai_project_key_placeholder
+  - fp_openai_project_key_stripe_shape
+  - tp_openai_key_long_tail
+  - fp_google_api_key_letters_only
+  - tp_prefix_token_after_encoded_tab
+  - tp_prefix_token_after_encoded_carriage_return
+  - fp_prefix_token_after_escaped_backslash
+  - fp_prefix_token_after_letter_n
+  - fp_cookie_header_after_escaped_backslash
+  - tp_set_cookie_header_after_encoded_line_end
+  - fp_jwk_private_member_after_escaped_backslash
+  - tp_key_name_eight_characters
+  - tp_key_name_word_and_year
+  - tp_key_name_digits_for_letters
+  - tp_key_name_digits_inside_word
+  - tp_key_name_service_and_year
+  - tp_key_name_word_and_sequence
+  - tp_key_name_word_and_trailing_digit
+  - tp_key_name_half_one_character
+  - fp_key_name_more_than_half_one_character
+  - fp_key_name_mask_with_one_letter
+  - fp_key_name_grouped_mask
+  - tp_key_name_word_then_number
+  - tp_key_name_two_words_digits_inside
+  - tp_key_name_every_word_has_digits
+  - fp_key_name_identifier_oauth2_token
+  - fp_key_name_identifier_sha256_password
+  - fp_key_name_identifier_base64_token
+  - fp_key_name_identifier_with_version
+  - fp_key_name_named_object_with_digit
+  - fp_key_name_grant_type_name
+  - tp_key_name_words_with_four_digits
+  - fp_key_name_two_letters_before_digit
+  - tp_key_name_one_letter_before_digit
+  - fp_key_name_parser_message
+  - fp_key_name_validation_message
+  - tp_key_name_token_quoted_in_message
+  - tp_key_name_token_after_other_word
+  - tp_key_name_password_in_sentence
+  - tp_key_name_invalid_password_message
+  - fp_key_name_resource_path
+  - tp_key_name_path_like_with_mixed_segment
+  - tp_key_name_quoted_parentheses
+  - tp_key_name_quoted_brackets_inside
+  - fp_key_name_quoted_call
+  - fp_key_name_quoted_call_member
+  - fp_key_name_quoted_generic_type
+  - fp_key_name_unquoted_open_call
+  - tp_key_name_unquoted_parentheses_inside
+  - tp_key_name_base64_with_leading_slash
+  - tp_key_name_base64_with_slash_and_padding
+  - fp_key_name_path_segment_nineteen
+  - tp_key_name_path_segment_twenty
+  - tp_key_name_quoted_dollar_password
+  - fp_key_name_quoted_variable_path
+  - fp_key_name_quoted_variable_member
+  - tp_key_name_quoted_percent_password
+  - fp_key_name_quoted_named_format_field
+  - tp_key_name_quoted_open_bracket
+  - fp_key_name_quoted_bracket_marker
+  - fp_key_name_unquoted_open_bracket
+  - tp_key_name_quoted_open_brace
+  - fp_key_name_quoted_brace_template
+  - tp_key_name_quoted_open_parenthesis
+  - fp_key_name_quoted_parenthesised_note
+  - tp_key_name_quoted_open_angle
+  - tp_key_name_value_continues_past_angle_bracket
+  - fp_key_name_arrow_member_access
+  - fp_key_name_strict_nineteen_characters
+  - tp_key_name_strict_twenty_characters
+  - fp_key_name_strict_entropy_below_floor
+  - tp_key_name_strict_entropy_above_floor
+  - fp_key_name_member_access_two_digits
+  - tp_key_name_dotted_three_digits
+  - tp_key_name_value_before_markup
+  - fp_openai_project_key_no_digit
+  - fp_openai_project_key_style_class
+  - fp_openai_project_key_hyphenated_name
+  - tp_openai_project_key_after_glued_prefix
+  - fp_prefix_token_two_prefixes_in_one_word
+  - tp_google_api_key_longer_run
+  - fp_curl_long_option_user_agent
+  - fp_curl_long_option_user_agent_space
+  - fp_curl_bundle_with_value_option
+  - tp_curl_bundle_of_boolean_options
+  - fp_curl_other_command_after_background
+  - tp_curl_after_unquoted_query
+  - tp_curl_after_redirection
+  - tp_curl_variable_user_literal_password
+  - fp_curl_variable_user_and_password
+  - tp_curl_token_as_user_empty_password
+  - fp_curl_user_with_empty_password
+  - fp_curl_short_token_like_user_empty_password
+  - fp_curl_variable_user_empty_password
+  - fp_authorization_token_nineteen_characters
+  - tp_authorization_token_twenty_characters
+  - fp_jwk_private_member_twenty_one_characters
+  - tp_jwk_private_member_twenty_two_characters
+  - fp_github_fine_grained_pat_body_nineteen
+  - tp_github_fine_grained_pat_body_twenty
+  - fp_npm_token_body_nineteen
+  - tp_npm_token_body_twenty
+  - fp_huggingface_token_body_nineteen
+  - tp_huggingface_token_body_twenty
+  - fp_vercel_token_body_nineteen
+  - tp_vercel_token_body_twenty
+  - fp_supabase_token_body_nineteen
+  - tp_supabase_token_body_twenty
+  - fp_google_api_key_body_thirty_four
+  - tp_google_api_key_body_thirty_five
+  - tp_curl_token_as_user_twenty_characters
+  - tp_jwk_key_type_at_edge_of_window
+  - fp_jwk_key_type_outside_window
+  - tp_curl_command_word_at_edge_of_lookback
+  - fp_curl_command_word_outside_lookback
+  - tp_key_name_short_segments_with_base64_signs
+  - fp_key_name_short_segments_path
+  - fp_cookie_header_after_plain_letter
+  - fp_cookie_header_after_upper_case_escape
+  - fp_jwk_private_member_longer_name
+  - fp_jwk_private_member_longer_name_at_start
+  - tp_openai_key_twenty_after_marker
+  - fp_openai_key_nineteen_after_marker
+  - tp_stripe_key_twenty_four_after_prefix
+  - fp_stripe_key_twenty_three_after_prefix
+  - tp_google_api_key_hyphen_and_underscore
+  - fp_huggingface_token_underscore_in_body
+  - fp_npm_token_underscore_in_body
+
 cases:
   # ---------------------------------------------------------------------------
   # FALSE POSITIVES (expect: no_match) — inputs that should NOT be flagged
@@ -2790,3 +3496,2688 @@ cases:
       body must be exactly 32 characters. A bare "SK" prefix with no body fails
       the length requirement.
     source: pattern_analysis
+
+  # ---------------------------------------------------------------------------
+  # Secrets identified by their key name (key_name_secret, url_query_secret),
+  # cookie headers (cookie_header), and Stripe keys with a longer body.
+  # A row whose reason starts with "Deliberately not redacted" records a value
+  # the rules leave alone by design.
+  # ---------------------------------------------------------------------------
+
+  - name: tp_key_name_env_assignment
+    input: "INTERNAL_API_TOKEN=canary-9f8e7d6c5b4a3928"
+    rule: key_name_secret
+    expect: match
+    reason: "An environment assignment whose name ends in \"token\" holds one credential value."
+    source: synthetic
+
+  - name: tp_key_name_env_assignment_minimal
+    input: "INTERNAL_API_TOKEN=canary-9f8e7d6c5b4a3928"
+    rule: key_name_secret
+    expect: match
+    level: minimal
+    reason: "The rule is in the secrets category, so it is active at minimal."
+    source: synthetic
+
+  - name: tp_key_name_export_line
+    input: "export GITHUB_APP_SECRET=canarySecret-4f9a2c7e1b"
+    rule: key_name_secret
+    expect: match
+    reason: "A shell export of a name that ends in \"secret\"."
+    source: synthetic
+
+  - name: tp_key_name_yaml_colon
+    input: "db_password: canaryYamlPw0rd!2026"
+    rule: key_name_secret
+    expect: match
+    reason: "A \"name: value\" line whose name ends in \"password\"."
+    source: synthetic
+
+  - name: tp_key_name_json_text
+    input: "{\"db_password\": \"canaryJsonPw0rd!2026\"}"
+    rule: key_name_secret
+    expect: match
+    reason: "A JSON member written as text. The quotes around the name and the value are part of the form."
+    source: synthetic
+
+  - name: tp_key_name_escaped_json_text
+    input: "{\\\"session_token\\\": \\\"canaryNested0123456789\\\"}"
+    rule: key_name_secret
+    expect: match
+    reason: "A JSON document carried inside a JSON string has escaped quotes. The rule reads through them."
+    source: synthetic
+
+  - name: tp_key_name_single_quoted
+    input: "password = 'canaryQuotedPw0rd#77'"
+    rule: key_name_secret
+    expect: match
+    reason: "A single-quoted literal assigned to a password name."
+    source: synthetic
+
+  - name: tp_key_name_go_declaration
+    input: "token := \"canaryGoTok0123456789\""
+    rule: key_name_secret
+    expect: match
+    reason: "A literal assigned with := is a hardcoded credential."
+    source: synthetic
+
+  - name: tp_key_name_flag_space
+    input: "deploy --db-password canaryFlagPw0rd!77 --verbose"
+    rule: key_name_secret
+    expect: match
+    reason: "A command flag followed by a space and its value."
+    source: synthetic
+
+  - name: tp_key_name_flag_equals
+    input: "deploy --auth-token=canaryFlagTok0123456789"
+    rule: key_name_secret
+    expect: match
+    reason: "A command flag joined to its value with an equals sign."
+    source: synthetic
+
+  - name: tp_key_name_header
+    input: "X-Auth-Token: canaryHeaderTok0123456789"
+    rule: key_name_secret
+    expect: match
+    reason: "A request header whose name ends in \"token\"."
+    source: synthetic
+
+  - name: tp_key_name_passphrase
+    input: "GPG_PASSPHRASE=canaryPassphrase-7c2e9a41"
+    rule: key_name_secret
+    expect: match
+    reason: "A name that ends in \"passphrase\"."
+    source: synthetic
+
+  - name: tp_key_name_passwd
+    input: "MYSQL_PASSWD=canaryPasswd!5d8b3f60"
+    rule: key_name_secret
+    expect: match
+    reason: "A name that ends in \"passwd\"."
+    source: synthetic
+
+  - name: tp_key_name_camel_case
+    input: "\"clientSecret\": \"canaryCamel-9f8e7d6c5b4a\""
+    rule: key_name_secret
+    expect: match
+    reason: "The name test ignores case, so a camel-case name ends in \"secret\" too."
+    source: synthetic
+
+  - name: tp_key_name_api_key_outside_generic_shape
+    input: "SERVICE_API_KEY=canaryKey0123.456789abcdef+xyz"
+    rule: key_name_secret
+    expect: match
+    reason: "A value with a dot and a plus sign is outside the character set of generic_api_key. The key name still identifies it."
+    source: synthetic
+
+  - name: tp_key_name_private_key_value
+    input: "signing_private_key: canarySigning0123456789abcdefXYZ"
+    rule: key_name_secret
+    expect: match
+    reason: "A long mixed value under a name that ends in \"private_key\"."
+    source: synthetic
+
+  - name: tp_key_name_access_key
+    input: "STORAGE_ACCESS_KEY=canaryAccess0123456789abcdef"
+    rule: key_name_secret
+    expect: match
+    reason: "A long mixed value under a name that ends in \"access_key\"."
+    source: synthetic
+
+  - name: tp_key_name_secret_key
+    input: "APP_SECRET_KEY=canaryAppKey0123456789abcdef!"
+    rule: key_name_secret
+    expect: match
+    reason: "A long mixed value under a name that ends in \"secret_key\"."
+    source: synthetic
+
+  - name: tp_key_name_credential
+    input: "SERVICE_CREDENTIAL=canaryCred0123456789abcdefgh"
+    rule: key_name_secret
+    expect: match
+    reason: "A long mixed value under a name that ends in \"credential\"."
+    source: synthetic
+
+  - name: tp_key_name_registry_auth
+    input: "\"auth\": \"Y2FuYXJ5OmNhbmFyeVB3MHJkMTIzNDU2\""
+    rule: key_name_secret
+    expect: match
+    reason: "A registry configuration stores an encoded user and password under \"auth\". The value is long and mixes letters and digits."
+    source: synthetic
+
+  - name: tp_key_name_password_then_other_parameters
+    input: "password=canaryFormPw0rd!66&user=jane"
+    rule: key_name_secret
+    expect: match
+    reason: "A form body with no leading ? or & is an ordinary assignment. The value runs to the next space, so the parameters after it are redacted with it."
+    source: synthetic
+
+  - name: fp_key_name_vendor_token_defers
+    input: "GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The github_pat rule covers the whole value, so the key-name rule gives way and the output keeps the more specific placeholder."
+    source: synthetic
+
+  - name: tp_github_pat_under_secret_name
+    input: "GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+    rule: github_pat
+    expect: match
+    reason: "The format rule still fires on a value that sits under a secret name."
+    source: synthetic
+
+  - name: fp_key_name_generic_api_key_defers
+    input: "api_key=canaryKey0123456789abcd"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The generic_api_key rule covers this value, so the key-name rule gives way and the existing output does not change."
+    source: synthetic
+
+  - name: fp_key_name_pem_header_left_to_block_rule
+    input: "private_key: -----BEGIN RSA PRIVATE KEY-----"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A PEM block belongs to private_key_block. The text before the first space is a run of hyphens and letters, which the key-name rule reads as a word."
+    source: synthetic
+
+  - name: fp_key_name_bearer_scheme_left_to_bearer_rule
+    input: "X-Auth: Bearer canarybearer0123456789abcd"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The value after the name is the scheme word. The bearer_token rule owns the credential that follows it."
+    source: synthetic
+
+  - name: fp_key_name_query_parameter_left_to_query_rule
+    input: "https://api.example.com/export?token=canaryQueryTok0123456789&user=jane"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A URL query parameter belongs to url_query_secret, which stops at the next parameter."
+    source: synthetic
+
+  - name: fp_key_name_shell_variable
+    input: "API_TOKEN=$DEPLOY_TOKEN_VALUE"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The value is a shell variable reference, not a credential."
+    source: synthetic
+
+  - name: fp_key_name_shell_braced_variable
+    input: "API_TOKEN=${DEPLOY_TOKEN_VALUE}"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The value is a braced shell variable reference."
+    source: synthetic
+
+  - name: fp_key_name_quoted_shell_variable
+    input: "API_TOKEN=\"$DEPLOY_TOKEN_VALUE\""
+    rule: key_name_secret
+    expect: no_match
+    reason: "A quoted shell variable reference is still a reference."
+    source: synthetic
+
+  - name: fp_key_name_command_substitution
+    input: "DB_PASSWORD=$(cat /run/secrets/db_password)"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The value is a command substitution."
+    source: synthetic
+
+  - name: fp_key_name_process_env
+    input: "token: process.env.GITHUB_TOKEN"
+    rule: key_name_secret
+    expect: no_match
+    reason: "process.env.X is a dotted identifier that reads the environment."
+    source: synthetic
+
+  - name: fp_key_name_os_environ_index
+    input: "password = os.environ[\"DB_PASSWORD\"]"
+    rule: key_name_secret
+    expect: no_match
+    reason: "os.environ[...] reads the environment. The value before the bracket is a dotted identifier."
+    source: synthetic
+
+  - name: fp_key_name_os_environ_get
+    input: "password = os.environ.get(\"DB_PASSWORD\")"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A call expression is code, not a literal."
+    source: synthetic
+
+  - name: fp_key_name_go_getenv
+    input: "token := os.Getenv(\"SERVICE_TOKEN\")"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A call that reads the environment is code, not a literal."
+    source: synthetic
+
+  - name: fp_key_name_getpass_call
+    input: "password = getpass()"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A call that asks for the password holds no password."
+    source: synthetic
+
+  - name: fp_key_name_workflow_expression
+    input: "token: ${{ secrets.GITHUB_TOKEN }}"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A workflow expression refers to a stored secret and does not contain it."
+    source: synthetic
+
+  - name: fp_key_name_chart_template
+    input: "password: {{ .Values.databasePassword }}"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A chart template refers to a value and does not contain it."
+    source: synthetic
+
+  - name: fp_key_name_terraform_reference
+    input: "db_password = var.database_password"
+    rule: key_name_secret
+    expect: no_match
+    reason: "var.name is a dotted identifier that refers to an input variable."
+    source: synthetic
+
+  - name: fp_key_name_angle_template
+    input: "token=<token>"
+    rule: key_name_secret
+    expect: no_match
+    reason: "An angle-bracket template is a placeholder."
+    source: synthetic
+
+  - name: fp_key_name_quoted_angle_template
+    input: "\"password\": \"<your-password>\""
+    rule: key_name_secret
+    expect: no_match
+    reason: "A quoted angle-bracket template is a placeholder."
+    source: synthetic
+
+  - name: fp_key_name_your_api_key
+    input: "token=your_api_token"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A value of letters and underscores is a placeholder or an identifier."
+    source: synthetic
+
+  - name: fp_key_name_hyphenated_placeholder
+    input: "password=your-password-here"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A value of letters and hyphens is a placeholder."
+    source: synthetic
+
+  - name: fp_key_name_asterisk_mask
+    input: "password=************"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A mask has no letter in it. The value was removed before it reached the engine."
+    source: synthetic
+
+  - name: fp_key_name_ellipsis
+    input: "token: ..."
+    rule: key_name_secret
+    expect: no_match
+    reason: "An ellipsis stands for an omitted value. It is short and holds no letter."
+    source: synthetic
+
+  - name: fp_key_name_printf_verb
+    input: "password=%s"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A format verb is a template. It is short and starts with a percent sign."
+    source: synthetic
+
+  - name: fp_key_name_named_format_field
+    input: "token=%(service_token)s"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A named format field is a template."
+    source: synthetic
+
+  - name: fp_key_name_brace_template
+    input: "token={service_token}"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A brace template is a placeholder."
+    source: synthetic
+
+  - name: fp_key_name_bracket_marker
+    input: "password: [REDACTED-BY-OWNER]"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A bracketed marker stands for a value that was removed."
+    source: synthetic
+
+  - name: fp_key_name_existing_placeholder
+    input: "INTERNAL_API_TOKEN=<SECRET>"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Output of this rule does not match again, so redaction is idempotent."
+    source: synthetic
+
+  - name: fp_key_name_type_string
+    input: "password: string"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A type name in a declaration: a short word."
+    source: synthetic
+
+  - name: fp_key_name_null
+    input: "token: null"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A null literal: a short word."
+    source: synthetic
+
+  - name: fp_key_name_json_true
+    input: "{\"secret\": true}"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A boolean literal: a short word."
+    source: synthetic
+
+  - name: fp_key_name_python_optional
+    input: "password: Optional[str] = None"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A type annotation."
+    source: synthetic
+
+  - name: fp_key_name_python_union
+    input: "token: str | None"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A type annotation."
+    source: synthetic
+
+  - name: fp_key_name_undefined
+    input: "secret: undefined"
+    rule: key_name_secret
+    expect: no_match
+    reason: "An undefined literal."
+    source: synthetic
+
+  - name: fp_key_name_rust_reference_type
+    input: "password: &mut_password_buffer,"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A reference to a named value. The sigil before the identifier is not part of it."
+    source: synthetic
+
+  - name: fp_key_name_max_tokens
+    input: "max_tokens=4096"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A plural name does not end in \"token\", and the value is a count."
+    source: synthetic
+
+  - name: fp_key_name_input_tokens
+    input: "input_tokens: 10"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A token count, not a credential."
+    source: synthetic
+
+  - name: fp_key_name_total_tokens_json
+    input: "{\"total_tokens\": 1536, \"cache_read_input_tokens\": 20481}"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Usage counters in a model response."
+    source: synthetic
+
+  - name: fp_key_name_max_tokens_flag
+    input: "run --max-tokens 4096"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A plural flag name with a count."
+    source: synthetic
+
+  - name: fp_key_name_digits_only
+    input: "page_token: 1234567890"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A value with no letter in it is a number."
+    source: synthetic
+
+  - name: fp_key_name_author
+    input: "author=jane-doe-2026x"
+    rule: key_name_secret
+    expect: no_match
+    reason: "\"author\" contains \"auth\" and does not end in it."
+    source: synthetic
+
+  - name: fp_key_name_authority
+    input: "authority: registry.example.com:5000"
+    rule: key_name_secret
+    expect: no_match
+    reason: "\"authority\" contains \"auth\" and does not end in it."
+    source: synthetic
+
+  - name: fp_key_name_oauth_callback_url
+    input: "oauth_callback_url=https://app.example.com/callback"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name ends in \"url\"."
+    source: synthetic
+
+  - name: fp_key_name_authorization_endpoint
+    input: "authorization_endpoint: https://id.example.com/authorize"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name ends in \"endpoint\"."
+    source: synthetic
+
+  - name: fp_key_name_password_min_length
+    input: "PASSWORD_MIN_LENGTH=12characters"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name contains \"password\" and ends in \"length\". It holds a setting."
+    source: synthetic
+
+  - name: fp_key_name_token_ttl
+    input: "TOKEN_TTL=3600seconds9"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name contains \"token\" and ends in \"ttl\". It holds a setting."
+    source: synthetic
+
+  - name: fp_key_name_token_type
+    input: "token_type: bearer-v2-2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name ends in \"type\"."
+    source: synthetic
+
+  - name: fp_key_name_tokenizer
+    input: "tokenizer=cl100k_base_2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "\"tokenizer\" continues after \"token\"."
+    source: synthetic
+
+  - name: fp_key_name_secret_name
+    input: "secret_name: canary-secret-0123456789"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name ends in \"name\". It holds an identifier of a secret, not the secret."
+    source: synthetic
+
+  - name: fp_key_name_auth_scheme_name
+    input: "auth: basic-realm-2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A name that ends in \"auth\" often holds a scheme or a mode. Only a value of 20 or more characters that mixes letters and digits is taken."
+    source: synthetic
+
+  - name: fp_key_name_auth_user_pair
+    input: "deploy --auth admin:canaryPw0rd7"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Deliberately not redacted: the value under \"auth\" is shorter than the strict minimum of 20 characters."
+    source: synthetic
+
+  - name: fp_key_name_auth_image_tag
+    input: "image: example/auth:v1.2.3-alpine"
+    rule: key_name_secret
+    expect: no_match
+    reason: "An image tag after a repository named \"auth\" is not a credential."
+    source: synthetic
+
+  - name: fp_key_name_auth_mode_word
+    input: "\"auth\": \"required\""
+    rule: key_name_secret
+    expect: no_match
+    reason: "A mode word under \"auth\"."
+    source: synthetic
+
+  - name: fp_key_name_identifier_value
+    input: "password=hashedPassword"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A value of letters alone is an identifier."
+    source: synthetic
+
+  - name: fp_key_name_keyword_argument
+    input: "login(user=name, password=user_password)"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A keyword argument that passes a variable."
+    source: synthetic
+
+  - name: fp_key_name_member_access
+    input: "token: request.body.token,"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A dotted identifier is a member access."
+    source: synthetic
+
+  - name: fp_key_name_call_value
+    input: "secret: jwt.sign(payload, signingKey)"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A call expression is code."
+    source: synthetic
+
+  - name: fp_key_name_comparison
+    input: "if password == \"canaryCompare0123\":"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A comparison is not an assignment."
+    source: synthetic
+
+  - name: fp_key_name_not_equal
+    input: "token != expectedToken2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A comparison is not an assignment."
+    source: synthetic
+
+  - name: fp_key_name_arrow
+    input: "password => hashPassword2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "An arrow is not an assignment."
+    source: synthetic
+
+  - name: fp_key_name_struct_tag
+    input: "Token string `json:\"token\"`"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A struct tag names a field and holds no value."
+    source: synthetic
+
+  - name: fp_key_name_environment_index_assignment
+    input: "os.environ[\"API_TOKEN\"] = value_from_vault"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name is followed by a closing bracket, so the form is not a name and a value."
+    source: synthetic
+
+  - name: fp_key_name_regex_source
+    input: "token = \"\\\\x41canary0123456789\""
+    rule: key_name_secret
+    expect: no_match
+    reason: "A quoted value that starts with a backslash is an escape sequence or a pattern."
+    source: synthetic
+
+  - name: fp_key_name_version_tag
+    input: "sealed-secret:v0.24.1-rc1"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A version after a name that ends in \"secret\" is an image tag."
+    source: synthetic
+
+  - name: fp_key_name_flag_followed_by_flag
+    input: "login --password --verbose-mode-2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The text after the flag is the next flag, not a value."
+    source: synthetic
+
+  - name: fp_key_name_prose_after_colon
+    input: "Enter your password: it must be at least 12 characters"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The word after the colon is prose."
+    source: synthetic
+
+  - name: fp_key_name_quoted_sentence
+    input: "\"token\": \"The API token to send with each request\""
+    rule: key_name_secret
+    expect: no_match
+    reason: "A quoted value with spaces is a description."
+    source: synthetic
+
+  - name: fp_key_name_parenthesised_note
+    input: "password: (none)"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A parenthesised note is not a value."
+    source: synthetic
+
+  - name: fp_key_name_value_on_next_line
+    input: "auth:\n  username: canaryUser0123456789abcd"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The value must be on the same line as the name. A nested mapping is not the value of its parent key."
+    source: synthetic
+
+  - name: fp_key_name_home_relative_path
+    input: "private_key: ~/.ssh/id_ed25519_deploy_2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A path to a key file is not the key."
+    source: synthetic
+
+  - name: fp_key_name_absolute_path
+    input: "SSH_PRIVATE_KEY=/etc/ssl/private/server-2026.key"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Deliberately not redacted: an absolute path under a secret name is treated as the location of a key file."
+    source: synthetic
+
+  - name: fp_key_name_url_value
+    input: "reset_token=https://app.example.com/reset/2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Deliberately not redacted: a URL under a secret name is treated as a location."
+    source: synthetic
+
+  - name: fp_key_name_short_value
+    input: "password=hunter2"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Deliberately not redacted: a value shorter than 8 characters cannot be told apart from an ordinary word or a short identifier."
+    source: synthetic
+
+  - name: fp_key_name_dictionary_word
+    input: "password=changeme"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Deliberately not redacted: a value of letters alone cannot be told apart from an identifier."
+    source: synthetic
+
+  - name: fp_key_name_low_variety
+    input: "password=aaaaaaa1"
+    rule: key_name_secret
+    expect: no_match
+    reason: "One character fills more than half of the value, so it is read as a filler and not as a password."
+    source: synthetic
+
+  - name: tp_url_query_token
+    input: "https://api.example.com/export?token=canaryQueryTok0123456789&user=jane"
+    rule: url_query_secret
+    expect: match
+    reason: "A query parameter whose name ends in \"token\"."
+    source: synthetic
+
+  - name: tp_url_query_token_minimal
+    input: "https://api.example.com/export?token=canaryQueryTok0123456789&user=jane"
+    rule: url_query_secret
+    expect: match
+    level: minimal
+    reason: "The rule is in the secrets category, so it is active at minimal."
+    source: synthetic
+
+  - name: tp_url_query_later_parameter
+    input: "https://api.example.com/cb?state=ok&access_token=canaryQueryTok0123456789#done"
+    rule: url_query_secret
+    expect: match
+    reason: "A parameter after & is read the same way, and the value stops at the fragment."
+    source: synthetic
+
+  - name: tp_url_query_relative
+    input: "GET /download?file=report&api_secret=canaryQuerySec-7c2e9a41 HTTP/1.1"
+    rule: url_query_secret
+    expect: match
+    reason: "A request line carries the same query form."
+    source: synthetic
+
+  - name: fp_url_query_shell_variable
+    input: "https://api.example.com/export?token=$EXPORT_TOKEN_VALUE"
+    rule: url_query_secret
+    expect: no_match
+    reason: "The value is a shell variable reference."
+    source: synthetic
+
+  - name: fp_url_query_brace_template
+    input: "https://api.example.com/export?token={export_token}"
+    rule: url_query_secret
+    expect: no_match
+    reason: "The value is a template."
+    source: synthetic
+
+  - name: fp_url_query_placeholder_word
+    input: "https://api.example.com/export?token=YOUR_TOKEN_HERE"
+    rule: url_query_secret
+    expect: no_match
+    reason: "The value is a placeholder of letters and underscores."
+    source: synthetic
+
+  - name: fp_url_query_max_tokens
+    input: "https://api.example.com/v1/complete?max_tokens=4096"
+    rule: url_query_secret
+    expect: no_match
+    reason: "A plural name with a count."
+    source: synthetic
+
+  - name: fp_url_query_author
+    input: "https://example.com/posts?author=jane-doe-2026x"
+    rule: url_query_secret
+    expect: no_match
+    reason: "\"author\" does not end in \"auth\"."
+    source: synthetic
+
+  - name: fp_url_query_vendor_token_defers
+    input: "https://api.example.com/hook?token=ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+    rule: url_query_secret
+    expect: no_match
+    reason: "The github_pat rule covers the whole value, so the query rule gives way."
+    source: synthetic
+
+  - name: tp_cookie_request_header
+    input: "Cookie: sessionid=canarySessionCookie0123456789abcdef"
+    rule: cookie_header
+    expect: match
+    reason: "A request header that carries a session cookie."
+    source: synthetic
+
+  - name: tp_cookie_request_header_minimal
+    input: "Cookie: sessionid=canarySessionCookie0123456789abcdef"
+    rule: cookie_header
+    expect: match
+    level: minimal
+    reason: "The rule is in the secrets category, so it is active at minimal."
+    source: synthetic
+
+  - name: tp_cookie_response_header
+    input: "Set-Cookie: sessionid=canarySetCookie0123456789; Path=/; HttpOnly"
+    rule: cookie_header
+    expect: match
+    reason: "A response header that sets a session cookie."
+    source: synthetic
+
+  - name: tp_cookie_curl_header
+    input: "curl -H 'Cookie: sessionid=canarySessionCookie0123456789abcdef' https://app.example.com"
+    rule: cookie_header
+    expect: match
+    reason: "A header passed on a command line."
+    source: synthetic
+
+  - name: tp_cookie_json_member
+    input: "{\"cookie\": \"sessionid=canarySessionCookie0123456789abcdef; theme=dark\"}"
+    rule: cookie_header
+    expect: match
+    reason: "A captured request written as JSON."
+    source: synthetic
+
+  - name: fp_cookie_prose
+    input: "Cookie: the browser stores a session cookie"
+    rule: cookie_header
+    expect: no_match
+    reason: "Prose after the word does not start with a name and an equals sign."
+    source: synthetic
+
+  - name: fp_cookie_variable
+    input: "Cookie: $SESSION_COOKIE"
+    rule: cookie_header
+    expect: no_match
+    reason: "A variable reference."
+    source: synthetic
+
+  - name: fp_cookie_template_value
+    input: "Cookie: sessionid=<session-id>"
+    rule: cookie_header
+    expect: no_match
+    reason: "A template value."
+    source: synthetic
+
+  - name: fp_cookie_script_assignment
+    input: "document.cookie = \"theme=dark\""
+    rule: cookie_header
+    expect: no_match
+    reason: "A script assignment is not a header."
+    source: synthetic
+
+  - name: fp_cookie_longer_word
+    input: "mycookie: sessionid=canarySessionCookie0123456789abcdef"
+    rule: cookie_header
+    expect: no_match
+    reason: "The header name must be the whole word."
+    source: synthetic
+
+  - name: tp_stripe_key_longer_body
+    input: "sk_live_abcdefghijklmnopqrstuvwxyz01"
+    rule: stripe_key
+    expect: match
+    reason: "A key with more than 24 characters after the prefix matches whole, so no tail is left in the output."
+    source: synthetic
+
+  - name: tp_stripe_key_restricted_test_longer_body
+    input: "rk_test_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGH"
+    rule: stripe_key
+    expect: match
+    reason: "A long restricted test key matches whole."
+    source: synthetic
+
+  # ---------------------------------------------------------------------------
+  # Token formats with a documented prefix, Authorization schemes, API-key
+  # headers, the curl user option, and JSON Web Key private members. Also the
+  # branches of the key-name value test that the rows above do not reach.
+  # ---------------------------------------------------------------------------
+
+  - name: fp_key_name_named_parameter
+    input: "WHERE password = :user_password_param"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A named query parameter. The colon before the identifier is not part of it."
+    source: synthetic
+
+  - name: fp_key_name_windows_variable
+    input: "DB_PASSWORD=%DATABASE_PASSWORD%"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A variable reference written with percent signs."
+    source: synthetic
+
+  - name: fp_key_name_ruby_interpolation
+    input: "password=#{database_password}"
+    rule: key_name_secret
+    expect: no_match
+    reason: "An interpolation refers to a value and does not contain it."
+    source: synthetic
+
+  - name: fp_key_name_relative_path_dot
+    input: "db_password: ./secrets/db-pass-2026.txt"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A relative path to a file is not its content."
+    source: synthetic
+
+  - name: fp_key_name_relative_path_parent
+    input: "db_password: ../secrets/db-pass-2026.txt"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A relative path to a file is not its content."
+    source: synthetic
+
+  - name: fp_key_name_relative_file
+    input: "secret: config/secrets-2026.yml"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A relative path that ends in a file extension is a file name."
+    source: synthetic
+
+  - name: fp_key_name_strict_no_digit
+    input: "SERVICE_API_KEY=canary-key.without+any-digits"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A value under a strict name must mix letters and digits."
+    source: synthetic
+
+  - name: fp_key_name_strict_low_variety
+    input: "SERVICE_ACCESS_KEY=abcde12345abcde12345ab"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A value under a strict name must clear the higher entropy floor. Ten different characters repeated do not."
+    source: synthetic
+
+  - name: fp_key_name_rust_path_type
+    input: "cancel_token: tokio_util::sync::CancellationToken,"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A path to a type is code."
+    source: synthetic
+
+  - name: fp_key_name_optional_chaining
+    input: "const token = session?.accessToken;"
+    rule: key_name_secret
+    expect: no_match
+    reason: "Optional chaining is a member access."
+    source: synthetic
+
+  - name: fp_key_name_versioned_identifier
+    input: "token = user_token_v2"
+    rule: key_name_secret
+    expect: no_match
+    reason: "An identifier that ends in a version is still an identifier."
+    source: synthetic
+
+  - name: fp_key_name_named_object
+    input: "existingSecret: postgres-credentials-v1"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The name of another object that holds the secret."
+    source: synthetic
+
+  - name: fp_key_name_stored_secret_reference
+    input: "secret: arn:aws:secretsmanager:us-east-1:123456789012:secret:prod/db-AbCdEf"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A reference to where the secret is stored."
+    source: synthetic
+
+  - name: fp_key_name_vault_reference
+    input: "token: vault:secret/data/app#token2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A reference to where the secret is stored."
+    source: synthetic
+
+  - name: fp_key_name_flag_setting_list
+    input: "docker build --secret id=npmrc,src=.npmrc2026 ."
+    rule: key_name_secret
+    expect: no_match
+    reason: "The value of this flag is a list of settings, not a credential."
+    source: synthetic
+
+  - name: tp_key_name_segmented_token
+    input: "{\"access_token\":\"Abc123xyz9Q.Def456uvw8R.Ghi789rst7S\"}"
+    rule: key_name_secret
+    expect: match
+    reason: "A token made of dotted segments holds many digits, so it is not read as a member access."
+    source: synthetic
+
+  - name: tp_key_name_symbol_password
+    input: "DB_PASSWORD=P@ssw0rd"
+    rule: key_name_secret
+    expect: match
+    reason: "A value with a symbol in it is not an identifier, so a repeated letter does not exclude it."
+    source: synthetic
+
+  - name: tp_key_name_stops_at_encoded_line_end
+    input: "export DB_PASSWORD=canaryEnvPw0rd9x\\nPORT=8080"
+    rule: key_name_secret
+    expect: match
+    reason: "In text that carries encoded line ends, the value stops at the backslash."
+    source: synthetic
+
+  - name: tp_key_name_quoted_query_parameter
+    input: "x=1&password=\"canaryQuoted0123x\""
+    rule: key_name_secret
+    expect: match
+    reason: "A quoted value after & is not a URL query parameter, so the general rule keeps it."
+    source: synthetic
+
+  - name: fp_key_name_digit_identifier_known
+    input: "password: hashedPassword2,"
+    rule: key_name_secret
+    expect: match
+    reason: "Known over-redaction, recorded so a change to it is deliberate: an identifier that holds a digit has the shape of a password."
+    source: synthetic
+
+  - name: tp_github_fine_grained_pat
+    input: "github_pat_canaryFINEgrained0123456789abcdef"
+    rule: github_fine_grained_pat
+    expect: match
+    reason: "The documented prefix and a run of token characters."
+    source: synthetic
+
+  - name: tp_github_fine_grained_pat_minimal
+    input: "github_pat_canaryFINEgrained0123456789abcdef"
+    rule: github_fine_grained_pat
+    expect: match
+    level: minimal
+    reason: "A secrets rule is active at minimal."
+    source: synthetic
+
+  - name: fp_github_fine_grained_pat_bare_prefix
+    input: "tokens that start with github_pat_ are fine-grained"
+    rule: github_fine_grained_pat
+    expect: no_match
+    reason: "The prefix alone in a sentence is not a token."
+    source: synthetic
+
+  - name: fp_github_fine_grained_pat_short
+    input: "github_pat_example"
+    rule: github_fine_grained_pat
+    expect: no_match
+    reason: "A short placeholder after the prefix is below the noise floor."
+    source: synthetic
+
+  - name: fp_key_name_fine_grained_pat_defers
+    input: "GH_TOKEN=github_pat_canaryFINEgrained0123456789abcdef"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The format rule covers the whole value, so the output keeps <GITHUB_PAT>."
+    source: synthetic
+
+  - name: tp_npm_token
+    input: "npm_canarytoken0123456789abcdefghij"
+    rule: npm_token
+    expect: match
+    reason: "The documented prefix and a run of letters and digits."
+    source: synthetic
+
+  - name: tp_npm_token_minimal
+    input: "npm_canarytoken0123456789abcdefghij"
+    rule: npm_token
+    expect: match
+    level: minimal
+    reason: "A secrets rule is active at minimal."
+    source: synthetic
+
+  - name: fp_npm_token_environment_name
+    input: "npm_config_registry=https://registry.example.com"
+    rule: npm_token
+    expect: no_match
+    reason: "An environment name has underscores after the prefix, and the rule takes letters and digits only."
+    source: synthetic
+
+  - name: fp_npm_token_lifecycle_name
+    input: "echo $npm_lifecycle_event $npm_package_version"
+    rule: npm_token
+    expect: no_match
+    reason: "Script environment names are short runs separated by underscores."
+    source: synthetic
+
+  - name: fp_npm_token_short
+    input: "npm_token"
+    rule: npm_token
+    expect: no_match
+    reason: "A word after the prefix is below the noise floor."
+    source: synthetic
+
+  - name: tp_huggingface_token
+    input: "hf_canarytoken0123456789abcdefghij"
+    rule: huggingface_token
+    expect: match
+    reason: "The prefix the vendor shows and a run of letters and digits."
+    source: synthetic
+
+  - name: tp_huggingface_token_minimal
+    input: "hf_canarytoken0123456789abcdefghij"
+    rule: huggingface_token
+    expect: match
+    level: minimal
+    reason: "A secrets rule is active at minimal."
+    source: synthetic
+
+  - name: fp_huggingface_library_function
+    input: "from huggingface_hub import hf_hub_download"
+    rule: huggingface_token
+    expect: no_match
+    reason: "A library function name has underscores after the prefix."
+    source: synthetic
+
+  - name: fp_huggingface_placeholder
+    input: "access_token = \"hf_...\""
+    rule: huggingface_token
+    expect: no_match
+    reason: "The documentation placeholder is not a token."
+    source: synthetic
+
+  - name: fp_huggingface_long_identifier
+    input: "hf_text_generation_inference_endpoint_name"
+    rule: huggingface_token
+    expect: no_match
+    reason: "A long identifier is separated by underscores, so no run reaches the floor."
+    source: synthetic
+
+  - name: tp_vercel_personal_token
+    input: "vcp_canarytoken0123456789abcdef"
+    rule: vercel_token
+    expect: match
+    reason: "The documented personal access token prefix."
+    source: synthetic
+
+  - name: tp_vercel_personal_token_minimal
+    input: "vcp_canarytoken0123456789abcdef"
+    rule: vercel_token
+    expect: match
+    level: minimal
+    reason: "A secrets rule is active at minimal."
+    source: synthetic
+
+  - name: tp_vercel_api_key
+    input: "vck_canarytoken0123456789abcdef"
+    rule: vercel_token
+    expect: match
+    reason: "The documented API key prefix."
+    source: synthetic
+
+  - name: fp_vercel_other_prefix
+    input: "vcx_canarytoken0123456789abcdef"
+    rule: vercel_token
+    expect: no_match
+    reason: "A prefix that is not in the documented list."
+    source: synthetic
+
+  - name: fp_vercel_short
+    input: "vcp_example"
+    rule: vercel_token
+    expect: no_match
+    reason: "A short placeholder after the prefix is below the noise floor."
+    source: synthetic
+
+  - name: tp_supabase_personal_access_token
+    input: "sbp_canary0123456789abcdef0123456789abcdef"
+    rule: supabase_token
+    expect: match
+    reason: "The personal access token prefix from the vendor request example."
+    source: synthetic
+
+  - name: tp_supabase_personal_access_token_minimal
+    input: "sbp_canary0123456789abcdef0123456789abcdef"
+    rule: supabase_token
+    expect: match
+    level: minimal
+    reason: "A secrets rule is active at minimal."
+    source: synthetic
+
+  - name: tp_supabase_secret_key
+    input: "sb_secret_canary0123456789abcdefgh"
+    rule: supabase_token
+    expect: match
+    reason: "The documented secret key prefix."
+    source: synthetic
+
+  - name: fp_supabase_publishable_key
+    input: "sb_publishable_canary0123456789abcdefgh"
+    rule: supabase_token
+    expect: no_match
+    reason: "A publishable key is meant to be public."
+    source: synthetic
+
+  - name: fp_supabase_short
+    input: "sbp_example"
+    rule: supabase_token
+    expect: no_match
+    reason: "A short placeholder after the prefix is below the noise floor."
+    source: synthetic
+
+  - name: tp_authorization_token_scheme
+    input: "Authorization: token canaryAuthTok0123456789abcd"
+    rule: authorization_token
+    expect: match
+    reason: "The \"token\" scheme carries a credential."
+    source: synthetic
+
+  - name: tp_authorization_token_scheme_minimal
+    input: "Authorization: token canaryAuthTok0123456789abcd"
+    rule: authorization_token
+    expect: match
+    level: minimal
+    reason: "A secrets rule is active at minimal."
+    source: synthetic
+
+  - name: tp_authorization_bot_scheme
+    input: "Authorization: Bot canaryBotTok0123456789abcdef"
+    rule: authorization_token
+    expect: match
+    reason: "The \"Bot\" scheme carries a credential."
+    source: synthetic
+
+  - name: tp_authorization_json_member
+    input: "{\"authorization\": \"token canaryAuthTok0123456789abcd\"}"
+    rule: authorization_token
+    expect: match
+    reason: "A captured request written as JSON."
+    source: synthetic
+
+  - name: fp_authorization_token_placeholder
+    input: "Authorization: token YOUR-TOKEN"
+    rule: authorization_token
+    expect: no_match
+    reason: "A documentation placeholder is below the 20-character floor."
+    source: synthetic
+
+  - name: fp_authorization_token_variable
+    input: "Authorization: token ${GITHUB_TOKEN_FROM_ENVIRONMENT}"
+    rule: authorization_token
+    expect: no_match
+    reason: "A variable reference is outside the value character set."
+    source: synthetic
+
+  - name: fp_authorization_other_scheme
+    input: "Authorization: Digest canaryDigest0123456789abcdef"
+    rule: authorization_token
+    expect: no_match
+    reason: "A scheme this rule does not name."
+    source: synthetic
+
+  - name: fp_authorization_scheme_prefix_word
+    input: "Authorization: tokenizer canaryWord0123456789abcdef"
+    rule: authorization_token
+    expect: no_match
+    reason: "The scheme word must be followed by a space."
+    source: synthetic
+
+  - name: tp_header_api_key
+    input: "api-key: canaryHdrKey0123456789abcdef"
+    rule: generic_api_key
+    expect: match
+    reason: "The api-key header is an API-key assignment."
+    source: synthetic
+
+  - name: tp_header_x_api_key
+    input: "x-api-key: canaryHdrKey0123456789abcdef"
+    rule: generic_api_key
+    expect: match
+    reason: "The x-api-key header ends in the same name."
+    source: synthetic
+
+  - name: tp_header_x_api_key_outside_generic_shape
+    input: "x-api-key: canaryHdr.Key+0123456789/abc="
+    rule: key_name_secret
+    expect: match
+    reason: "A header value outside the character set of generic_api_key is taken by the key-name rule."
+    source: synthetic
+
+  - name: tp_header_auth_token
+    input: "auth-token: canaryHdrTok0123456789"
+    rule: key_name_secret
+    expect: match
+    reason: "A header whose name ends in \"token\"."
+    source: synthetic
+
+  - name: tp_header_access_token
+    input: "access-token: canaryHdrTok0123456789"
+    rule: key_name_secret
+    expect: match
+    reason: "A header whose name ends in \"token\"."
+    source: synthetic
+
+  - name: tp_header_access_token_minimal
+    input: "access-token: canaryHdrTok0123456789"
+    rule: key_name_secret
+    expect: match
+    level: minimal
+    reason: "A secrets rule is active at minimal."
+    source: synthetic
+
+  - name: fp_header_api_key_variable
+    input: "x-api-key: $SERVICE_API_KEY_VALUE_2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A variable reference in a header."
+    source: synthetic
+
+  - name: fp_header_api_key_placeholder
+    input: "x-api-key: <your-api-key>"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A template in a header."
+    source: synthetic
+
+  - name: tp_curl_short_user_option
+    input: "curl -u jane:canaryCurlPw0rd https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    reason: "The user and password pair of the user option."
+    source: synthetic
+
+  - name: tp_curl_short_user_option_minimal
+    input: "curl -u jane:canaryCurlPw0rd https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    level: minimal
+    reason: "A secrets rule is active at minimal."
+    source: synthetic
+
+  - name: tp_curl_long_user_option
+    input: "curl --silent --user \"jane:canaryCurlPw0rd\" https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    reason: "The long form of the option, with a quoted value."
+    source: synthetic
+
+  - name: tp_curl_user_option_equals
+    input: "curl --user=jane:canaryCurlPw0rd https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    reason: "The long form joined with an equals sign."
+    source: synthetic
+
+  - name: tp_curl_continued_line
+    input: "curl -X POST \\\n  -u jane:canaryCurlPw0rd \\\n  https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    reason: "A command continued over several lines is one command."
+    source: synthetic
+
+  - name: fp_curl_other_command_sort
+    input: "sort -u names:canaryList0123 sorted.txt"
+    rule: curl_user_password
+    expect: no_match
+    reason: "Another command uses -u for something else."
+    source: synthetic
+
+  - name: fp_curl_other_command_git
+    input: "git push -u origin:canaryBranch0123"
+    rule: curl_user_password
+    expect: no_match
+    reason: "Another command uses -u for something else."
+    source: synthetic
+
+  - name: fp_curl_command_on_previous_line
+    input: "curl https://api.example.com/v1\nsort -u names:canaryList0123"
+    rule: curl_user_password
+    expect: no_match
+    reason: "A curl command on the line before does not make the next line a curl command."
+    source: synthetic
+
+  - name: fp_curl_variable_pair
+    input: "curl -u \"$API_USER:$API_PASSWORD\" https://api.example.com/v1"
+    rule: curl_user_password
+    expect: no_match
+    reason: "Variable references hold no credential."
+    source: synthetic
+
+  - name: fp_curl_variable_password
+    input: "curl -u jane:$API_PASSWORD https://api.example.com/v1"
+    rule: curl_user_password
+    expect: no_match
+    reason: "A variable reference holds no credential."
+    source: synthetic
+
+  - name: fp_curl_user_only
+    input: "curl -u jane https://api.example.com/v1"
+    rule: curl_user_password
+    expect: no_match
+    reason: "With no colon, curl asks for the password, and the command holds none."
+    source: synthetic
+
+  - name: fp_curl_placeholder_password
+    input: "curl -u user:password https://api.example.com/v1"
+    rule: curl_user_password
+    expect: no_match
+    reason: "The word documentation writes in place of a password."
+    source: synthetic
+
+  - name: fp_curl_longer_command_word
+    input: "mycurl -u jane:canaryCurlPw0rd https://api.example.com/v1"
+    rule: curl_user_password
+    expect: no_match
+    reason: "The command word must be curl itself."
+    source: synthetic
+
+  - name: tp_jwk_private_member
+    input: "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"canaryPublicX\",\"d\":\"canaryPrivateMember0123456789abcdefghijklmn\"}"
+    rule: jwk_private_member
+    expect: match
+    reason: "The private member of a JSON Web Key."
+    source: synthetic
+
+  - name: tp_jwk_private_member_minimal
+    input: "{\"kty\":\"OKP\",\"crv\":\"Ed25519\",\"x\":\"canaryPublicX\",\"d\":\"canaryPrivateMember0123456789abcdefghijklmn\"}"
+    rule: jwk_private_member
+    expect: match
+    level: minimal
+    reason: "A secrets rule is active at minimal."
+    source: synthetic
+
+  - name: tp_jwk_private_member_before_key_type
+    input: "{\"d\": \"canaryPrivateMember0123456789abcdefghijklmn\", \"kty\": \"EC\"}"
+    rule: jwk_private_member
+    expect: match
+    reason: "Member order is free, so the key type may come after the private member."
+    source: synthetic
+
+  - name: tp_jwk_prime_member
+    input: "{\"kty\":\"RSA\",\"e\":\"AQAB\",\"p\":\"canaryPrimeMember0123456789abcdefghijklmnop\"}"
+    rule: jwk_private_member
+    expect: match
+    reason: "An RSA prime gives the private key, so it is private too."
+    source: synthetic
+
+  - name: tp_jwk_symmetric_key
+    input: "{\"kty\":\"oct\",\"k\":\"canarySymmetricKey0123456789abcd\"}"
+    rule: jwk_private_member
+    expect: match
+    reason: "The key member of a symmetric key is the secret."
+    source: synthetic
+
+  - name: tp_jwk_escaped_quotes
+    input: "{\\\"kty\\\":\\\"EC\\\",\\\"d\\\":\\\"canaryPrivateMember0123456789abcdefghijklmn\\\"}"
+    rule: jwk_private_member
+    expect: match
+    reason: "A key carried inside a JSON string has escaped quotes."
+    source: synthetic
+
+  - name: fp_jwk_member_without_key_type
+    input: "{\"d\": \"canaryNotAKeyValue0123456789abcdefghijkl\", \"name\": \"delta\"}"
+    rule: jwk_private_member
+    expect: no_match
+    reason: "An object with a \"d\" member and no key type is not a JSON Web Key."
+    source: synthetic
+
+  - name: fp_jwk_public_members
+    input: "{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"canaryPublicMemberX0123456789abcdefghijkl\",\"y\":\"canaryPublicMemberY0123456789abcdefghijkl\"}"
+    rule: jwk_private_member
+    expect: no_match
+    reason: "A public key has no private member."
+    source: synthetic
+
+  - name: fp_jwk_short_member
+    input: "{\"kty\":\"EC\",\"d\":\"short\"}"
+    rule: jwk_private_member
+    expect: no_match
+    reason: "A short value is below the noise floor."
+    source: synthetic
+
+  - name: fp_cookie_prose_after_pair
+    input: "cookie: name=value pairs separated by semicolons"
+    rule: cookie_header
+    expect: match
+    reason: "Known over-redaction, recorded so a change to it is deliberate: the first pair is taken, and the prose after the space is kept."
+    source: synthetic
+
+  - name: tp_unlisted_format_under_api_key_name
+    input: "GOOGLE_API_KEY=AIzacanary0123456789abcdefghijklmnopqrs"
+    rule: generic_api_key
+    expect: match
+    reason: "A key with no rule of its own is still redacted when it sits under an API-key name."
+    source: synthetic
+
+  - name: tp_unlisted_format_after_bearer
+    input: "Authorization: Bearer zk-live-canary0123456789abcdefghij"
+    rule: bearer_token
+    expect: match
+    reason: "A key with no rule of its own is still redacted when it is sent as a bearer token."
+    source: synthetic
+
+  - name: tp_unlisted_format_under_secret_name
+    input: "PROVIDER_SECRET=zk-live-canary0123456789abcdefghij"
+    rule: key_name_secret
+    expect: match
+    reason: "A key with no rule of its own is still redacted when it sits under a secret name."
+    source: synthetic
+
+  - name: fp_curl_piped_into_other_command
+    input: "curl -s https://api.example.com/names | sort -u names:canaryList0123"
+    rule: curl_user_password
+    expect: no_match
+    reason: "A pipe starts another command, and its -u is not the user option of curl."
+    source: synthetic
+
+  - name: tp_curl_url_with_ampersand_before_option
+    input: "curl \"https://api.example.com/v1?a=1&b=2\" -u jane:canaryCurlPw0rd"
+    rule: curl_user_password
+    expect: match
+    reason: "An ampersand inside a quoted URL is not an operator, so the option still belongs to curl."
+    source: synthetic
+
+  # ---------------------------------------------------------------------------
+  # Rows added after the second review: identifiers under the prefix rules, the
+  # other spellings of the curl user option, and the edges of the overlap rule.
+  # ---------------------------------------------------------------------------
+
+  - name: fp_vercel_snake_case_identifier
+    input: "vcr_cassette_library_dir = 'spec/cassettes'"
+    rule: vercel_token
+    expect: no_match
+    reason: "An identifier made of words holds no digit."
+    source: synthetic
+
+  - name: fp_github_fine_grained_pat_variable_name
+    input: "var.github_pat_for_terraform_cloud_workspace"
+    rule: github_fine_grained_pat
+    expect: no_match
+    reason: "A variable name that starts with the prefix holds no digit."
+    source: synthetic
+
+  - name: fp_supabase_prefix_inside_word
+    input: "usbp_device_descriptor_table_entry_2"
+    rule: supabase_token
+    expect: no_match
+    reason: "The prefix must start a word."
+    source: synthetic
+
+  - name: fp_huggingface_class_name
+    input: "hf_AutoModelForCausalLMWrapper.from_pretrained(name)"
+    rule: huggingface_token
+    expect: no_match
+    reason: "A long identifier of letters holds no digit."
+    source: synthetic
+
+  - name: fp_npm_prefix_inside_word
+    input: "pnpm_canarytoken0123456789abcdefghij"
+    rule: npm_token
+    expect: no_match
+    reason: "The prefix must start a word."
+    source: synthetic
+
+  - name: tp_curl_token_as_user_name
+    input: "curl -u ghp_abcdefghijklmnopqrstuvwxyz0123456789:x-oauth-basic https://api.example.com/user"
+    rule: curl_user_password
+    expect: match
+    reason: "A token sent as the user name is part of the pair, and the whole pair is replaced."
+    source: synthetic
+
+  - name: tp_curl_empty_user_name
+    input: "curl -u :canaryCurlTok0123456789 https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    reason: "An empty user name with a token as the password."
+    source: synthetic
+
+  - name: tp_curl_bundled_short_options
+    input: "curl -sSu jane:canaryCurlPw0rd https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    reason: "The option bundled after other short options."
+    source: synthetic
+
+  - name: tp_curl_attached_value
+    input: "curl -ujane:canaryCurlPw0rd https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    reason: "The pair attached to the option with no space."
+    source: synthetic
+
+  - name: tp_curl_argument_list
+    input: "[\"curl\", \"-u\", \"jane:canaryCurlPw0rd\", \"https://api.example.com/v1\"]"
+    rule: curl_user_password
+    expect: match
+    reason: "The option and the pair as two members of an argument list."
+    source: synthetic
+
+  - name: tp_curl_option_after_quoted_semicolon
+    input: "curl -H \"Accept: application/json; charset=utf-8\" -u jane:canaryCurlPw0rd https://api.example.com"
+    rule: curl_user_password
+    expect: match
+    reason: "A semicolon inside a quoted argument does not start another command."
+    source: synthetic
+
+  - name: tp_curl_option_after_quoted_and
+    input: "curl -d '{\"q\": \"a && b\"}' --user jane:canaryCurlPw0rd https://api.example.com"
+    rule: curl_user_password
+    expect: match
+    reason: "An && inside a quoted argument does not start another command."
+    source: synthetic
+
+  - name: tp_curl_after_other_command
+    input: "cd /srv/app && curl -u jane:canaryCurlPw0rd https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    reason: "The command after && is curl."
+    source: synthetic
+
+  - name: tp_curl_exe
+    input: "curl.exe -u jane:canaryCurlPw0rd https://api.example.com/v1"
+    rule: curl_user_password
+    expect: match
+    reason: "The command word with its Windows extension."
+    source: synthetic
+
+  - name: tp_curl_option_on_continuation_line_start
+    input: "curl https://api.example.com/v1 \\\n-u jane:canaryCurlPw0rd"
+    rule: curl_user_password
+    expect: match
+    reason: "A continuation line that starts with the option."
+    source: synthetic
+
+  - name: fp_curl_other_command_after_semicolon
+    input: "curl -s https://api.example.com/names; sort -u names:canaryList0123"
+    rule: curl_user_password
+    expect: no_match
+    reason: "A semicolon outside quotes starts another command."
+    source: synthetic
+
+  - name: fp_curl_other_command_after_and
+    input: "curl -sO https://api.example.com/f.tgz && docker run -u builder:canaryGroup9 alpine"
+    rule: curl_user_password
+    expect: no_match
+    reason: "The command after && is not curl."
+    source: synthetic
+
+  - name: fp_curl_user_and_group_numbers
+    input: "curl -s https://api.example.com/v1 -u 1000:1000"
+    rule: curl_user_password
+    expect: no_match
+    reason: "A pair of numbers is a user and group number."
+    source: synthetic
+
+  - name: fp_curl_other_command_on_encoded_next_line
+    input: "{\"cmd\":\"curl -O https://api.example.com/f.tgz\\ndocker run -u builder:canaryGroup9 alpine\"}"
+    rule: curl_user_password
+    expect: no_match
+    reason: "In a JSON string the two characters of an encoded line end start a new line, and its command is not curl."
+    source: synthetic
+
+  - name: fp_curl_template_password
+    input: "curl -u jane:<password> https://api.example.com/v1"
+    rule: curl_user_password
+    expect: no_match
+    reason: "A template in place of the password."
+    source: synthetic
+
+  - name: fp_curl_option_inside_word
+    input: "curl --menu-u jane:canaryCurlPw0rd https://api.example.com/v1"
+    rule: curl_user_password
+    expect: no_match
+    reason: "The option must start an argument."
+    source: synthetic
+
+  - name: tp_key_name_escaped_password_characters
+    input: "DB_PASSWORD=Sup3r\\!Canary9 next"
+    rule: key_name_secret
+    expect: match
+    reason: "A backslash that escapes a character is part of the value."
+    source: synthetic
+
+  - name: tp_key_name_ends_where_continuing_match_starts
+    input: "token=abc12345Bearer canarybearer0123456789abcd"
+    rule: key_name_secret
+    expect: match
+    reason: "The bearer_token match starts inside the value and continues after it. The key-name match ends where that match starts, so both are applied and no part of the value stays in the output."
+    source: synthetic
+
+  - name: tp_bearer_token_after_key_name_value
+    input: "token=abc12345Bearer canarybearer0123456789abcd"
+    rule: bearer_token
+    expect: match
+    reason: "The key-name match before it does not displace the bearer_token match."
+    source: synthetic
+
+  - name: tp_credit_card_after_key_name_value
+    input: "password=hunter2hunter2a1,card=4111 1111 1111 1111"
+    rule: credit_card
+    expect: match
+    reason: "The unquoted value ends at the next setting, so the card number after it is still found."
+    source: synthetic
+
+  - name: fp_key_name_setting_after_value_is_not_secret
+    input: "password=hunter2,user=jane12345"
+    rule: key_name_secret
+    expect: no_match
+    reason: "The value ends at the next setting and is 7 characters long. The setting after it is not under a secret name."
+    source: synthetic
+
+  - name: tp_key_name_keeps_value_past_partial_match
+    input: "JWT_SECRET=Y2FuYXJ5and0U2VjcmV0MDEyMzQ1Njc4OWFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6\nAWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\n"
+    rule: key_name_secret
+    expect: match
+    reason: "Another rule matches the last 40 characters of the value and the character after it. That is part of the value, so the key-name rule keeps the whole value."
+    source: synthetic
+
+  - name: fp_key_name_file_reference
+    input: "db_password: file:secrets/db-pass-2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A reference to the file that holds the secret."
+    source: synthetic
+
+  - name: fp_key_name_environment_reference
+    input: "db_password: env:DATABASE_PASSWORD_2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A reference to the variable that holds the secret."
+    source: synthetic
+
+  - name: fp_key_name_relative_directory_dot
+    input: "db_password: ./secrets/db-pass-2026"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A relative path with no file extension is still a path."
+    source: synthetic
+
+  - name: fp_key_name_member_access_with_digit
+    input: "client_secret: config.oauth2.clientSecret"
+    rule: key_name_secret
+    expect: no_match
+    reason: "A member access may hold a digit or two in a name."
+    source: synthetic
+
+  - name: tp_cookie_empty_first_value
+    input: "Cookie: theme=; session=canarySessionCookie0123456789abcdef"
+    rule: cookie_header
+    expect: match
+    reason: "An empty first value does not hide the pairs after it."
+    source: synthetic
+
+  - name: tp_cookie_quoted_first_value
+    input: "Set-Cookie: session=\"canarySessionCookie0123456789abcdef\"; Path=/"
+    rule: cookie_header
+    expect: match
+    reason: "A quoted cookie value is a value."
+    source: synthetic
+
+  - name: tp_jwk_single_quoted_members
+    input: "{'kty': 'EC', 'crv': 'P-256', 'd': 'canaryPrivateMember0123456789abcdefghijklmn'}"
+    rule: jwk_private_member
+    expect: match
+    reason: "A printed dictionary writes the same members with single quotes."
+    source: synthetic
+
+  - name: tp_jwk_unquoted_members
+    input: "kty: oct\nk: canarySymmetricKey0123456789abcd\n"
+    rule: jwk_private_member
+    expect: match
+    reason: "A key written as YAML has unquoted member names."
+    source: synthetic
+
+  - name: fp_jwk_member_name_inside_word
+    input: "{\"kty\": \"EC\", \"id\": \"canaryNotAMember0123456789abcdefg\"}"
+    rule: jwk_private_member
+    expect: no_match
+    reason: "The member name must be the whole word."
+    source: synthetic
+
+  - name: tp_google_api_key
+    input: "GOOGLE_MAPS_KEY: AIzaSyCanary0123456789abcdefghijklmnopq"
+    rule: google_api_key
+    expect: match
+    reason: "The well-known prefix and 35 characters."
+    source: synthetic
+
+  - name: tp_google_api_key_minimal
+    input: "AIzaSyCanary0123456789abcdefghijklmnopq"
+    rule: google_api_key
+    expect: match
+    level: minimal
+    reason: "A secrets rule is active at minimal."
+    source: synthetic
+
+  - name: fp_google_api_key_short
+    input: "AIzaSyCanary0123456789"
+    rule: google_api_key
+    expect: no_match
+    reason: "A body shorter than 35 characters is not a key."
+    source: synthetic
+
+  - name: fp_google_api_key_inside_word
+    input: "prefixAIzaSyCanary0123456789abcdefghijklmnopq"
+    rule: google_api_key
+    expect: no_match
+    reason: "The prefix must start a word."
+    source: synthetic
+
+  - name: tp_openai_project_key
+    input: "OPENAI_API_KEY=sk-proj-canary0123456789_abcdefghij-klmnopqrstuv"
+    rule: openai_project_key
+    expect: match
+    reason: "A project key with an underscore and a hyphen in its body."
+    source: synthetic
+
+  - name: tp_openai_project_key_minimal
+    input: "sk-proj-canary0123456789_abcdefghij-klmnopqrstuv"
+    rule: openai_project_key
+    expect: match
+    level: minimal
+    reason: "A secrets rule is active at minimal."
+    source: synthetic
+
+  - name: tp_openai_service_account_key
+    input: "sk-svcacct-canary0123456789_abcdefghij"
+    rule: openai_project_key
+    expect: match
+    reason: "The service-account prefix."
+    source: synthetic
+
+  - name: fp_openai_project_key_placeholder
+    input: "export OPENAI_API_KEY=sk-proj-your-project-key-goes-here"
+    rule: openai_project_key
+    expect: no_match
+    reason: "A placeholder made of words holds no digit."
+    source: synthetic
+
+  - name: fp_openai_project_key_stripe_shape
+    input: "sk-live-abcdefghijklmnopqrstuvwxyz1234567890"
+    rule: openai_project_key
+    expect: no_match
+    reason: "Only the three documented key kinds are read."
+    source: synthetic
+
+  - name: tp_openai_key_long_tail
+    input: "sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789_extra-tail0123"
+    rule: openai_key
+    expect: match
+    reason: "The part after the marker is open-ended."
+    source: synthetic
+
+  - name: fp_google_api_key_letters_only
+    input: "AIzaSyabcdefghijklmnopqrstuvwxyzABCDEFG"
+    rule: google_api_key
+    expect: no_match
+    reason: "A body with no digit is read as an identifier, as for the other prefix rules."
+    source: synthetic
+
+  - name: tp_prefix_token_after_encoded_tab
+    input: '{"row": "name\tnpm_canarytoken0123456789abcdefghij"}'
+    rule: npm_token
+    expect: match
+    reason: 'The letter before the prefix is the "t" of an encoded tab, not part of a word.'
+    source: synthetic
+
+  - name: tp_prefix_token_after_encoded_carriage_return
+    input: '{"out": "line one\r\nvcp_canarytoken0123456789abcdef"}'
+    rule: vercel_token
+    expect: match
+    reason: 'The prefix follows an encoded line end.'
+    source: synthetic
+
+  - name: fp_prefix_token_after_escaped_backslash
+    input: '{"path": "C:\\nhf_canarytoken0123456789abcdefghij"}'
+    rule: huggingface_token
+    expect: no_match
+    reason: 'Two backslashes are one literal backslash, so the "n" after them is a letter and the prefix does not start a word.'
+    source: synthetic
+
+  - name: fp_prefix_token_after_letter_n
+    input: 'unhf_canarytoken0123456789abcdefghij'
+    rule: huggingface_token
+    expect: no_match
+    reason: 'An "n" with no backslash before it is part of the word.'
+    source: synthetic
+
+  - name: fp_cookie_header_after_escaped_backslash
+    input: '{"path": "C:\\ncookie: sessionid=canarySessionCookie0123456789"}'
+    rule: cookie_header
+    expect: no_match
+    reason: 'Two backslashes are one literal backslash, so the header name is the end of a longer word.'
+    source: synthetic
+
+  - name: tp_set_cookie_header_after_encoded_line_end
+    input: '{"response": "HTTP/1.1 200 OK\r\nSet-Cookie: sessionid=canarySetCookie0123456789; Path=/"}'
+    rule: cookie_header
+    expect: match
+    reason: 'The header name follows an encoded line end.'
+    source: synthetic
+
+  - name: fp_jwk_private_member_after_escaped_backslash
+    input: '{"note": "kty: oct C:\\nk: canarySymmetricKey0123456789abcd"}'
+    rule: jwk_private_member
+    expect: no_match
+    reason: 'Two backslashes are one literal backslash, so "nk" is not the member "k" on a new line.'
+    source: synthetic
+
+  - name: tp_key_name_eight_characters
+    input: 'password=hunter22'
+    rule: key_name_secret
+    expect: match
+    reason: 'A value of 8 characters that mixes letters and digits is redacted. One character fewer is not (fp_key_name_short_value).'
+    source: synthetic
+
+  - name: tp_key_name_word_and_year
+    input: 'DB_PASSWORD=Summer2024'
+    rule: key_name_secret
+    expect: match
+    reason: 'A word and a year is a password. Few different characters do not keep it in the output.'
+    source: synthetic
+
+  - name: tp_key_name_digits_for_letters
+    input: 'password=P4ssw0rd'
+    rule: key_name_secret
+    expect: match
+    reason: 'A word with digits in place of letters is a password.'
+    source: synthetic
+
+  - name: tp_key_name_digits_inside_word
+    input: 'password=Tr0ub4dor'
+    rule: key_name_secret
+    expect: match
+    reason: 'The digits sit inside the word, so the value is not an identifier.'
+    source: synthetic
+
+  - name: tp_key_name_service_and_year
+    input: 'password=redis2024'
+    rule: key_name_secret
+    expect: match
+    reason: 'Four digits after one word: more than an identifier holds.'
+    source: synthetic
+
+  - name: tp_key_name_word_and_sequence
+    input: 'password=pass1234'
+    rule: key_name_secret
+    expect: match
+    reason: 'A word and a run of digits is a password.'
+    source: synthetic
+
+  - name: tp_key_name_word_and_trailing_digit
+    input: 'password=Passw0rd1'
+    rule: key_name_secret
+    expect: match
+    reason: 'One word with digits is not a name made of words.'
+    source: synthetic
+
+  - name: tp_key_name_half_one_character
+    input: 'password=aaaa1234'
+    rule: key_name_secret
+    expect: match
+    reason: 'One character fills exactly half of the value. A filler needs more than half.'
+    source: synthetic
+
+  - name: fp_key_name_more_than_half_one_character
+    input: 'password=aaaaa123'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'One character fills more than half of the value, so it is read as a filler.'
+    source: synthetic
+
+  - name: fp_key_name_mask_with_one_letter
+    input: 'password=******a*'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'A mask with one letter in it is a filler.'
+    source: synthetic
+
+  - name: fp_key_name_grouped_mask
+    input: 'card_token=xxxx-xxxx-xxx1'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'A grouped mask is a filler: one character fills more than half of it.'
+    source: synthetic
+
+  - name: tp_key_name_word_then_number
+    input: 'password=Summer-2024'
+    rule: key_name_secret
+    expect: match
+    reason: 'A part that is digits alone is not a word, so the value is not an identifier.'
+    source: synthetic
+
+  - name: tp_key_name_two_words_digits_inside
+    input: 'password=My-P4ssw0rd'
+    rule: key_name_secret
+    expect: match
+    reason: 'Digits inside a word, not at its end, make the value a password.'
+    source: synthetic
+
+  - name: tp_key_name_every_word_has_digits
+    input: 'password=canary2-canary2'
+    rule: key_name_secret
+    expect: match
+    reason: 'An identifier holds at least one word with no digit.'
+    source: synthetic
+
+  - name: fp_key_name_identifier_oauth2_token
+    input: 'token = oauth2_token'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'Two words, one of which ends in a digit: the name of a variable.'
+    source: synthetic
+
+  - name: fp_key_name_identifier_sha256_password
+    input: 'password = sha256_password'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'Three digits at the end of a word is the most an identifier holds.'
+    source: synthetic
+
+  - name: fp_key_name_identifier_base64_token
+    input: 'auth_token = base64_token'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'Two words, one of which ends in digits: the name of a variable.'
+    source: synthetic
+
+  - name: fp_key_name_identifier_with_version
+    input: 'token: oauth2_token_v2'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The version at the end is not counted among the digits.'
+    source: synthetic
+
+  - name: fp_key_name_named_object_with_digit
+    input: 'existingSecret: db-credentials-prod2'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The name of another object, made of words joined by hyphens.'
+    source: synthetic
+
+  - name: fp_key_name_grant_type_name
+    input: 'auth: oauth2-authorization-code'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The name of a grant type under a strict name.'
+    source: synthetic
+
+  - name: tp_key_name_words_with_four_digits
+    input: 'password = sha2560_password'
+    rule: key_name_secret
+    expect: match
+    reason: 'Four digits are more than an identifier holds.'
+    source: synthetic
+
+  - name: fp_key_name_two_letters_before_digit
+    input: 'token = ab1_token_name'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'Two letters before the digit make a word.'
+    source: synthetic
+
+  - name: tp_key_name_one_letter_before_digit
+    input: 'token = a1_token_name'
+    rule: key_name_secret
+    expect: match
+    reason: 'One letter before the digit does not make a word.'
+    source: synthetic
+
+  - name: fp_key_name_parser_message
+    input: 'SyntaxError: Unexpected token: identifier1234'
+    rule: key_name_secret
+    expect: no_match
+    reason: '"Unexpected token" is a message from a parser. Its value is held to the test for key material and is too short for it.'
+    source: synthetic
+
+  - name: fp_key_name_validation_message
+    input: 'error: invalid token: abc12345 (expected number)'
+    rule: key_name_secret
+    expect: no_match
+    reason: '"invalid token" is a message. Its value is held to the test for key material and is too short for it.'
+    source: synthetic
+
+  - name: tp_key_name_token_quoted_in_message
+    input: 'error: invalid token: canaryRealTok0123456789abcd'
+    rule: key_name_secret
+    expect: match
+    reason: 'A long value that mixes letters and digits is redacted in a message too.'
+    source: synthetic
+
+  - name: tp_key_name_token_after_other_word
+    input: 'refresh token: canary77'
+    rule: key_name_secret
+    expect: match
+    reason: '"refresh" is not a word that messages put before "token", so the lower test applies.'
+    source: synthetic
+
+  - name: tp_key_name_password_in_sentence
+    input: 'Your temporary password: Xy12345a'
+    rule: key_name_secret
+    expect: match
+    reason: 'The message test applies to the name "token" alone. A password in a sentence is redacted.'
+    source: synthetic
+
+  - name: tp_key_name_invalid_password_message
+    input: 'login failed: invalid password: Summer2024'
+    rule: key_name_secret
+    expect: match
+    reason: 'The message test applies to the name "token" alone.'
+    source: synthetic
+
+  - name: fp_key_name_resource_path
+    input: 'credential: projects/123456/secrets/my-secret/versions/1'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'Segments that are words or numbers name a stored resource.'
+    source: synthetic
+
+  - name: tp_key_name_path_like_with_mixed_segment
+    input: 'credential: projects/canary0Fk29dLq0Pz71Xn5'
+    rule: key_name_secret
+    expect: match
+    reason: 'A segment that mixes letters and digits is not the name of a resource.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_parentheses
+    input: 'DB_PASSWORD="canaryB3x(92)LqZw81"'
+    rule: key_name_secret
+    expect: match
+    reason: 'Text follows the closing parenthesis, so the quoted value is not a call.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_brackets_inside
+    input: '{"password": "Xk9(canary2<vL7pR4"}'
+    rule: key_name_secret
+    expect: match
+    reason: 'A parenthesis and an angle bracket inside a quoted value do not make it a template or a call.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_call
+    input: '"token": "getToken(user1)"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The whole quoted value is a call.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_call_member
+    input: '"token": "client.auth(scope1).value"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The whole quoted value is a member of the result of a call.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_generic_type
+    input: '"token": "Optional<String1>"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The whole quoted value is a type with a type argument.'
+    source: synthetic
+
+  - name: fp_key_name_unquoted_open_call
+    input: 'token = get_token(client1, scope)'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'An unquoted value ends at the space, inside the call.'
+    source: synthetic
+
+  - name: tp_key_name_unquoted_parentheses_inside
+    input: 'DB_PASSWORD=canaryB3x(92)LqZw81'
+    rule: key_name_secret
+    expect: match
+    reason: 'Text follows the closing parenthesis, so the value is not a call.'
+    source: synthetic
+
+  - name: tp_key_name_base64_with_leading_slash
+    input: 'SECRET_KEY=/canary0Fk29dLq0Pz71Xn5Rv3Tb6Yc4Wm2Qe8H'
+    rule: key_name_secret
+    expect: match
+    reason: 'One long segment that mixes letters and digits is a credential in the base64 alphabet, not a path.'
+    source: synthetic
+
+  - name: tp_key_name_base64_with_slash_and_padding
+    input: 'SECRET_KEY=/canary/29dLq0+Pz71Xn5Rv3Tb6Yc4Wm2Qe8H='
+    rule: key_name_secret
+    expect: match
+    reason: 'A path holds no "+" and no "=".'
+    source: synthetic
+
+  - name: fp_key_name_path_segment_nineteen
+    input: 'SECRET_KEY=/srv/canary0Fk29dLq0Pz71'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'A segment of 19 characters is a file name.'
+    source: synthetic
+
+  - name: tp_key_name_path_segment_twenty
+    input: 'SECRET_KEY=/srv/canary0Fk29dLq0Pz71X'
+    rule: key_name_secret
+    expect: match
+    reason: 'A segment of 20 characters that mixes letters and digits is a credential.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_dollar_password
+    input: '"password": "$ecret!Canary99"'
+    rule: key_name_secret
+    expect: match
+    reason: 'The quoted value starts with "$" and does not continue as a variable reference.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_variable_path
+    input: '"password": "$HOME/.pw12345"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'A variable and a path after it is a reference.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_variable_member
+    input: '"password": "$user->password1"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'A member of a variable is a reference.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_percent_password
+    input: '"password": "%canaryB3xkd92"'
+    rule: key_name_secret
+    expect: match
+    reason: 'The quoted value starts with "%" and is not a format verb or a variable.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_named_format_field
+    input: '"password": "%(password1)s"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The quoted value is a named format field.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_open_bracket
+    input: '"password": "[canaryB3xkd92"'
+    rule: key_name_secret
+    expect: match
+    reason: 'A quoted value that opens a bracket and does not close it is not a list or a marker.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_bracket_marker
+    input: '"password": "[REDACTED1]"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The whole quoted value is a marker in brackets.'
+    source: synthetic
+
+  - name: fp_key_name_unquoted_open_bracket
+    input: 'password=[canaryB3xkd92, other]'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'An unquoted value that opens a bracket may be the start of a list.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_open_brace
+    input: '"password": "{canaryB3xkd92"'
+    rule: key_name_secret
+    expect: match
+    reason: 'A quoted value that opens a brace and does not close it is not a template.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_brace_template
+    input: '"password": "{password1}"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The whole quoted value is a template.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_open_parenthesis
+    input: '"password": "(canaryB3xkd92"'
+    rule: key_name_secret
+    expect: match
+    reason: 'A quoted value that opens a parenthesis and does not close it is not a note.'
+    source: synthetic
+
+  - name: fp_key_name_quoted_parenthesised_note
+    input: '"password": "(optional1)"'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The whole quoted value is a note in parentheses.'
+    source: synthetic
+
+  - name: tp_key_name_quoted_open_angle
+    input: '"password": "<canaryB3xkd92"'
+    rule: key_name_secret
+    expect: match
+    reason: 'A quoted value that opens an angle bracket and does not close it is not a template.'
+    source: synthetic
+
+  - name: tp_key_name_value_continues_past_angle_bracket
+    input: 'DB_PASSWORD=canaryB3xkd92Lq<Zw81'
+    rule: key_name_secret
+    expect: match
+    reason: 'No markup follows the angle bracket, so the value continues to the space.'
+    source: synthetic
+
+  - name: fp_key_name_arrow_member_access
+    input: 'token=user->token1'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'The value continues past ">" and is a member access.'
+    source: synthetic
+
+  - name: fp_key_name_strict_nineteen_characters
+    input: 'SERVICE_ACCESS_KEY=canary0.Fk29+dLq0Pz'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'A value under a strict name is at least 20 characters long.'
+    source: synthetic
+
+  - name: tp_key_name_strict_twenty_characters
+    input: 'SERVICE_ACCESS_KEY=canary0.Fk29+dLq0Pz7'
+    rule: key_name_secret
+    expect: match
+    reason: 'A value of 20 characters under a strict name that mixes letters and digits.'
+    source: synthetic
+
+  - name: fp_key_name_strict_entropy_below_floor
+    input: 'SERVICE_ACCESS_KEY=abcdef12345abcdef12345'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'Eleven different characters, each twice, give an entropy of 3.46: below the floor of 3.5.'
+    source: synthetic
+
+  - name: tp_key_name_strict_entropy_above_floor
+    input: 'SERVICE_ACCESS_KEY=abcdef123456abcdef123456'
+    rule: key_name_secret
+    expect: match
+    reason: 'Twelve different characters, each twice, give an entropy of 3.58: above the floor of 3.5.'
+    source: synthetic
+
+  - name: fp_key_name_member_access_two_digits
+    input: 'token: config2.oauth2.clientToken'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'A dotted name with two digits is still a member access.'
+    source: synthetic
+
+  - name: tp_key_name_dotted_three_digits
+    input: 'token: config2.oauth2.client3Token'
+    rule: key_name_secret
+    expect: match
+    reason: 'A dotted value with three digits is a token made of segments.'
+    source: synthetic
+
+  - name: tp_key_name_value_before_markup
+    input: 'password=canaryPw0rd9<br>'
+    rule: key_name_secret
+    expect: match
+    reason: 'The value ends at the tag.'
+    source: synthetic
+
+  - name: fp_openai_project_key_no_digit
+    input: 'sk-proj-abcdefghijklmnopqrstuvwx'
+    rule: openai_project_key
+    expect: no_match
+    reason: 'A body with no digit is not a generated key.'
+    source: synthetic
+
+  - name: fp_openai_project_key_style_class
+    input: 'class="sk-proj-header-navigation-item-2col"'
+    rule: openai_project_key
+    expect: no_match
+    reason: 'A name made of words joined by hyphens holds no run of 20 characters without a hyphen.'
+    source: synthetic
+
+  - name: fp_openai_project_key_hyphenated_name
+    input: 'sk-admin-panel-configuration-settings-v2'
+    rule: openai_project_key
+    expect: no_match
+    reason: 'A name made of words joined by hyphens holds no run of 20 characters without a hyphen.'
+    source: synthetic
+
+  - name: tp_openai_project_key_after_glued_prefix
+    input: 'task-admin-sk-admin-canaryDEF123456ghiJKL789'
+    rule: openai_project_key
+    expect: match
+    reason: 'The pattern first matches from the "sk-admin-" that ends "task-admin-", which is part of a word. The key starts at the second prefix and is still found.'
+    source: synthetic
+
+  - name: fp_prefix_token_two_prefixes_in_one_word
+    input: 'chf_hf_canarytoken0123456789abcdefghij'
+    rule: huggingface_token
+    expect: no_match
+    reason: 'Both prefixes are part of one word.'
+    source: synthetic
+
+  - name: tp_google_api_key_longer_run
+    input: 'AIzaSyCanary0123456789abcdefghijklmnopqrstu'
+    rule: google_api_key
+    expect: match
+    reason: 'A run longer than 35 characters is taken whole.'
+    source: synthetic
+
+  - name: fp_curl_long_option_user_agent
+    input: 'curl --user-agent=canary:agent12345 https://api.example.com/v1'
+    rule: curl_user_password
+    expect: no_match
+    reason: '--user-agent is another option. The long option needs a space or an equals sign after it.'
+    source: synthetic
+
+  - name: fp_curl_long_option_user_agent_space
+    input: 'curl --user-agent canary:agent12345 https://api.example.com/v1'
+    rule: curl_user_password
+    expect: no_match
+    reason: '--user-agent is another option.'
+    source: synthetic
+
+  - name: fp_curl_bundle_with_value_option
+    input: 'curl -o menu https://api.example.com/v1 -menu host:8443'
+    rule: curl_user_password
+    expect: no_match
+    reason: '"m" takes a value, so "-menu" is not a bundle that ends in "-u".'
+    source: synthetic
+
+  - name: tp_curl_bundle_of_boolean_options
+    input: 'curl -kLsu jane:canaryCurlPw0rd https://api.example.com/v1'
+    rule: curl_user_password
+    expect: match
+    reason: 'k, L and s take no value, so the bundle ends in "-u".'
+    source: synthetic
+
+  - name: fp_curl_other_command_after_background
+    input: 'curl -s https://api.example.com/v1 & docker run -u builder:canaryGroup9 alpine'
+    rule: curl_user_password
+    expect: no_match
+    reason: 'An "&" followed by a space starts another command, and that command is not curl.'
+    source: synthetic
+
+  - name: tp_curl_after_unquoted_query
+    input: 'curl https://api.example.com/v1?a=1&b=2 -u jane:canaryCurlPw0rd'
+    rule: curl_user_password
+    expect: match
+    reason: 'An "&" with no space after it is part of the URL, so the option still belongs to curl.'
+    source: synthetic
+
+  - name: tp_curl_after_redirection
+    input: 'curl -s https://api.example.com/v1 2>&1 -u jane:canaryCurlPw0rd'
+    rule: curl_user_password
+    expect: match
+    reason: 'The "&" of a redirection does not start another command.'
+    source: synthetic
+
+  - name: tp_curl_variable_user_literal_password
+    input: 'curl -u "$USER:canaryCurlPw0rd" https://api.example.com/v1'
+    rule: curl_user_password
+    expect: match
+    reason: 'The user name is a variable, and the password is in the text.'
+    source: synthetic
+
+  - name: fp_curl_variable_user_and_password
+    input: 'curl -u "$USER:$PASSWORD_VALUE" https://api.example.com/v1'
+    rule: curl_user_password
+    expect: no_match
+    reason: 'Both parts are variable references.'
+    source: synthetic
+
+  - name: tp_curl_token_as_user_empty_password
+    input: 'curl -u apikey_canary81kq0Pw92mLr7vAb3dEf9Qw: https://api.example.com/v1'
+    rule: curl_user_password
+    expect: match
+    reason: 'A token sent as the user name with an empty password.'
+    source: synthetic
+
+  - name: fp_curl_user_with_empty_password
+    input: 'curl -u jane: https://api.example.com/v1'
+    rule: curl_user_password
+    expect: no_match
+    reason: 'A user name and an empty password: curl asks for the password.'
+    source: synthetic
+
+  - name: fp_curl_short_token_like_user_empty_password
+    input: 'curl -u canary0123456789abc: https://api.example.com/v1'
+    rule: curl_user_password
+    expect: no_match
+    reason: 'A user name of 19 characters is below the length a token sent as the user name must have.'
+    source: synthetic
+
+  - name: fp_curl_variable_user_empty_password
+    input: 'curl -u "$SERVICE_API_TOKEN_VALUE_2026:" https://api.example.com/v1'
+    rule: curl_user_password
+    expect: no_match
+    reason: 'A variable reference as the user name holds no credential.'
+    source: synthetic
+
+  - name: fp_authorization_token_nineteen_characters
+    input: 'Authorization: token canary0123456789abc'
+    rule: authorization_token
+    expect: no_match
+    reason: 'A value of 19 characters is below the floor of 20.'
+    source: synthetic
+
+  - name: tp_authorization_token_twenty_characters
+    input: 'Authorization: token canary0123456789abcd'
+    rule: authorization_token
+    expect: match
+    reason: 'A value of 20 characters is at the floor.'
+    source: synthetic
+
+  - name: fp_jwk_private_member_twenty_one_characters
+    input: '{"kty":"oct","k":"canary0123456789abcde"}'
+    rule: jwk_private_member
+    expect: no_match
+    reason: 'A value of 21 characters is below the floor of 22.'
+    source: synthetic
+
+  - name: tp_jwk_private_member_twenty_two_characters
+    input: '{"kty":"oct","k":"canary0123456789abcdef"}'
+    rule: jwk_private_member
+    expect: match
+    reason: 'A value of 22 characters is at the floor.'
+    source: synthetic
+
+  - name: fp_github_fine_grained_pat_body_nineteen
+    input: 'github_pat_canary0123456789abc'
+    rule: github_fine_grained_pat
+    expect: no_match
+    reason: 'A body of 19 characters is below the floor of 20.'
+    source: synthetic
+
+  - name: tp_github_fine_grained_pat_body_twenty
+    input: 'github_pat_canary0123456789abcd'
+    rule: github_fine_grained_pat
+    expect: match
+    reason: 'A body of 20 characters is at the floor.'
+    source: synthetic
+
+  - name: fp_npm_token_body_nineteen
+    input: 'npm_canary0123456789abc'
+    rule: npm_token
+    expect: no_match
+    reason: 'A body of 19 characters is below the floor of 20.'
+    source: synthetic
+
+  - name: tp_npm_token_body_twenty
+    input: 'npm_canary0123456789abcd'
+    rule: npm_token
+    expect: match
+    reason: 'A body of 20 characters is at the floor.'
+    source: synthetic
+
+  - name: fp_huggingface_token_body_nineteen
+    input: 'hf_canary0123456789abc'
+    rule: huggingface_token
+    expect: no_match
+    reason: 'A body of 19 characters is below the floor of 20.'
+    source: synthetic
+
+  - name: tp_huggingface_token_body_twenty
+    input: 'hf_canary0123456789abcd'
+    rule: huggingface_token
+    expect: match
+    reason: 'A body of 20 characters is at the floor.'
+    source: synthetic
+
+  - name: fp_vercel_token_body_nineteen
+    input: 'vcp_canary0123456789abc'
+    rule: vercel_token
+    expect: no_match
+    reason: 'A body of 19 characters is below the floor of 20.'
+    source: synthetic
+
+  - name: tp_vercel_token_body_twenty
+    input: 'vcp_canary0123456789abcd'
+    rule: vercel_token
+    expect: match
+    reason: 'A body of 20 characters is at the floor.'
+    source: synthetic
+
+  - name: fp_supabase_token_body_nineteen
+    input: 'sbp_canary0123456789abc'
+    rule: supabase_token
+    expect: no_match
+    reason: 'A body of 19 characters is below the floor of 20.'
+    source: synthetic
+
+  - name: tp_supabase_token_body_twenty
+    input: 'sbp_canary0123456789abcd'
+    rule: supabase_token
+    expect: match
+    reason: 'A body of 20 characters is at the floor.'
+    source: synthetic
+
+  - name: fp_google_api_key_body_thirty_four
+    input: 'AIzaSyCanary0123456789abcdefghijklmnop'
+    rule: google_api_key
+    expect: no_match
+    reason: 'A body of 34 characters is below the floor of 35.'
+    source: synthetic
+
+  - name: tp_google_api_key_body_thirty_five
+    input: 'AIzaSyCanary0123456789abcdefghijklmnopq'
+    rule: google_api_key
+    expect: match
+    reason: 'A body of 35 characters is at the floor.'
+    source: synthetic
+
+  - name: tp_curl_token_as_user_twenty_characters
+    input: 'curl -u canary0123456789abcd: https://api.example.com/v1'
+    rule: curl_user_password
+    expect: match
+    reason: 'A user name of 20 characters that mixes letters and digits, with an empty password, is a token.'
+    source: synthetic
+
+  - name: tp_jwk_key_type_at_edge_of_window
+    input: "kty: oct\n.......................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................\nk: canarySymmetricKey0123456789abcd"
+    rule: jwk_private_member
+    expect: match
+    reason: 'The key-type member starts 4096 bytes before the private member: the first byte of the window.'
+    source: synthetic
+
+  - name: fp_jwk_key_type_outside_window
+    input: "kty: oct\n........................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................\nk: canarySymmetricKey0123456789abcd"
+    rule: jwk_private_member
+    expect: no_match
+    reason: 'The key-type member starts 4097 bytes before the private member, one byte outside the window.'
+    source: synthetic
+
+  - name: tp_curl_command_word_at_edge_of_lookback
+    input: 'curl .......................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................... -u jane:canaryCurlPw0rd'
+    rule: curl_user_password
+    expect: match
+    reason: 'The command word starts 4096 bytes before the option: the first byte the lookback reads.'
+    source: synthetic
+
+  - name: fp_curl_command_word_outside_lookback
+    input: 'curl ........................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................................... -u jane:canaryCurlPw0rd'
+    rule: curl_user_password
+    expect: no_match
+    reason: 'The command word starts 4097 bytes before the option, one byte outside the lookback.'
+    source: synthetic
+
+  - name: tp_key_name_short_segments_with_base64_signs
+    input: 'SECRET_KEY=/can+ary0/Fk29dLq0=/Pz71Xn5Rv3'
+    rule: key_name_secret
+    expect: match
+    reason: 'Every segment is short, but a path holds no "+" and no "=".'
+    source: synthetic
+
+  - name: fp_key_name_short_segments_path
+    input: 'SECRET_KEY=/canary0/Fk29dLq0/Pz71Xn5Rv3'
+    rule: key_name_secret
+    expect: no_match
+    reason: 'Short segments with no "+" and no "=" are a path.'
+    source: synthetic
+
+  - name: fp_cookie_header_after_plain_letter
+    input: 'tcookie: sessionid=canarySessionCookie0123456789'
+    rule: cookie_header
+    expect: no_match
+    reason: 'A "t" with no backslash before it is part of a longer word, not an encoded tab before the header name.'
+    source: synthetic
+
+  - name: fp_cookie_header_after_upper_case_escape
+    input: '{"path": "C:\Ncookie: sessionid=canarySessionCookie0123456789"}'
+    rule: cookie_header
+    expect: no_match
+    reason: 'A JSON string writes a line end with a lower-case letter. An upper-case letter after a backslash is part of the word.'
+    source: synthetic
+
+  - name: fp_jwk_private_member_longer_name
+    input: '{"kty":"oct","nd":"canaryNotAMember0123456789abcdef"}'
+    rule: jwk_private_member
+    expect: no_match
+    reason: '"nd" is another member. The "n" is read as an encoded line end only after a backslash.'
+    source: synthetic
+
+  - name: fp_jwk_private_member_longer_name_at_start
+    input: "nd: canaryNotAMember0123456789abcdef\nkty: oct"
+    rule: jwk_private_member
+    expect: no_match
+    reason: 'At the start of the text no backslash stands before the "n", so "nd" is a longer name.'
+    source: synthetic
+
+  - name: tp_openai_key_twenty_after_marker
+    input: 'sk-canary0123456789abcdT3BlbkFJcanary0123456789abcd'
+    rule: openai_key
+    expect: match
+    reason: 'Twenty characters after the marker are the floor of the rule.'
+    source: synthetic
+
+  - name: fp_openai_key_nineteen_after_marker
+    input: 'sk-canary0123456789abcdT3BlbkFJcanary0123456789abc'
+    rule: openai_key
+    expect: no_match
+    reason: 'Nineteen characters after the marker are below the floor.'
+    source: synthetic
+
+  - name: tp_stripe_key_twenty_four_after_prefix
+    input: 'sk_live_canary0123456789abcdefgh'
+    rule: stripe_key
+    expect: match
+    reason: 'Twenty-four characters after the prefix are the floor of the rule.'
+    source: synthetic
+
+  - name: fp_stripe_key_twenty_three_after_prefix
+    input: 'sk_live_canary0123456789abcdefg'
+    rule: stripe_key
+    expect: no_match
+    reason: 'Twenty-three characters after the prefix are below the floor.'
+    source: synthetic
+
+  - name: tp_google_api_key_hyphen_and_underscore
+    input: 'AIzaSyCanary-0123_456789abcdefghijklmnop'
+    rule: google_api_key
+    expect: match
+    reason: 'The body of the key takes hyphens and underscores.'
+    source: synthetic
+
+  - name: fp_huggingface_token_underscore_in_body
+    input: 'hf_canary_0123456789abcdefghijklmn'
+    rule: huggingface_token
+    expect: no_match
+    reason: 'The body takes letters and digits only, so a run cut by an underscore is too short.'
+    source: synthetic
+
+  - name: fp_npm_token_underscore_in_body
+    input: 'npm_canary_0123456789abcdefghijklmn'
+    rule: npm_token
+    expect: no_match
+    reason: 'The body takes letters and digits only, so a run cut by an underscore is too short.'
+    source: synthetic

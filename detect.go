@@ -1,6 +1,10 @@
 package redact
 
-import "sort"
+import (
+	"fmt"
+	"regexp"
+	"sort"
+)
 
 // Match represents a single detected sensitive pattern in the input string.
 //
@@ -23,7 +27,13 @@ type Match struct {
 }
 
 // Detect scans input for all sensitive patterns active at the receiver's redaction level.
-// It returns a slice of Match values sorted by Offset (ascending).
+// It returns a slice of Match values sorted by Offset (ascending); matches that
+// start at one offset are ordered longest first, then by rule order.
+//
+// A match of a rule that reads the name of a key or the construct around a
+// value (key_name_secret, url_query_secret, cookie_header, curl_user_password)
+// spans the value alone, not the name or the option. Where such a match overlaps a match of
+// another rule, it is dropped or shortened so that the other match is applied.
 //
 // Detect does NOT modify the input string.
 // The returned MatchedText fields share the backing array of input — callers that
@@ -40,11 +50,27 @@ func (r *DefaultRedactor) detect(input string, call *observationCall) []Match {
 	if input == "" {
 		return nil
 	}
+	matches := r.scan(input, call)
+	// Store as the last-detect result (last-call-only, not accumulated).
+	r.mu.Lock()
+	r.lastMatches = matches
+	r.mu.Unlock()
+	return matches
+}
+
+// scan returns the matches of every rule active at the configured level. It
+// does not record them as the last Detect result.
+func (r *DefaultRedactor) scan(input string, call *observationCall) []Match {
+	if input == "" {
+		return nil
+	}
 
 	activeRules := make([]Rule, 0, len(Rules)+len(r.userRules))
+	builtins := 0
 	for index, rule := range Rules {
 		if r.isActiveRule(rule) {
 			activeRules = append(activeRules, rule)
+			builtins++
 			if call != nil {
 				call.record.Rules = append(call.record.Rules, RuleDetection{Rule: RuleIdentity{ID: rule.ID, Origin: RuleOriginBuiltin, Index: index}, Category: rule.Category})
 			}
@@ -66,52 +92,279 @@ func (r *DefaultRedactor) detect(input string, call *observationCall) []Match {
 	if call != nil {
 		accepted = func(index int) { call.record.Rules[index].Count++; call.record.RegexDetected.Value++ }
 	}
-	matches := detectWithRulesInto(input, activeRules, r.patterns, accepted)
+	return detectWithRulesInto(input, activeRules, builtins, r.patterns, accepted)
+}
 
-	if len(matches) == 0 {
-		// Record nil as the last detect result (last-call-only semantics).
-		r.mu.Lock()
-		r.lastMatches = nil
-		r.mu.Unlock()
-		return nil
+// valueSpan is a part of the input that a rule replaces: input[start:end].
+// construct is where the construct the value was found in starts: the start of
+// the name in "name=value".
+type valueSpan struct{ start, end, construct int }
+
+// valueFinder returns the parts of the input that a rule replaces for one match
+// of its pattern, in ascending order and without overlap. matched is the
+// pattern match and offset is its position in input, as for Rule.FilterFn. No
+// span means the match holds nothing to redact.
+//
+// A span usually lies inside the match. It may end after it, when the pattern
+// stops at a character that the value continues through.
+//
+// A finder reads the match with the standard library's regexp package,
+// whichever engine found the match.
+type valueFinder func(matched, input string, offset int) []valueSpan
+
+// valueRule describes a rule that replaces only a part of what its pattern
+// matches: the value after a key name, not the name. Detection reports one
+// match for each span that find returns, in place of the pattern match, and
+// Redact replaces each with placeholder, which is also the rule's
+// Replacement.
+//
+// recovery, when set, replaces a whole pattern match and keeps the name and
+// the quotes around the value. It serves the recovery path, which applies a
+// pattern without its filter or finder (see applyRule). It stays here and
+// not in Rule.Replacement, so a reader of the rule table sees the placeholder
+// that is written.
+type valueRule struct {
+	// id is the ID of the rule the entry belongs to. Constructing a redactor
+	// checks that the rule with that ID still has this pattern (see
+	// validateValueRules).
+	id          string
+	find        valueFinder
+	placeholder string
+	recovery    string
+	// knowsFormat is set on a rule that recognises the text itself and uses
+	// find only to say where in the pattern match it starts. Its matches are
+	// left as they are when overlaps are settled, like those of any rule
+	// without a finder. The other value rules know only where a value sits,
+	// and resolveValueOverlaps makes them give way.
+	knowsFormat bool
+}
+
+// valueRules holds the value rules by their pattern. The entry lives beside
+// the rule table and not in Rule, whose field layout is public.
+var valueRules = map[*regexp.Regexp]valueRule{
+	keyNameSecretPattern:    {id: keyNameSecretRuleID, find: keyNameSecretValues, placeholder: keyNameSecretPlaceholder, recovery: keyNameSecretReplacement},
+	urlQuerySecretPattern:   {id: urlQuerySecretRuleID, find: urlQuerySecretValues, placeholder: keyNameSecretPlaceholder, recovery: "${before}" + keyNameSecretPlaceholder},
+	cookieHeaderPattern:     {id: cookieHeaderRuleID, find: cookieHeaderValues, placeholder: cookieHeaderPlaceholder, recovery: "${before}" + cookieHeaderPlaceholder},
+	curlUserPasswordPattern: {id: curlUserPasswordRuleID, find: curlUserPasswordValues, placeholder: curlUserPasswordPlaceholder, recovery: curlUserPasswordReplacement},
+	// The rules built by prefixTokenRule add themselves.
+}
+
+// validateValueRules reports a rule whose ID belongs to a value rule but whose
+// pattern is not the one that value rule is keyed by. Detection finds the
+// value rule by the pattern, so such a rule would match and replace its whole
+// construct, name included, without a word of warning.
+func validateValueRules(rules []Rule) error {
+	for _, rule := range rules {
+		for _, value := range valueRules {
+			if value.id != rule.ID || valueRules[rule.Pattern].id == rule.ID {
+				continue
+			}
+			return &actionableError{
+				what:  fmt.Sprintf("built-in redaction rule %q has a pattern its value finder does not know", rule.ID),
+				why:   "the rule replaces only the value it finds inside its pattern match, and detection finds the value by the pattern",
+				where: "redact.validateValueRules",
+				when:  "NewRedactor validated built-in rule metadata before scanning content",
+				means: "the rule would replace its whole pattern match, so no redactor was created",
+				fix:   "keep the rule's compiled pattern, or register the new pattern with its value finder",
+			}
+		}
 	}
+	return nil
+}
 
-	// Store as last-detect result (last-call-only, not accumulated).
-	r.mu.Lock()
-	r.lastMatches = matches
-	r.mu.Unlock()
-
-	return matches
+// hasValue adapts a valueFinder to Rule.FilterFn, so a caller that applies a
+// rule by hand makes the same decision as detection. Every value rule carries
+// this filter.
+func hasValue(find valueFinder) func(matched, input string, offset int) bool {
+	return func(matched, input string, offset int) bool { return len(find(matched, input, offset)) > 0 }
 }
 
 // detectWithRules is the pure canonical regex detector. Reporting and
-// last-call state remain the responsibility of DefaultRedactor.Detect.
+// last-call state remain the responsibility of DefaultRedactor.Detect. Every
+// rule in rules is treated as built in.
 func detectWithRules(input string, rules []Rule, patterns compiledPatterns) []Match {
-	return detectWithRulesInto(input, rules, patterns, nil)
+	return detectWithRulesInto(input, rules, len(rules), patterns, nil)
 }
 
-func detectWithRulesInto(input string, rules []Rule, patterns compiledPatterns, accepted func(ruleIndex int)) []Match {
-	var matches []Match
+// detectWithRulesInto detects with rules, of which the first builtins are
+// rules of this package and the rest are configured. Settling a value match
+// may drop a match of a built-in rule, never one of a configured rule.
+func detectWithRulesInto(input string, rules []Rule, builtins int, patterns compiledPatterns, accepted func(ruleIndex int)) []Match {
+	var found detectedMatches
+	valueMatches := false
 	for index, rule := range rules {
 		pattern := patterns.lookup(rule.Pattern)
 		if pattern == nil {
 			continue
 		}
+		values := valueRules[rule.Pattern]
 		for _, loc := range pattern.FindAllStringIndex(input, -1) {
-			match := Match{Rule: rule.ID, Offset: loc[0], Length: loc[1] - loc[0], Category: rule.Category, MatchedText: input[loc[0]:loc[1]]}
-			if rule.FilterFn == nil || rule.FilterFn(match.MatchedText, input, match.Offset) {
-				matches = append(matches, match)
-				if accepted != nil {
-					accepted(index)
+			matched := input[loc[0]:loc[1]]
+			if values.find != nil {
+				for _, span := range values.find(matched, input, loc[0]) {
+					found.add(Match{Rule: rule.ID, Offset: span.start, Length: span.end - span.start, Category: rule.Category, MatchedText: input[span.start:span.end]}, matchSource{rule: index, value: !values.knowsFormat, construct: span.construct, builtin: index < builtins})
+					valueMatches = valueMatches || !values.knowsFormat
 				}
+				continue
+			}
+			if rule.FilterFn == nil || rule.FilterFn(matched, input, loc[0]) {
+				found.add(Match{Rule: rule.ID, Offset: loc[0], Length: loc[1] - loc[0], Category: rule.Category, MatchedText: matched}, matchSource{rule: index, builtin: index < builtins})
 			}
 		}
 	}
-	if len(matches) == 0 {
+	if len(found.matches) == 0 {
 		return nil
 	}
-	sort.Slice(matches, func(i, j int) bool { return matches[i].Offset < matches[j].Offset })
-	return matches
+	// Order by offset. Two matches that start at the same offset are ordered
+	// longest first, so Redact, which keeps the first of two overlapping
+	// matches, never prefers a rule that covers less of the same text. Two
+	// matches of one span keep the order of the rule table.
+	sort.Stable(&found)
+	if valueMatches {
+		found.resolveValueOverlaps(input)
+	}
+	if accepted != nil {
+		for _, source := range found.sources {
+			accepted(source.rule)
+		}
+	}
+	if len(found.matches) == 0 {
+		return nil
+	}
+	return found.matches
+}
+
+// detectedMatches holds the accepted matches of one scan and where each came
+// from.
+type detectedMatches struct {
+	matches []Match
+	sources []matchSource
+}
+
+// matchSource is the index of a match's rule in the scanned rule list. For a
+// value that resolveValueOverlaps settles (see valueRule.knowsFormat) it also
+// holds where the construct that the value was found in starts: the start of
+// the name in "name=value", which for the second setting of
+// "password=abc12345,token=def67890" is the start of "token".
+//
+// builtin is set on a match of a rule of this package. Only such a match may
+// be dropped in favour of a value match; a configured rule's match is kept
+// and the value match gives way to it.
+type matchSource struct {
+	rule      int
+	value     bool
+	construct int
+	builtin   bool
+}
+
+func (d *detectedMatches) add(match Match, source matchSource) {
+	d.matches = append(d.matches, match)
+	d.sources = append(d.sources, source)
+}
+
+func (d *detectedMatches) Len() int { return len(d.matches) }
+
+func (d *detectedMatches) Less(i, j int) bool {
+	if d.matches[i].Offset != d.matches[j].Offset {
+		return d.matches[i].Offset < d.matches[j].Offset
+	}
+	return d.matches[i].Length > d.matches[j].Length
+}
+
+func (d *detectedMatches) Swap(i, j int) {
+	d.matches[i], d.matches[j] = d.matches[j], d.matches[i]
+	d.sources[i], d.sources[j] = d.sources[j], d.sources[i]
+}
+
+// resolveValueOverlaps settles every overlap between a match of a value rule
+// and the matches around it. A value rule knows only where a value sits, so a
+// rule that knows what the text is goes first, and the value match gives way:
+// it is dropped or shortened, so that it is never the reason another rule's
+// match is not applied. The claim is about value matches only. Two matches of
+// other rules that overlap each other are left to Redact, which keeps the
+// first, as without the value rules.
+//
+// The matches are sorted, and Redact applies them in that order and skips a
+// match that starts inside one it already applied. This pass walks them the
+// same way and settles four cases:
+//
+//   - A match of another rule covers the whole value. The value match is
+//     dropped: GITHUB_TOKEN=<GITHUB_PAT>, not GITHUB_TOKEN=<SECRET>.
+//   - A match of a built-in rule starts inside the construct the value was
+//     found in and stops part of the way through the value: generic_api_key
+//     reads the name in api_key="abc...+/x9" too and stops at the "+". That
+//     match is dropped and the value match replaces the whole value. What the
+//     dropped match covered outside the value is the name and the separator.
+//     A configured rule's match is never dropped; the next case applies.
+//   - Any other applied match covers the start of the value. The value match
+//     keeps the rest, which Redact would otherwise skip and leave in the
+//     output.
+//   - A later match starts inside the value and ends more than one character
+//     after it. The value match ends where that match starts, so both are
+//     applied: the value of "password=abc12345,card=4111 1111 1111 1111" and
+//     the card number.
+//
+// A match that lies inside the value is left to Redact, which skips it. So is
+// one that ends a single character after the value: a pattern that takes the
+// character after its token, as aws_secret_key does, covers no more of the
+// input than the value.
+//
+// Apart from the second case no match of another rule is changed. So every
+// part of the input that the other rules would replace without the value
+// rules is still replaced, except the name and the separator that a built-in
+// match dropped in the second case covered.
+func (d *detectedMatches) resolveValueOverlaps(input string) {
+	end := func(i int) int { return d.matches[i].Offset + d.matches[i].Length }
+	dropped := make([]bool, len(d.matches))
+	for i, source := range d.sources {
+		if !source.value {
+			continue
+		}
+		for j := i - 1; j >= 0 && d.matches[j].Offset >= source.construct; j-- {
+			if !d.sources[j].value && d.sources[j].builtin && end(j) > d.matches[i].Offset && end(j) < end(i) {
+				dropped[j] = true
+			}
+		}
+	}
+	kept := 0
+	applied := 0 // end of the last match Redact applies
+	moved := false
+	for i, match := range d.matches {
+		if dropped[i] {
+			continue
+		}
+		start, stop := match.Offset, end(i)
+		if !d.sources[i].value {
+			if start >= applied {
+				applied = stop
+			}
+		} else {
+			start = max(start, applied)
+			for j := i + 1; j < len(d.matches) && d.matches[j].Offset < stop; j++ {
+				if dropped[j] || d.matches[j].Offset < start {
+					continue
+				}
+				if covers := d.matches[j].Offset == start && end(j) == stop && !d.sources[j].value; covers || end(j) > stop+1 {
+					stop = d.matches[j].Offset
+					break
+				}
+			}
+			if start >= stop {
+				continue
+			}
+			moved = moved || start != match.Offset
+			match.Offset, match.Length, match.MatchedText = start, stop-start, input[start:stop]
+			applied = stop
+		}
+		d.matches[kept], d.sources[kept] = match, d.sources[i]
+		kept++
+	}
+	d.matches, d.sources = d.matches[:kept], d.sources[:kept]
+	if moved {
+		// A value match that lost its start now begins after matches that lie
+		// inside the match before it. Restore the order Detect promises.
+		sort.Stable(d)
+	}
 }
 
 // Redact replaces the byte spans identified by matches in input with their rule
@@ -171,7 +424,10 @@ func redactWithRules(input string, matches []Match, rules []Rule, patterns compi
 		}
 
 		appliedReplacement := replacement
-		if replacement != "" && containsBackref(replacement) {
+		if value, isValue := valueRules[rule.Pattern]; ok && isValue {
+			// The match is a value the rule found inside its pattern match.
+			appliedReplacement = value.placeholder
+		} else if replacement != "" && containsBackref(replacement) {
 			if ok && rule.Pattern != nil {
 				appliedReplacement = patterns.lookup(rule.Pattern).ReplaceAllString(input[m.Offset:end], replacement)
 			}

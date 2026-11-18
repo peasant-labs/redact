@@ -16,7 +16,8 @@ import (
 // All methods are safe for concurrent use.
 type Redactor interface {
 	// Detect scans input for sensitive patterns at the configured level.
-	// Returns matches sorted by offset. Does NOT modify input.
+	// Returns matches sorted by offset, and longest first at one offset. Does
+	// NOT modify input.
 	// Returns nil if no patterns match.
 	Detect(input string) []Match
 
@@ -29,6 +30,8 @@ type Redactor interface {
 	// Applies regex rules and entropy detection to plain text.
 	RedactText(input string) string
 	// RedactJSON recursively applies RedactText to all string values in a JSON-decoded value.
+	// A string value under an object key that names a secret, and a private
+	// member of a JSON Web Key, is replaced whole.
 	RedactJSON(value any) any
 	// RedactMetadata applies RedactText to sensitive fields in a DEEP COPY of the metadata.
 	// The original pointer is never mutated.
@@ -126,6 +129,9 @@ func newRedactorWithEngine(e engine, level RedactionLevel, userPatterns []UserPa
 		}
 	}
 	if err := validateRuleActivationMetadata(Rules); err != nil {
+		return nil, err
+	}
+	if err := validateValueRules(Rules); err != nil {
 		return nil, err
 	}
 
@@ -446,16 +452,22 @@ func applyAllRules(input string) string {
 
 // applyRule replaces all matches of rule.Pattern with rule.Replacement.
 // It handles back-reference syntax (${1}, ${2}, etc.) used by path and sentinel-preserving rules.
+// A value rule with a recovery template (see valueRule in detect.go) uses that
+// template, which keeps the name in front of the value.
 // Rules with nil Pattern are silently skipped.
 func applyRule(rule Rule, s string) string {
 	if rule.Pattern == nil {
 		return s
 	}
-	if strings.Contains(rule.Replacement, "$") {
-		// Use ReplaceAllString which supports $1 / ${1} / ${2} back-references.
-		return rule.Pattern.ReplaceAllString(s, rule.Replacement)
+	replacement := rule.Replacement
+	if value, ok := valueRules[rule.Pattern]; ok && value.recovery != "" {
+		replacement = value.recovery
 	}
-	return rule.Pattern.ReplaceAllLiteralString(s, rule.Replacement)
+	if strings.Contains(replacement, "$") {
+		// Use ReplaceAllString which supports $1 / ${1} / ${2} back-references.
+		return rule.Pattern.ReplaceAllString(s, replacement)
+	}
+	return rule.Pattern.ReplaceAllLiteralString(s, replacement)
 }
 
 // maskCodeBlocks replaces fenced code blocks with <CODE_BLOCK> as a last-resort
@@ -574,6 +586,14 @@ func (r *DefaultRedactor) redactText(input string, call *observationCall) (outpu
 }
 
 // RedactJSON recursively descends through a JSON-decoded value and redacts strings.
+// A string under an object key that names a secret (see key_name_rules.go), and
+// a private member of a JSON Web Key (see credential_context_rules.go), is
+// replaced whole. A string under a key that names a header is redacted as the
+// value of that header. Every other string goes through RedactText.
+//
+// Only a string directly under the key is read by its key. A list under a
+// secret key ({"tokens": ["...", "..."]}) is walked, and each string in it goes
+// through RedactText like any other.
 // Supported types: string, []any, map[string]any, json.Number. Other types pass through unchanged.
 // json.Number is returned as-is: integers > 2^53 decoded via UseNumber() retain full precision.
 //
@@ -596,13 +616,115 @@ func (r *DefaultRedactor) redactJSON(value any, call *observationCall) any {
 		return result
 	case map[string]any:
 		result := make(map[string]any, len(v))
+		object := jsonObjectKind(v)
 		for key, val := range v {
+			if text, ok := val.(string); ok {
+				if rule, placeholder := r.wholeValueRule(object, key, text); rule != nil {
+					result[key] = placeholder
+					r.recordRedaction(rule.ID, rule.Category, 1)
+					r.observeWholeValue(call, rule.ID)
+					continue
+				}
+				if isHeaderValueKey(key) {
+					result[key] = r.redactHeaderValue(key, text, call)
+					continue
+				}
+			}
 			result[key] = r.redactJSON(val, call)
 		}
 		return result
 	default:
 		return value
 	}
+}
+
+// jsonObjectFacts are the facts about one JSON object that decide how the
+// string values under its keys are read.
+type jsonObjectFacts struct {
+	// webKey: the object carries a key-type member, so it is a JSON Web Key.
+	webKey bool
+	// sampledToken: the object carries a log probability, so its "token"
+	// member is a piece of model output, not a credential.
+	sampledToken bool
+}
+
+// logProbabilityMember marks an entry of a model's token-probability list,
+// and sampledTokenMember is the member of that entry that holds the text.
+const (
+	logProbabilityMember = "logprob"
+	sampledTokenMember   = "token"
+)
+
+func jsonObjectKind(object map[string]any) jsonObjectFacts {
+	_, webKey := object[jwkKeyTypeMember]
+	_, sampledToken := object[logProbabilityMember]
+	return jsonObjectFacts{webKey: webKey, sampledToken: sampledToken}
+}
+
+// wholeValueRule returns the rule that replaces the string value of an object
+// key whole, and the placeholder it leaves: a private member of a JSON Web
+// Key, or a value under a key that names a secret. It returns nil when no rule
+// does. The rule must be active at the configured level.
+//
+// Both rules apply the test of their text form ("key": "value") to the key and
+// the value. The two forms differ in three ways, each because a decoded object
+// says more, or less, than a line of text:
+//
+//   - The "token" of a log-probability entry is left alone. Text has no object
+//     to look for the "logprob" member in.
+//   - A value that a format rule matches whole goes to RedactText, which sees
+//     the value without its key. A rule that needs context beside the value,
+//     as aws_secret_key does, then finds none, and the value is replaced by
+//     the key-name placeholder instead of that rule's.
+//   - The value is known whole, so space around it is not part of it.
+func (r *DefaultRedactor) wholeValueRule(object jsonObjectFacts, key, value string) (rule *Rule, placeholder string) {
+	var ruleID string
+	switch {
+	case object.webKey && isJWKPrivateMember(key, value):
+		ruleID, placeholder = jwkPrivateMemberRuleID, jwkPrivateMemberPlaceholder
+	case object.sampledToken && key == sampledTokenMember:
+		return nil, ""
+	case secretValueUnderKey(key, value):
+		ruleID, placeholder = keyNameSecretRuleID, keyNameSecretPlaceholder
+	default:
+		return nil, ""
+	}
+	rule = findRuleByID(ruleID)
+	if rule == nil || !r.isActiveRule(*rule) {
+		return nil, ""
+	}
+	if ruleID == keyNameSecretRuleID && r.matchesWhole(value) {
+		return nil, ""
+	}
+	return rule, placeholder
+}
+
+// matchesWhole reports whether one active rule matches all of value. RedactJSON
+// then leaves the value to RedactText, so the output keeps that rule's
+// placeholder: {"token": "<GITHUB_PAT>"}, not {"token": "<SECRET>"}.
+func (r *DefaultRedactor) matchesWhole(value string) bool {
+	matches := r.scan(value, nil)
+	return len(matches) > 0 && matches[0].Offset == 0 && matches[0].Length == len(value)
+}
+
+// redactHeaderValue redacts the string under an object key that names a header
+// (see headerValueKeys). The rules for these headers match the header name and
+// the value together, so the value is redacted once, as the line "Name: value",
+// and the name is taken off the result. Every other rule sees the value in the
+// same pass.
+//
+// A rule may replace the name with the value (basic_auth) or take the space
+// after the colon (artifactory_api_token). What is left of the name is then
+// shorter than the name, and the rest of the line, placeholder first, is the
+// redacted value.
+func (r *DefaultRedactor) redactHeaderValue(key, value string, call *observationCall) string {
+	name := key + ": "
+	line := r.redactTextChild(name+value, call)
+	kept := 0
+	for kept < len(name) && kept < len(line) && line[kept] == name[kept] {
+		kept++
+	}
+	return line[kept:]
 }
 
 // privateMetadata holds the path-bearing values of one session's metadata.

@@ -334,3 +334,26 @@ func (r *DefaultRedactor) redactTextChildObserved(input string, parent *observat
 	child.elapsed.start()
 	return r.redactText(input, child)
 }
+
+// observeWholeValue reports a string that RedactJSON replaced whole because of
+// the key that holds it. No text pass runs on such a value, so this emits the
+// child record that pass would have emitted: one RedactText call with one
+// detection of the rule. Without it an observed run would report nothing for a
+// redaction that Report() counts.
+func (r *DefaultRedactor) observeWholeValue(parent *observationCall, ruleID string) {
+	if parent == nil {
+		return
+	}
+	child := parent.run.newCall(parent.record.CorrelationID, OperationRedactText, parent.record.CallID)
+	child.parent = parent
+	var status DeliveryStatus
+	defer child.finish(&status)
+	child.elapsed.start()
+	for index, rule := range Rules {
+		if rule.ID == ruleID {
+			child.record.Rules = append(child.record.Rules, RuleDetection{Rule: RuleIdentity{ID: rule.ID, Origin: RuleOriginBuiltin, Index: index}, Category: rule.Category, Count: 1})
+			child.record.RegexDetected.Value++
+			break
+		}
+	}
+}

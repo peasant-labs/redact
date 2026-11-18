@@ -216,3 +216,1293 @@ cases:
       maximum:
         active: true
         output: "<EMAIL>:myorg/myrepo.git"
+
+  # Secret rules that keep the text around the value. Each row pins the exact
+  # output, because these rules replace one part of their match.
+  - name: key_name_env_assignment
+    ruleId: key_name_secret
+    category: secrets
+    input: "INTERNAL_API_TOKEN=canary-9f8e7d6c5b4a3928"
+    expectations:
+      minimal:
+        active: true
+        output: "INTERNAL_API_TOKEN=<SECRET>"
+      standard:
+        active: true
+        output: "INTERNAL_API_TOKEN=<SECRET>"
+      maximum:
+        active: true
+        output: "INTERNAL_API_TOKEN=<SECRET>"
+
+  - name: key_name_json_text
+    ruleId: key_name_secret
+    category: secrets
+    input: '{"db_password": "canaryJsonPw0rd!2026"}'
+    expectations:
+      minimal:
+        active: true
+        output: '{"db_password": "<SECRET>"}'
+      standard:
+        active: true
+        output: '{"db_password": "<SECRET>"}'
+      maximum:
+        active: true
+        output: '{"db_password": "<SECRET>"}'
+
+  - name: key_name_escaped_json_text
+    ruleId: key_name_secret
+    category: secrets
+    input: '{\"session_token\": \"canaryNested0123456789\"}'
+    expectations:
+      minimal:
+        active: true
+        output: '{\"session_token\": \"<SECRET>\"}'
+      standard:
+        active: true
+        output: '{\"session_token\": \"<SECRET>\"}'
+      maximum:
+        active: true
+        output: '{\"session_token\": \"<SECRET>\"}'
+
+  - name: key_name_command_flag
+    ruleId: key_name_secret
+    category: secrets
+    input: "deploy --db-password canaryFlagPw0rd!77 --verbose"
+    expectations:
+      minimal:
+        active: true
+        output: "deploy --db-password <SECRET> --verbose"
+      standard:
+        active: true
+        output: "deploy --db-password <SECRET> --verbose"
+      maximum:
+        active: true
+        output: "deploy --db-password <SECRET> --verbose"
+
+  - name: key_name_trailing_punctuation_kept
+    ruleId: key_name_secret
+    category: secrets
+    input: "connect(user=jane, password=canaryCallPw0rd!88);"
+    expectations:
+      minimal:
+        active: true
+        output: "connect(user=jane, password=<SECRET>);"
+      standard:
+        active: true
+        output: "connect(user=jane, password=<SECRET>);"
+      maximum:
+        active: true
+        output: "connect(user=jane, password=<SECRET>);"
+
+  - name: url_query_token
+    ruleId: url_query_secret
+    category: secrets
+    input: "https://api.example.com/export?token=canaryQueryTok0123456789&user=jane"
+    expectations:
+      minimal:
+        active: true
+        output: "https://api.example.com/export?token=<SECRET>&user=jane"
+      standard:
+        active: true
+        output: "https://api.example.com/export?token=<SECRET>&user=jane"
+      maximum:
+        active: true
+        output: "https://api.example.com/export?token=<SECRET>&user=jane"
+
+  - name: cookie_request_header
+    ruleId: cookie_header
+    category: secrets
+    input: "Cookie: sessionid=canarySessionCookie0123456789abcdef"
+    expectations:
+      minimal:
+        active: true
+        output: "Cookie: <COOKIE>"
+      standard:
+        active: true
+        output: "Cookie: <COOKIE>"
+      maximum:
+        active: true
+        output: "Cookie: <COOKIE>"
+
+  - name: cookie_response_header
+    ruleId: cookie_header
+    category: secrets
+    input: "Set-Cookie: sessionid=canarySetCookie0123456789; Path=/; HttpOnly"
+    expectations:
+      minimal:
+        active: true
+        output: "Set-Cookie: <COOKIE>"
+      standard:
+        active: true
+        output: "Set-Cookie: <COOKIE>"
+      maximum:
+        active: true
+        output: "Set-Cookie: <COOKIE>"
+
+  - name: stripe_key_long_body
+    ruleId: stripe_key
+    category: secrets
+    input: "sk_live_abcdefghijklmnopqrstuvwxyz01"
+    expectations:
+      minimal:
+        active: true
+        output: "<STRIPE_KEY>"
+      standard:
+        active: true
+        output: "<STRIPE_KEY>"
+      maximum:
+        active: true
+        output: "<STRIPE_KEY>"
+
+  - name: vendor_token_keeps_its_label
+    ruleId: github_pat
+    category: secrets
+    input: "GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+    expectations:
+      minimal:
+        active: true
+        output: "GITHUB_TOKEN=<GITHUB_PAT>"
+      standard:
+        active: true
+        output: "GITHUB_TOKEN=<GITHUB_PAT>"
+      maximum:
+        active: true
+        output: "GITHUB_TOKEN=<GITHUB_PAT>"
+
+  - name: longer_match_wins_at_one_offset
+    ruleId: key_name_secret
+    category: secrets
+    input: 'api_key = "canaryKey0123456789abcdef-part!9"'
+    expectations:
+      minimal:
+        active: true
+        output: 'api_key = "<SECRET>"'
+      standard:
+        active: true
+        output: 'api_key = "<SECRET>"'
+      maximum:
+        active: true
+        output: 'api_key = "<SECRET>"'
+
+  - name: key_name_single_quoted
+    ruleId: key_name_secret
+    category: secrets
+    input: "password = 'canaryQuotedPw0rd#77'"
+    expectations:
+      minimal:
+        active: true
+        output: "password = '<SECRET>'"
+      standard:
+        active: true
+        output: "password = '<SECRET>'"
+      maximum:
+        active: true
+        output: "password = '<SECRET>'"
+
+  - name: key_name_flag_with_equals
+    ruleId: key_name_secret
+    category: secrets
+    input: "deploy --auth-token=canaryFlagTok0123456789 --dry-run"
+    expectations:
+      minimal:
+        active: true
+        output: "deploy --auth-token=<SECRET> --dry-run"
+      standard:
+        active: true
+        output: "deploy --auth-token=<SECRET> --dry-run"
+      maximum:
+        active: true
+        output: "deploy --auth-token=<SECRET> --dry-run"
+
+  - name: key_name_form_body_runs_to_space
+    ruleId: key_name_secret
+    category: secrets
+    input: "password=canaryFormPw0rd!66&user=jane sent"
+    expectations:
+      minimal:
+        active: true
+        output: "password=<SECRET> sent"
+      standard:
+        active: true
+        output: "password=<SECRET> sent"
+      maximum:
+        active: true
+        output: "password=<SECRET> sent"
+
+  - name: key_name_stops_at_encoded_line_end
+    ruleId: key_name_secret
+    category: secrets
+    input: "export DB_PASSWORD=canaryEnvPw0rd9x\\nPORT=8080"
+    expectations:
+      minimal:
+        active: true
+        output: "export DB_PASSWORD=<SECRET>\\nPORT=8080"
+      standard:
+        active: true
+        output: "export DB_PASSWORD=<SECRET>\\nPORT=8080"
+      maximum:
+        active: true
+        output: "export DB_PASSWORD=<SECRET>\\nPORT=8080"
+
+  - name: key_name_symbol_password
+    ruleId: key_name_secret
+    category: secrets
+    input: "DB_PASSWORD=P@ssw0rd"
+    expectations:
+      minimal:
+        active: true
+        output: "DB_PASSWORD=<SECRET>"
+      standard:
+        active: true
+        output: "DB_PASSWORD=<SECRET>"
+      maximum:
+        active: true
+        output: "DB_PASSWORD=<SECRET>"
+
+  - name: key_name_quoted_query_parameter
+    ruleId: key_name_secret
+    category: secrets
+    input: "x=1&password=\"canaryQuoted0123x\""
+    expectations:
+      minimal:
+        active: true
+        output: "x=1&password=\"<SECRET>\""
+      standard:
+        active: true
+        output: "x=1&password=\"<SECRET>\""
+      maximum:
+        active: true
+        output: "x=1&password=\"<SECRET>\""
+
+  - name: generic_api_key_keeps_its_output
+    ruleId: generic_api_key
+    category: secrets
+    input: "api_key=canaryKey0123456789abcd"
+    expectations:
+      minimal:
+        active: true
+        output: "<API_KEY>"
+      standard:
+        active: true
+        output: "<API_KEY>"
+      maximum:
+        active: true
+        output: "<API_KEY>"
+
+  - name: api_key_header
+    ruleId: generic_api_key
+    category: secrets
+    input: "api-key: canaryHdrKey0123456789abcdef"
+    expectations:
+      minimal:
+        active: true
+        output: "<API_KEY>"
+      standard:
+        active: true
+        output: "<API_KEY>"
+      maximum:
+        active: true
+        output: "<API_KEY>"
+
+  # This row records what generic_api_key does to the header today, so that a
+  # change to it is seen. The output is not the wanted one: the rule matches
+  # from "api-key" and its placeholder replaces part of the header name. The
+  # rows around it show the output the newer rules give ("name: <SECRET>").
+  - name: x_api_key_header
+    ruleId: generic_api_key
+    category: secrets
+    input: "x-api-key: canaryHdrKey0123456789abcdef"
+    expectations:
+      minimal:
+        active: true
+        output: "x-<API_KEY>"
+      standard:
+        active: true
+        output: "x-<API_KEY>"
+      maximum:
+        active: true
+        output: "x-<API_KEY>"
+
+  - name: x_api_key_header_outside_generic_shape
+    ruleId: key_name_secret
+    category: secrets
+    input: "x-api-key: canaryHdr.Key+0123456789/abc="
+    expectations:
+      minimal:
+        active: true
+        output: "x-api-key: <SECRET>"
+      standard:
+        active: true
+        output: "x-api-key: <SECRET>"
+      maximum:
+        active: true
+        output: "x-api-key: <SECRET>"
+
+  - name: auth_token_header
+    ruleId: key_name_secret
+    category: secrets
+    input: "auth-token: canaryHdrTok0123456789"
+    expectations:
+      minimal:
+        active: true
+        output: "auth-token: <SECRET>"
+      standard:
+        active: true
+        output: "auth-token: <SECRET>"
+      maximum:
+        active: true
+        output: "auth-token: <SECRET>"
+
+  - name: access_token_header
+    ruleId: key_name_secret
+    category: secrets
+    input: "access-token: canaryHdrTok0123456789"
+    expectations:
+      minimal:
+        active: true
+        output: "access-token: <SECRET>"
+      standard:
+        active: true
+        output: "access-token: <SECRET>"
+      maximum:
+        active: true
+        output: "access-token: <SECRET>"
+
+  - name: scheme_and_token_after_secret_name
+    ruleId: bearer_token
+    category: secrets
+    input: "X-Upstream-Token: Bearer canarybearer0123456789abcd"
+    expectations:
+      minimal:
+        active: true
+        output: "X-Upstream-Token: <BEARER_TOKEN>"
+      standard:
+        active: true
+        output: "X-Upstream-Token: <BEARER_TOKEN>"
+      maximum:
+        active: true
+        output: "X-Upstream-Token: <BEARER_TOKEN>"
+
+  - name: github_fine_grained_pat
+    ruleId: github_fine_grained_pat
+    category: secrets
+    input: "git clone with github_pat_canaryFINEgrained0123456789abcdef done"
+    expectations:
+      minimal:
+        active: true
+        output: "git clone with <GITHUB_PAT> done"
+      standard:
+        active: true
+        output: "git clone with <GITHUB_PAT> done"
+      maximum:
+        active: true
+        output: "git clone with <GITHUB_PAT> done"
+
+  - name: npm_token_outside_npmrc
+    ruleId: npm_token
+    category: secrets
+    input: "npm publish used npm_canarytoken0123456789abcdefghij today"
+    expectations:
+      minimal:
+        active: true
+        output: "npm publish used <NPM_TOKEN> today"
+      standard:
+        active: true
+        output: "npm publish used <NPM_TOKEN> today"
+      maximum:
+        active: true
+        output: "npm publish used <NPM_TOKEN> today"
+
+  - name: huggingface_token
+    ruleId: huggingface_token
+    category: secrets
+    input: "login(token=\"hf_canarytoken0123456789abcdefghij\")"
+    expectations:
+      minimal:
+        active: true
+        output: "login(token=\"<HUGGINGFACE_TOKEN>\")"
+      standard:
+        active: true
+        output: "login(token=\"<HUGGINGFACE_TOKEN>\")"
+      maximum:
+        active: true
+        output: "login(token=\"<HUGGINGFACE_TOKEN>\")"
+
+  - name: google_api_key
+    ruleId: google_api_key
+    category: secrets
+    input: "maps.load(key=AIzaSyCanary0123456789abcdefghijklmnopq)"
+    expectations:
+      minimal:
+        active: true
+        output: "maps.load(key=<GOOGLE_API_KEY>)"
+      standard:
+        active: true
+        output: "maps.load(key=<GOOGLE_API_KEY>)"
+      maximum:
+        active: true
+        output: "maps.load(key=<GOOGLE_API_KEY>)"
+
+  - name: openai_project_key
+    ruleId: openai_project_key
+    category: secrets
+    input: "client = OpenAI(sk-proj-canary0123456789_abcdefghij-klmnopqrstuv)"
+    expectations:
+      minimal:
+        active: true
+        output: "client = OpenAI(<OPENAI_KEY>)"
+      standard:
+        active: true
+        output: "client = OpenAI(<OPENAI_KEY>)"
+      maximum:
+        active: true
+        output: "client = OpenAI(<OPENAI_KEY>)"
+
+  - name: vercel_token
+    ruleId: vercel_token
+    category: secrets
+    input: "vercel deploy --token vcp_canarytoken0123456789abcdef"
+    expectations:
+      minimal:
+        active: true
+        output: "vercel deploy --token <VERCEL_TOKEN>"
+      standard:
+        active: true
+        output: "vercel deploy --token <VERCEL_TOKEN>"
+      maximum:
+        active: true
+        output: "vercel deploy --token <VERCEL_TOKEN>"
+
+  - name: supabase_personal_access_token
+    ruleId: supabase_token
+    category: secrets
+    input: "supabase login with sbp_canary0123456789abcdef0123456789abcdef"
+    expectations:
+      minimal:
+        active: true
+        output: "supabase login with <SUPABASE_TOKEN>"
+      standard:
+        active: true
+        output: "supabase login with <SUPABASE_TOKEN>"
+      maximum:
+        active: true
+        output: "supabase login with <SUPABASE_TOKEN>"
+
+  - name: supabase_secret_key
+    ruleId: supabase_token
+    category: secrets
+    input: "createClient(url, \"sb_secret_canary0123456789abcdefgh\")"
+    expectations:
+      minimal:
+        active: true
+        output: "createClient(url, \"<SUPABASE_TOKEN>\")"
+      standard:
+        active: true
+        output: "createClient(url, \"<SUPABASE_TOKEN>\")"
+      maximum:
+        active: true
+        output: "createClient(url, \"<SUPABASE_TOKEN>\")"
+
+  - name: authorization_token_scheme
+    ruleId: authorization_token
+    category: secrets
+    input: "Authorization: token canaryAuthTok0123456789abcd"
+    expectations:
+      minimal:
+        active: true
+        output: "Authorization: token <AUTH_TOKEN>"
+      standard:
+        active: true
+        output: "Authorization: token <AUTH_TOKEN>"
+      maximum:
+        active: true
+        output: "Authorization: token <AUTH_TOKEN>"
+
+  - name: authorization_bot_scheme
+    ruleId: authorization_token
+    category: secrets
+    input: "Authorization: Bot canaryBotTok0123456789abcdef"
+    expectations:
+      minimal:
+        active: true
+        output: "Authorization: Bot <AUTH_TOKEN>"
+      standard:
+        active: true
+        output: "Authorization: Bot <AUTH_TOKEN>"
+      maximum:
+        active: true
+        output: "Authorization: Bot <AUTH_TOKEN>"
+
+  - name: curl_short_user_option
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -u jane:canaryCurlPw0rd https://api.example.com/v1"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -u <USER_PASSWORD> https://api.example.com/v1"
+      standard:
+        active: true
+        output: "curl -u <USER_PASSWORD> https://api.example.com/v1"
+      maximum:
+        active: true
+        output: "curl -u <USER_PASSWORD> https://api.example.com/v1"
+
+  - name: curl_long_user_option
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl --silent --user \"jane:canaryCurlPw0rd\" https://api.example.com/v1"
+    expectations:
+      minimal:
+        active: true
+        output: "curl --silent --user \"<USER_PASSWORD>\" https://api.example.com/v1"
+      standard:
+        active: true
+        output: "curl --silent --user \"<USER_PASSWORD>\" https://api.example.com/v1"
+      maximum:
+        active: true
+        output: "curl --silent --user \"<USER_PASSWORD>\" https://api.example.com/v1"
+
+  - name: curl_user_option_after_bearer_header
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -H \"Authorization: Bearer canarybearer0123456789abcd\" -u jane:canaryCurlPw0rd https://api.example.com"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u <USER_PASSWORD> https://api.example.com"
+      standard:
+        active: true
+        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u <USER_PASSWORD> https://api.example.com"
+      maximum:
+        active: true
+        output: "curl -H \"Authorization: <BEARER_TOKEN>\" -u <USER_PASSWORD> https://api.example.com"
+
+  - name: jwk_private_member
+    ruleId: jwk_private_member
+    category: secrets
+    input: "{\"kty\": \"OKP\", \"crv\": \"Ed25519\", \"x\": \"canaryPublicX\", \"d\": \"canaryPrivateMember0123456789abcdefghijklmn\"}"
+    expectations:
+      minimal:
+        active: true
+        output: "{\"kty\": \"OKP\", \"crv\": \"Ed25519\", \"x\": \"canaryPublicX\", \"d\": \"<JWK_PRIVATE_KEY>\"}"
+      standard:
+        active: true
+        output: "{\"kty\": \"OKP\", \"crv\": \"Ed25519\", \"x\": \"canaryPublicX\", \"d\": \"<JWK_PRIVATE_KEY>\"}"
+      maximum:
+        active: true
+        output: "{\"kty\": \"OKP\", \"crv\": \"Ed25519\", \"x\": \"canaryPublicX\", \"d\": \"<JWK_PRIVATE_KEY>\"}"
+
+  - name: curl_token_as_user_name
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -u ghp_abcdefghijklmnopqrstuvwxyz0123456789:x-oauth-basic https://api.example.com/user"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -u <USER_PASSWORD> https://api.example.com/user"
+      standard:
+        active: true
+        output: "curl -u <USER_PASSWORD> https://api.example.com/user"
+      maximum:
+        active: true
+        output: "curl -u <USER_PASSWORD> https://api.example.com/user"
+
+  - name: curl_option_after_quoted_semicolon
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -H \"Accept: application/json; charset=utf-8\" -u jane:canaryCurlPw0rd https://api.example.com"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -H \"Accept: application/json; charset=utf-8\" -u <USER_PASSWORD> https://api.example.com"
+      standard:
+        active: true
+        output: "curl -H \"Accept: application/json; charset=utf-8\" -u <USER_PASSWORD> https://api.example.com"
+      maximum:
+        active: true
+        output: "curl -H \"Accept: application/json; charset=utf-8\" -u <USER_PASSWORD> https://api.example.com"
+
+  - name: curl_bundled_short_options
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -sSu jane:canaryCurlPw0rd https://api.example.com/v1"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -sSu <USER_PASSWORD> https://api.example.com/v1"
+      standard:
+        active: true
+        output: "curl -sSu <USER_PASSWORD> https://api.example.com/v1"
+      maximum:
+        active: true
+        output: "curl -sSu <USER_PASSWORD> https://api.example.com/v1"
+
+  - name: curl_attached_value
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -ujane:canaryCurlPw0rd https://api.example.com/v1"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -u<USER_PASSWORD> https://api.example.com/v1"
+      standard:
+        active: true
+        output: "curl -u<USER_PASSWORD> https://api.example.com/v1"
+      maximum:
+        active: true
+        output: "curl -u<USER_PASSWORD> https://api.example.com/v1"
+
+  - name: curl_argument_list
+    ruleId: curl_user_password
+    category: secrets
+    input: "[\"curl\", \"-u\", \"jane:canaryCurlPw0rd\", \"https://api.example.com/v1\"]"
+    expectations:
+      minimal:
+        active: true
+        output: "[\"curl\", \"-u\", \"<USER_PASSWORD>\", \"https://api.example.com/v1\"]"
+      standard:
+        active: true
+        output: "[\"curl\", \"-u\", \"<USER_PASSWORD>\", \"https://api.example.com/v1\"]"
+      maximum:
+        active: true
+        output: "[\"curl\", \"-u\", \"<USER_PASSWORD>\", \"https://api.example.com/v1\"]"
+
+  - name: curl_quoted_pair_with_spaces
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -u 'jane:canary pass phrase 9' https://api.example.com/v1"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -u '<USER_PASSWORD>' https://api.example.com/v1"
+      standard:
+        active: true
+        output: "curl -u '<USER_PASSWORD>' https://api.example.com/v1"
+      maximum:
+        active: true
+        output: "curl -u '<USER_PASSWORD>' https://api.example.com/v1"
+
+  - name: curl_escaped_password_characters
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -u jane:canary\\@Pw0rd\\!Long https://api.example.com/v1"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -u <USER_PASSWORD> https://api.example.com/v1"
+      standard:
+        active: true
+        output: "curl -u <USER_PASSWORD> https://api.example.com/v1"
+      maximum:
+        active: true
+        output: "curl -u <USER_PASSWORD> https://api.example.com/v1"
+
+  - name: key_name_escaped_password_characters
+    ruleId: key_name_secret
+    category: secrets
+    input: "DB_PASSWORD=Sup3r\\!Canary9 next"
+    expectations:
+      minimal:
+        active: true
+        output: "DB_PASSWORD=<SECRET> next"
+      standard:
+        active: true
+        output: "DB_PASSWORD=<SECRET> next"
+      maximum:
+        active: true
+        output: "DB_PASSWORD=<SECRET> next"
+
+  - name: key_name_ends_where_continuing_match_starts
+    ruleId: bearer_token
+    category: secrets
+    input: "token=abc12345Bearer canarybearer0123456789abcd"
+    expectations:
+      minimal:
+        active: true
+        output: "token=<SECRET><BEARER_TOKEN>"
+      standard:
+        active: true
+        output: "token=<SECRET><BEARER_TOKEN>"
+      maximum:
+        active: true
+        output: "token=<SECRET><BEARER_TOKEN>"
+
+  - name: key_name_value_before_card_number
+    ruleId: key_name_secret
+    category: secrets
+    input: "password=hunter2hunter2a1,card=4111 1111 1111 1111"
+    expectations:
+      minimal:
+        active: true
+        output: "password=<SECRET>,card=4111 1111 1111 1111"
+      standard:
+        active: true
+        output: "password=<SECRET>,card=<CREDIT_CARD>"
+      maximum:
+        active: true
+        output: "password=<SECRET>,card=<CREDIT_CARD>"
+
+  - name: key_name_value_before_phone_number
+    ruleId: key_name_secret
+    category: secrets
+    input: "login ok user=jane,token=abc12345xyz,phone=415 555 0123,plan=pro"
+    expectations:
+      minimal:
+        active: true
+        output: "login ok user=jane,token=<SECRET>,phone=415 555 0123,plan=pro"
+      standard:
+        active: true
+        output: "login ok user=jane,token=<SECRET>,phone=<PHONE>,plan=pro"
+      maximum:
+        active: true
+        output: "login ok user=jane,token=<SECRET>,phone=<PHONE>,plan=pro"
+
+  - name: key_name_value_ends_at_next_setting
+    ruleId: key_name_secret
+    category: secrets
+    input: "password=S3cretPw99x,user=jane"
+    expectations:
+      minimal:
+        active: true
+        output: "password=<SECRET>,user=jane"
+      standard:
+        active: true
+        output: "password=<SECRET>,user=jane"
+      maximum:
+        active: true
+        output: "password=<SECRET>,user=jane"
+
+  - name: key_name_value_in_connection_string
+    ruleId: key_name_secret
+    category: secrets
+    input: "Server=db;User Id=sa;Password=S3cretPw99x;Encrypt=true"
+    expectations:
+      minimal:
+        active: true
+        output: "Server=db;User Id=sa;Password=<SECRET>;Encrypt=true"
+      standard:
+        active: true
+        output: "Server=db;User Id=sa;Password=<SECRET>;Encrypt=true"
+      maximum:
+        active: true
+        output: "Server=db;User Id=sa;Password=<SECRET>;Encrypt=true"
+
+  - name: key_name_two_settings_in_one_value
+    ruleId: key_name_secret
+    category: secrets
+    input: "password=S3cretPw99x,token=abc12345xyz"
+    expectations:
+      minimal:
+        active: true
+        output: "password=<SECRET>,token=<SECRET>"
+      standard:
+        active: true
+        output: "password=<SECRET>,token=<SECRET>"
+      maximum:
+        active: true
+        output: "password=<SECRET>,token=<SECRET>"
+
+  - name: key_name_keeps_value_past_partial_match
+    ruleId: key_name_secret
+    category: secrets
+    input: "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE\nJWT_SECRET=Y2FuYXJ5and0U2VjcmV0MDEyMzQ1Njc4OWFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6\n"
+    expectations:
+      minimal:
+        active: true
+        output: "AWS_ACCESS_KEY_ID=<AWS_ACCESS_KEY>\nJWT_SECRET=<SECRET>\n"
+      standard:
+        active: true
+        output: "AWS_ACCESS_KEY_ID=<AWS_ACCESS_KEY>\nJWT_SECRET=<SECRET>\n"
+      maximum:
+        active: true
+        output: "AWS_ACCESS_KEY_ID=<AWS_ACCESS_KEY>\nJWT_SECRET=<SECRET>\n"
+
+  - name: cookie_empty_first_value
+    ruleId: cookie_header
+    category: secrets
+    input: "Cookie: theme=; session=canarySessionCookie0123456789abcdef"
+    expectations:
+      minimal:
+        active: true
+        output: "Cookie: <COOKIE>"
+      standard:
+        active: true
+        output: "Cookie: <COOKIE>"
+      maximum:
+        active: true
+        output: "Cookie: <COOKIE>"
+
+  - name: cookie_quoted_first_value
+    ruleId: cookie_header
+    category: secrets
+    input: "Set-Cookie: session=\"canarySessionCookie0123456789abcdef\"; Path=/"
+    expectations:
+      minimal:
+        active: true
+        output: "Set-Cookie: <COOKIE>"
+      standard:
+        active: true
+        output: "Set-Cookie: <COOKIE>"
+      maximum:
+        active: true
+        output: "Set-Cookie: <COOKIE>"
+
+  - name: jwk_private_member_single_quoted
+    ruleId: jwk_private_member
+    category: secrets
+    input: "{'kty': 'EC', 'crv': 'P-256', 'd': 'canaryPrivateMember0123456789abcdefghijklmn'}"
+    expectations:
+      minimal:
+        active: true
+        output: "{'kty': 'EC', 'crv': 'P-256', 'd': '<JWK_PRIVATE_KEY>'}"
+      standard:
+        active: true
+        output: "{'kty': 'EC', 'crv': 'P-256', 'd': '<JWK_PRIVATE_KEY>'}"
+      maximum:
+        active: true
+        output: "{'kty': 'EC', 'crv': 'P-256', 'd': '<JWK_PRIVATE_KEY>'}"
+
+  - name: unlisted_format_under_api_key_name
+    ruleId: generic_api_key
+    category: secrets
+    input: "GOOGLE_API_KEY=AIzacanary0123456789abcdefghijklmnopqrs"
+    expectations:
+      minimal:
+        active: true
+        output: "GOOGLE_<API_KEY>"
+      standard:
+        active: true
+        output: "GOOGLE_<API_KEY>"
+      maximum:
+        active: true
+        output: "GOOGLE_<API_KEY>"
+
+  - name: unlisted_format_after_bearer
+    ruleId: bearer_token
+    category: secrets
+    input: "Authorization: Bearer zk-live-canary0123456789abcdefghij"
+    expectations:
+      minimal:
+        active: true
+        output: "Authorization: <BEARER_TOKEN>"
+      standard:
+        active: true
+        output: "Authorization: <BEARER_TOKEN>"
+      maximum:
+        active: true
+        output: "Authorization: <BEARER_TOKEN>"
+
+  - name: unlisted_format_under_secret_name
+    ruleId: key_name_secret
+    category: secrets
+    input: "PROVIDER_SECRET=zk-live-canary0123456789abcdefghij"
+    expectations:
+      minimal:
+        active: true
+        output: "PROVIDER_SECRET=<SECRET>"
+      standard:
+        active: true
+        output: "PROVIDER_SECRET=<SECRET>"
+      maximum:
+        active: true
+        output: "PROVIDER_SECRET=<SECRET>"
+
+  - name: curl_option_after_quoted_cookie_header
+    ruleId: curl_user_password
+    category: secrets
+    input: "curl -H 'Cookie: a=b; c=d' --user jane:canaryCurlPw0rd https://api.example.com"
+    expectations:
+      minimal:
+        active: true
+        output: "curl -H 'Cookie: <COOKIE>' --user <USER_PASSWORD> https://api.example.com"
+      standard:
+        active: true
+        output: "curl -H 'Cookie: <COOKIE>' --user <USER_PASSWORD> https://api.example.com"
+      maximum:
+        active: true
+        output: "curl -H 'Cookie: <COOKIE>' --user <USER_PASSWORD> https://api.example.com"
+
+# Reviewed manifest of the secret-rule rows above. The loader asserts exact
+# membership in both directions.
+  - name: prefix_token_after_encoded_line_end
+    ruleId: huggingface_token
+    category: secrets
+    input: '{"stdout": "$ cat token.txt\nhf_canarytoken0123456789abcdefghij\n"}'
+    expectations:
+      minimal:
+        active: true
+        output: '{"stdout": "$ cat token.txt\n<HUGGINGFACE_TOKEN>\n"}'
+      standard:
+        active: true
+        output: '{"stdout": "$ cat token.txt\n<HUGGINGFACE_TOKEN>\n"}'
+      maximum:
+        active: true
+        output: '{"stdout": "$ cat token.txt\n<HUGGINGFACE_TOKEN>\n"}'
+
+  - name: cookie_header_after_encoded_line_end
+    ruleId: cookie_header
+    category: secrets
+    input: '{"request": "GET / HTTP/1.1\nCookie: sessionid=canarySessionCookie0123456789\nAccept: */*"}'
+    expectations:
+      minimal:
+        active: true
+        output: '{"request": "GET / HTTP/1.1\nCookie: <COOKIE>\nAccept: */*"}'
+      standard:
+        active: true
+        output: '{"request": "GET / HTTP/1.1\nCookie: <COOKIE>\nAccept: */*"}'
+      maximum:
+        active: true
+        output: '{"request": "GET / HTTP/1.1\nCookie: <COOKIE>\nAccept: */*"}'
+
+  - name: jwk_private_member_yaml_in_json_string
+    ruleId: jwk_private_member
+    category: secrets
+    input: '{"stdout": "kty: oct\nk: canarySymmetricKey0123456789abcd\n"}'
+    expectations:
+      minimal:
+        active: true
+        output: '{"stdout": "kty: oct\nk: <JWK_PRIVATE_KEY>\n"}'
+      standard:
+        active: true
+        output: '{"stdout": "kty: oct\nk: <JWK_PRIVATE_KEY>\n"}'
+      maximum:
+        active: true
+        output: '{"stdout": "kty: oct\nk: <JWK_PRIVATE_KEY>\n"}'
+
+  - name: key_name_weak_password
+    ruleId: key_name_secret
+    category: secrets
+    input: 'DB_PASSWORD=Summer2024'
+    expectations:
+      minimal:
+        active: true
+        output: 'DB_PASSWORD=<SECRET>'
+      standard:
+        active: true
+        output: 'DB_PASSWORD=<SECRET>'
+      maximum:
+        active: true
+        output: 'DB_PASSWORD=<SECRET>'
+
+  - name: key_name_value_continues_past_angle_bracket
+    ruleId: key_name_secret
+    category: secrets
+    input: 'DB_PASSWORD=canaryB3xkd92Lq<Zw81 PORT=5432'
+    expectations:
+      minimal:
+        active: true
+        output: 'DB_PASSWORD=<SECRET> PORT=5432'
+      standard:
+        active: true
+        output: 'DB_PASSWORD=<SECRET> PORT=5432'
+      maximum:
+        active: true
+        output: 'DB_PASSWORD=<SECRET> PORT=5432'
+
+  - name: key_name_value_ends_at_markup
+    ruleId: key_name_secret
+    category: secrets
+    input: '<td>password=canaryPw0rd9</td><td>password=canaryPw0rd8<br></td>'
+    expectations:
+      minimal:
+        active: true
+        output: '<td>password=<SECRET></td><td>password=<SECRET><br></td>'
+      standard:
+        active: true
+        output: '<td>password=<SECRET></td><td>password=<SECRET><br></td>'
+      maximum:
+        active: true
+        output: '<td>password=<SECRET></td><td>password=<SECRET><br></td>'
+
+  - name: key_name_quoted_value_with_parentheses
+    ruleId: key_name_secret
+    category: secrets
+    input: 'DB_PASSWORD="canaryB3x(92)LqZw81"'
+    expectations:
+      minimal:
+        active: true
+        output: 'DB_PASSWORD="<SECRET>"'
+      standard:
+        active: true
+        output: 'DB_PASSWORD="<SECRET>"'
+      maximum:
+        active: true
+        output: 'DB_PASSWORD="<SECRET>"'
+
+  - name: key_name_base64_value_with_leading_slash
+    ruleId: key_name_secret
+    category: secrets
+    input: 'SECRET_KEY=/canary0Fk29dLq0Pz71Xn5Rv3Tb6Yc4Wm2Qe8H'
+    expectations:
+      minimal:
+        active: true
+        output: 'SECRET_KEY=<SECRET>'
+      standard:
+        active: true
+        output: 'SECRET_KEY=<SECRET>'
+      maximum:
+        active: true
+        output: 'SECRET_KEY=<SECRET>'
+
+  - name: key_name_parser_message_unchanged
+    ruleId: key_name_secret
+    category: secrets
+    input: 'SyntaxError: Unexpected token: identifier1234'
+    expectations:
+      minimal:
+        active: false
+        output: 'SyntaxError: Unexpected token: identifier1234'
+      standard:
+        active: false
+        output: 'SyntaxError: Unexpected token: identifier1234'
+      maximum:
+        active: false
+        output: 'SyntaxError: Unexpected token: identifier1234'
+
+  - name: curl_pair_in_backticks
+    ruleId: curl_user_password
+    category: secrets
+    input: 'Run `curl -u admin:canaryCurlPw0rd` to test.'
+    expectations:
+      minimal:
+        active: true
+        output: 'Run `curl -u <USER_PASSWORD>` to test.'
+      standard:
+        active: true
+        output: 'Run `curl -u <USER_PASSWORD>` to test.'
+      maximum:
+        active: true
+        output: 'Run `curl -u <USER_PASSWORD>` to test.'
+
+  - name: curl_pair_in_command_substitution
+    ruleId: curl_user_password
+    category: secrets
+    input: 'out=$(curl -s -u admin:canaryCurlPw0rd); echo done'
+    expectations:
+      minimal:
+        active: true
+        output: 'out=$(curl -s -u <USER_PASSWORD>); echo done'
+      standard:
+        active: true
+        output: 'out=$(curl -s -u <USER_PASSWORD>); echo done'
+      maximum:
+        active: true
+        output: 'out=$(curl -s -u <USER_PASSWORD>); echo done'
+
+  - name: curl_long_user_option_with_equals
+    ruleId: curl_user_password
+    category: secrets
+    input: 'curl --user=jane:canaryCurlPw0rd https://api.example.com/v1'
+    expectations:
+      minimal:
+        active: true
+        output: 'curl --user=<USER_PASSWORD> https://api.example.com/v1'
+      standard:
+        active: true
+        output: 'curl --user=<USER_PASSWORD> https://api.example.com/v1'
+      maximum:
+        active: true
+        output: 'curl --user=<USER_PASSWORD> https://api.example.com/v1'
+
+  - name: curl_variable_user_literal_password
+    ruleId: curl_user_password
+    category: secrets
+    input: 'curl -u "$USER:canaryCurlPw0rd" https://api.example.com/v1'
+    expectations:
+      minimal:
+        active: true
+        output: 'curl -u "<USER_PASSWORD>" https://api.example.com/v1'
+      standard:
+        active: true
+        output: 'curl -u "<USER_PASSWORD>" https://api.example.com/v1'
+      maximum:
+        active: true
+        output: 'curl -u "<USER_PASSWORD>" https://api.example.com/v1'
+
+  - name: curl_token_as_user_empty_password
+    ruleId: curl_user_password
+    category: secrets
+    input: 'curl -u apikey_canary81kq0Pw92mLr7vAb3dEf9Qw: https://api.example.com/v1'
+    expectations:
+      minimal:
+        active: true
+        output: 'curl -u <USER_PASSWORD> https://api.example.com/v1'
+      standard:
+        active: true
+        output: 'curl -u <USER_PASSWORD> https://api.example.com/v1'
+      maximum:
+        active: true
+        output: 'curl -u <USER_PASSWORD> https://api.example.com/v1'
+
+  - name: curl_pair_before_card_number
+    ruleId: curl_user_password
+    category: secrets
+    input: 'curl -u jane:canaryCurlPw0rd,card=4111 1111 1111 1111'
+    expectations:
+      minimal:
+        active: true
+        output: 'curl -u <USER_PASSWORD> 1111 1111 1111'
+      standard:
+        active: true
+        output: 'curl -u <USER_PASSWORD><CREDIT_CARD>'
+      maximum:
+        active: true
+        output: 'curl -u <USER_PASSWORD><CREDIT_CARD>'
+
+  - name: google_api_key_longer_run
+    ruleId: google_api_key
+    category: secrets
+    input: 'key=AIzaSyCanary0123456789abcdefghijklmnopqrstu&v=1'
+    expectations:
+      minimal:
+        active: true
+        output: 'key=<GOOGLE_API_KEY>&v=1'
+      standard:
+        active: true
+        output: 'key=<GOOGLE_API_KEY>&v=1'
+      maximum:
+        active: true
+        output: 'key=<GOOGLE_API_KEY>&v=1'
+
+  - name: openai_project_key_after_glued_prefix
+    ruleId: openai_project_key
+    category: secrets
+    input: 'task-admin-sk-admin-canaryDEF123456ghiJKL789'
+    expectations:
+      minimal:
+        active: true
+        output: 'task-admin-<OPENAI_KEY>'
+      standard:
+        active: true
+        output: 'task-admin-<OPENAI_KEY>'
+      maximum:
+        active: true
+        output: 'task-admin-<OPENAI_KEY>'
+
+  - name: openai_key_long_part_after_marker
+    ruleId: openai_key
+    category: secrets
+    input: 'sk-canaryABCDEFGHIJKLMN01T3BlbkFJcanary_abcdefghij-0123456789klmnop'
+    expectations:
+      minimal:
+        active: true
+        output: '<OPENAI_KEY>'
+      standard:
+        active: true
+        output: '<OPENAI_KEY>'
+      maximum:
+        active: true
+        output: '<OPENAI_KEY>'
+
+  - name: key_name_value_matched_whole_by_later_rule
+    ruleId: key_name_secret
+    category: secrets
+    input: 'password=jane.canary@example.com'
+    expectations:
+      minimal:
+        active: true
+        output: 'password=<SECRET>'
+      standard:
+        active: false
+        output: 'password=<EMAIL>'
+      maximum:
+        active: false
+        output: 'password=<EMAIL>'
+
+  - name: key_name_value_after_scheme_rule_covers_its_start
+    ruleId: basic_auth
+    category: secrets
+    input: 'Basic auth: Y2FuYXJ5OmNhbmFyeQ-canary0123456789abcdef'
+    expectations:
+      minimal:
+        active: true
+        output: '<BASIC_AUTH><SECRET>'
+      standard:
+        active: true
+        output: '<BASIC_AUTH><SECRET>'
+      maximum:
+        active: true
+        output: '<BASIC_AUTH><SECRET>'
+
+requiredSecretCaseNames:
+  - key_name_env_assignment
+  - key_name_json_text
+  - key_name_escaped_json_text
+  - key_name_command_flag
+  - key_name_trailing_punctuation_kept
+  - url_query_token
+  - cookie_request_header
+  - cookie_response_header
+  - stripe_key_long_body
+  - vendor_token_keeps_its_label
+  - longer_match_wins_at_one_offset
+  - key_name_single_quoted
+  - key_name_flag_with_equals
+  - key_name_form_body_runs_to_space
+  - key_name_stops_at_encoded_line_end
+  - key_name_symbol_password
+  - key_name_quoted_query_parameter
+  - generic_api_key_keeps_its_output
+  - api_key_header
+  - x_api_key_header
+  - x_api_key_header_outside_generic_shape
+  - auth_token_header
+  - access_token_header
+  - scheme_and_token_after_secret_name
+  - github_fine_grained_pat
+  - npm_token_outside_npmrc
+  - huggingface_token
+  - google_api_key
+  - openai_project_key
+  - vercel_token
+  - supabase_personal_access_token
+  - supabase_secret_key
+  - authorization_token_scheme
+  - authorization_bot_scheme
+  - curl_short_user_option
+  - curl_long_user_option
+  - curl_user_option_after_bearer_header
+  - jwk_private_member
+  - curl_token_as_user_name
+  - curl_option_after_quoted_semicolon
+  - curl_bundled_short_options
+  - curl_attached_value
+  - curl_argument_list
+  - curl_quoted_pair_with_spaces
+  - curl_escaped_password_characters
+  - key_name_escaped_password_characters
+  - key_name_ends_where_continuing_match_starts
+  - key_name_value_before_card_number
+  - key_name_value_before_phone_number
+  - key_name_value_ends_at_next_setting
+  - key_name_value_in_connection_string
+  - key_name_two_settings_in_one_value
+  - key_name_keeps_value_past_partial_match
+  - cookie_empty_first_value
+  - cookie_quoted_first_value
+  - jwk_private_member_single_quoted
+  - unlisted_format_under_api_key_name
+  - unlisted_format_after_bearer
+  - unlisted_format_under_secret_name
+  - curl_option_after_quoted_cookie_header
+  - prefix_token_after_encoded_line_end
+  - cookie_header_after_encoded_line_end
+  - jwk_private_member_yaml_in_json_string
+  - key_name_weak_password
+  - key_name_value_continues_past_angle_bracket
+  - key_name_value_ends_at_markup
+  - key_name_quoted_value_with_parentheses
+  - key_name_base64_value_with_leading_slash
+  - key_name_parser_message_unchanged
+  - curl_pair_in_backticks
+  - curl_pair_in_command_substitution
+  - curl_long_user_option_with_equals
+  - curl_variable_user_literal_password
+  - curl_token_as_user_empty_password
+  - curl_pair_before_card_number
+  - google_api_key_longer_run
+  - openai_project_key_after_glued_prefix
+  - openai_key_long_part_after_marker
+  - key_name_value_matched_whole_by_later_rule
+  - key_name_value_after_scheme_rule_covers_its_start

@@ -36,7 +36,10 @@ type FalsePositiveCase struct {
 }
 
 type falsePositiveFixtures struct {
-	Cases []FalsePositiveCase `yaml:"cases"`
+	// RequiredCaseNames is the reviewed manifest of the rows. The tests assert
+	// that it and the rows agree exactly, so a deleted row fails.
+	RequiredCaseNames []string            `yaml:"requiredCaseNames"`
+	Cases             []FalsePositiveCase `yaml:"cases"`
 }
 
 // LoadFalsePositiveFixtures parses the embedded YAML fixture file and returns
@@ -49,9 +52,14 @@ func LoadFalsePositiveFixtures() ([]FalsePositiveCase, error) {
 // allowing malformed and semantically invalid fixture bytes to exercise the
 // same production parsing path in tests.
 func loadFalsePositiveFixtures(data []byte) ([]FalsePositiveCase, error) {
+	f, err := parseFalsePositiveFixtures(data)
+	return f.Cases, err
+}
+
+func parseFalsePositiveFixtures(data []byte) (falsePositiveFixtures, error) {
 	var f falsePositiveFixtures
 	if err := yaml.Unmarshal(data, &f); err != nil {
-		return nil, &actionableError{
+		return falsePositiveFixtures{}, &actionableError{
 			what:  "the false-positive fixture YAML could not be parsed",
 			why:   err.Error(),
 			where: "testdata/false_positives.yaml via redact.LoadFalsePositiveFixtures",
@@ -63,7 +71,7 @@ func loadFalsePositiveFixtures(data []byte) ([]FalsePositiveCase, error) {
 	}
 	for i, fixture := range f.Cases {
 		if fixture.Level != "" && !fixture.Level.IsValid() {
-			return nil, &actionableError{
+			return falsePositiveFixtures{}, &actionableError{
 				what:  fmt.Sprintf("fixture case %q at cases[%d] has invalid redaction level %q", fixture.Name, i, fixture.Level),
 				why:   "fixture levels must be minimal, standard, maximum, or empty for the Standard default",
 				where: "testdata/false_positives.yaml via redact.LoadFalsePositiveFixtures",
@@ -73,5 +81,5 @@ func loadFalsePositiveFixtures(data []byte) ([]FalsePositiveCase, error) {
 			}
 		}
 	}
-	return f.Cases, nil
+	return f, nil
 }

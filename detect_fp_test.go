@@ -15,6 +15,30 @@ import (
 // patterns (file paths, go.sum hashes, sequential strings) are mistakenly flagged.
 // Cases with expect="match" are regression tests for true positives that must
 // always be caught. Set level="maximum" for rules that only fire at Maximum.
+// falsePositiveFixturePath names the fixture file in messages.
+const falsePositiveFixturePath = "testdata/false_positives.yaml"
+
+// TestFalsePositiveFixtures_ReviewedManifest protects every row of the
+// false-positive fixture file from silent deletion: the row names and the
+// reviewed manifest in the same file must agree exactly, and no name repeats.
+func TestFalsePositiveFixtures_ReviewedManifest(t *testing.T) {
+	fixtures, err := parseFalsePositiveFixtures(falsePositiveFixtureData)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := make(map[string]struct{}, len(fixtures.Cases))
+	for _, row := range fixtures.Cases {
+		if _, duplicate := seen[row.Name]; duplicate {
+			t.Fatalf("%s names two rows %q; give each row its own name", falsePositiveFixturePath, row.Name)
+		}
+		seen[row.Name] = struct{}{}
+	}
+	names := fixtureNames(fixtures.Cases, func(row FalsePositiveCase) string { return row.Name })
+	if err := requireFixtureNames(falsePositiveFixturePath, "requiredCaseNames", fixtures.RequiredCaseNames, names); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDetect_FalsePositives(t *testing.T) {
 	cases, err := LoadFalsePositiveFixtures()
 	if err != nil {

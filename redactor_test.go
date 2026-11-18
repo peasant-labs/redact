@@ -394,6 +394,14 @@ func TestRules_AllIDsHaveTestCoverage(t *testing.T) {
 		"gitlab_agent", "gitlab_oauth_secret", "mailchimp_api_key",
 		"npm_auth_token", "pypi_api_token", "pypi_test_token",
 		"square_oauth_secret", "telegram_bot_token",
+		// Key-name and header rules (covered by the YAML fixtures: rules.yaml,
+		// false_positives.yaml and rule_level_outputs.yaml).
+		keyNameSecretRuleID, urlQuerySecretRuleID, cookieHeaderRuleID,
+		// Token formats with a documented prefix, and the rules that read the
+		// construct around a credential (covered by the same YAML fixtures).
+		"github_fine_grained_pat", "npm_token", "huggingface_token", "vercel_token", "supabase_token",
+		"google_api_key", "openai_project_key",
+		authorizationTokenRuleID, curlUserPasswordRuleID, jwkPrivateMemberRuleID,
 	}
 	for _, id := range secretsCases {
 		ruleIDs[id] = true

@@ -83,6 +83,181 @@ required_metadata_paths_ids:
 required_code_pipeline_ids:
   - standard_preserves_code_and_redacts_secret
   - maximum_anonymizes_identifier
+required_json_keys_ids:
+  - secret_named_key_redacts_value
+  - secret_named_key_redacts_value_at_minimal
+  - nested_secret_named_key
+  - secret_named_key_inside_array
+  - vendor_token_under_secret_name_keeps_label
+  - ordinary_key_with_same_value_unchanged
+  - variable_reference_value_unchanged
+  - placeholder_value_unchanged
+  - type_name_value_unchanged
+  - token_count_unchanged
+  - description_with_spaces_unchanged
+  - object_under_secret_name_is_walked
+  - strict_ending_short_value_unchanged
+  - text_inside_string_value_still_scanned
+  - model_output_token_unchanged
+  - web_key_private_members
+  - web_key_public_key_unchanged
+  - private_member_name_without_key_type_unchanged
+  - password_beside_log_probability
+  - authorization_header_key
+  - cookie_header_key
+  - header_key_with_placeholder_unchanged
+  - basic_authorization_header_key
+  - header_key_value_is_counted_once
+  - cookie_header_key_is_counted_once
+  - value_with_trailing_line_end
+  - value_with_brackets_inside
+  - value_starting_with_slash
+  - weak_password_value
+  - whole_value_call_unchanged
+  - identifier_value_with_digit_unchanged
+  - web_key_remaining_private_members
+  - set_cookie_header_key
+  - other_header_key_is_ordinary_text
+  - keys_that_only_contain_a_secret_word_unchanged
+  - value_a_format_rule_matches_in_part
+  - short_symmetric_key_member_unchanged
+  - credential_after_placeholder_in_value
+required_observed_json_keys_ids:
+  - value_under_secret_key
+  - web_key_private_member
+  - value_under_header_key
+required_observed_text_ids:
+  - value_covered_by_format_rule
+  - value_cut_by_later_match
+  - value_and_card_number
+required_inactive_json_key_rules_ids:
+  - key_name_rule_inactive
+  - web_key_rule_inactive
+# The closed lists RedactJSON reads a key by. The test asserts exact membership
+# against the compiled lists; the json_keys rows show what each list does.
+json_key_sets:
+  jwk_private_members: [d, p, q, dp, dq, qi, k]
+  header_value_keys: [authorization, cookie, set-cookie]
+# The closed lists the key-name rules and the curl rule read a name, a message
+# and a password by. The test asserts exact membership against the compiled
+# lists.
+value_test_sets:
+  credential_name_endings: [token, secret, password, passwd, passphrase]
+  key_material_name_endings: [credential, private_key, access_key, api_key, secret_key, auth]
+  message_words: [unexpected, expected, invalid, unknown, unrecognized, unrecognised, illegal, bad, malformed, missing, stray, extra, next, previous, current, first, last]
+  placeholder_passwords: [password, passwd, pass, pwd, secret, token, key, apikey, api_key]
+required_standard_text_outputs_ids:
+  - tail_keeps_closing_parenthesis
+  - redirect_after_value
+  - redirect_after_value_to_stream
+  - clone_url_with_token_user
+  - clone_url_with_ci_token_user
+  - curl_pair_beside_commit_hash
+  - url_query_value_percent_encoded
+  - unquoted_value_with_dollar_signs
+  - path_value_with_account_name_is_stable
+  - slug_value_with_account_name_is_stable
+  - dotted_password_with_digits_after_capital_word
+  - dotted_password_with_two_digits
+  - format_token_ending_the_value
+  - curl_pair_in_argument_list
+  - curl_pair_in_escaped_quotes
+  - curl_pair_after_encoded_continuation
+  - absolute_path_value_with_plus
+  - absolute_path_value_with_equals
+  - value_with_sigils_and_digits
+  - words_with_digits_inside_a_word
+  - token_after_encoded_carriage_return
+  - quoted_setting_after_unquoted_setting
+  - single_quoted_setting_after_unquoted_setting
+  - escaped_quoted_setting_after_unquoted_setting
+  - unquoted_setting_after_quoted_setting
+  - quoted_setting_between_other_settings
+  - credential_before_placeholder_in_quotes
+  - credential_before_other_rule_placeholder
+  - credential_after_placeholder_unquoted
+  - credential_around_placeholder_unquoted
+  - placeholders_alone_unchanged
+  - template_before_text_unchanged
+  - braced_variable_followed_by_text
+  - command_substitution_followed_by_text
+  - connection_string_key_with_space_after
+  - connection_string_keys_with_spaces_around
+  - connection_string_flag_key_with_space
+required_value_rule_replacements_ids:
+  - key_name_secret
+  - url_query_secret
+  - cookie_header
+  - curl_user_password
+required_linear_time_ids:
+  - settings_joined_by_commas
+  - settings_joined_by_semicolons
+  - values_before_an_opening_angle_bracket
+  - values_before_a_closing_angle_bracket
+  - quoted_settings_after_unquoted_settings
+  - settings_with_spaced_names
+required_unchanged_text_ids:
+  - shell_variable
+  - braced_shell_variable
+  - process_environment_read
+  - environment_index_read
+  - angle_template
+  - placeholder_words
+  - asterisk_mask
+  - ellipsis
+  - type_name
+  - null_literal
+  - true_literal
+  - maximum_token_count
+  - input_token_count
+  - name_only_contains_auth
+  - curl_other_command
+  - object_without_key_type
+  - api_key_header_placeholder
+  - x_api_key_header_variable
+  - auth_token_header_placeholder
+  - access_token_header_variable
+  - call_result_indexed
+  - schema_builder_chain
+  - generated_key_decoded
+  - random_bytes_as_text
+  - optional_chain_call
+  - unquoted_command_substitution
+  - url_query_format_verb
+  - url_query_percent_variable
+  - unquoted_percent_variable
+  - member_access_with_digit_in_lower_case_part
+  - prefixed_identifier_with_version_digit
+  - curl_placeholder_password_password
+  - curl_placeholder_password_passwd
+  - curl_placeholder_password_pass
+  - curl_placeholder_password_pwd
+  - curl_placeholder_password_secret
+  - curl_placeholder_password_token
+  - curl_placeholder_password_key
+  - curl_placeholder_password_apikey
+  - curl_placeholder_password_api_key
+  - nested_call_uuid
+  - nested_call_random_bytes
+  - nested_call_password_hash
+  - nested_call_signed_object
+  - nested_call_go_conversion
+  - nested_call_hmac_digest
+  - nested_call_hash_digest
+  - braced_variable_with_default
+  - braced_variable_then_path
+  - closed_command_substitution
+  - variable_then_path
+  - curl_password_variable
+  - curl_password_angle_template
+  - curl_password_brace_template
+  - curl_password_format_verb
+  - curl_placeholder_password_upper_case
+  - curl_user_and_group_numbers
+  - curl_longer_command_word
+  - curl_before_encoded_line_end
+  - value_relative_path_up
+  - value_identifier_with_sigils
 secrets:
   - {id: anthropic_key, level: minimal, input: "sk-ant-api03-abc123def456abc123def456abc123def456abc123", contains: "<ANTHROPIC_KEY>"}
   - {id: openai_key, level: minimal, input: "sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789", contains: "<OPENAI_KEY>"}
@@ -166,6 +341,633 @@ code_pipeline:
 # the account name included, collapses into one placeholder in all three
 # separator forms. The prefixes come from every recorded path, so a value whose
 # shape differs from the working directory is covered too.
+json_keys:
+  - id: secret_named_key_redacts_value
+    why: a JSON object key names the value it holds, so a password under a secret name is redacted although the value alone has no known format
+    level: standard
+    json: '{"db_password": "canaryJsonPw0rd!2026", "user": "jane"}'
+    want: '{"db_password": "<SECRET>", "user": "jane"}'
+    key_redactions: 1
+    counts: {key_name_secret: 1}
+    categories: [secrets]
+  - id: secret_named_key_redacts_value_at_minimal
+    why: the key-name rule is in the secrets category, so the JSON form is active at minimal like the text form
+    level: minimal
+    json: '{"db_password": "canaryJsonPw0rd!2026"}'
+    want: '{"db_password": "<SECRET>"}'
+    key_redactions: 1
+  - id: nested_secret_named_key
+    why: the key test applies at every depth of the document
+    level: standard
+    json: '{"config": {"database": {"clientSecret": "canaryCamel-9f8e7d6c5b4a"}}}'
+    want: '{"config": {"database": {"clientSecret": "<SECRET>"}}}'
+    key_redactions: 1
+  - id: secret_named_key_inside_array
+    why: objects inside an array are walked with the same key test
+    level: standard
+    json: '[{"name": "ci", "access_token": "canaryArrayTok0123456789"}]'
+    want: '[{"name": "ci", "access_token": "<SECRET>"}]'
+    key_redactions: 1
+  - id: vendor_token_under_secret_name_keeps_label
+    why: a value a format rule covers whole keeps the more specific placeholder
+    level: standard
+    json: '{"token": "ghp_abcdefghijklmnopqrstuvwxyz0123456789"}'
+    want: '{"token": "<GITHUB_PAT>"}'
+  - id: ordinary_key_with_same_value_unchanged
+    why: the key decides; the same value under an ordinary name is not a finding
+    level: standard
+    json: '{"build_label": "canaryJsonPw0rd!2026"}'
+    want: '{"build_label": "canaryJsonPw0rd!2026"}'
+  - id: variable_reference_value_unchanged
+    why: a reference to a variable holds no credential
+    level: standard
+    json: '{"api_token": "${DEPLOY_TOKEN_VALUE}"}'
+    want: '{"api_token": "${DEPLOY_TOKEN_VALUE}"}'
+  - id: placeholder_value_unchanged
+    why: a template is not a credential
+    level: standard
+    json: '{"password": "<your-password>"}'
+    want: '{"password": "<your-password>"}'
+  - id: type_name_value_unchanged
+    why: a schema that names the type of a field holds no credential
+    level: standard
+    json: '{"password": "string", "token": "undefined"}'
+    want: '{"password": "string", "token": "undefined"}'
+  - id: token_count_unchanged
+    why: a number is never a string value, and a plural name does not end in a secret word
+    level: standard
+    json: '{"max_tokens": 4096, "input_tokens": 10, "token": 12}'
+    want: '{"max_tokens": 4096, "input_tokens": 10, "token": 12}'
+  - id: description_with_spaces_unchanged
+    why: a value with spaces under a secret name is a description, the same call the text form makes
+    level: standard
+    json: '{"token": "The API token to send with each request"}'
+    want: '{"token": "The API token to send with each request"}'
+  - id: object_under_secret_name_is_walked
+    why: only a string value is taken whole; an object under a secret name is walked, and its own keys are tested
+    level: standard
+    json: '{"auth": {"username": "jane", "password": "canaryNestedPw0rd!41"}}'
+    want: '{"auth": {"username": "jane", "password": "<SECRET>"}}'
+    key_redactions: 1
+  - id: strict_ending_short_value_unchanged
+    why: a name that ends in auth often holds a scheme or a mode, so only a long value that mixes letters and digits is taken
+    level: standard
+    json: '{"auth": "basic-realm-2026"}'
+    want: '{"auth": "basic-realm-2026"}'
+  - id: text_inside_string_value_still_scanned
+    why: a string under an ordinary key is still scanned as text, so an assignment written inside it is redacted in place
+    level: standard
+    json: '{"command": "export INTERNAL_API_TOKEN=canary-9f8e7d6c5b4a3928"}'
+    want: '{"command": "export INTERNAL_API_TOKEN=<SECRET>"}'
+    key_redactions: 1
+  - id: model_output_token_unchanged
+    why: an entry of a token-probability list holds a piece of model output under "token"; the log probability beside it says it is not a credential
+    level: standard
+    json: '{"token": "localhost:8080x", "logprob": -0.1, "bytes": [1, 2]}'
+    want: '{"token": "localhost:8080x", "logprob": -0.1, "bytes": [1, 2]}'
+  - id: web_key_private_members
+    why: in an object that carries a key type, every private member is replaced and the public members stay, so the output still shows which key it was
+    level: minimal
+    json: '{"kty": "RSA", "n": "canaryModulus0123456789abcdefghijklmnop", "e": "AQAB", "d": "canaryPrivateMember0123456789abcdefghijklmn", "p": "canaryPrimeMember0123456789abcdefghijklmnop", "q": "canaryPrimeMember9876543210abcdefghijklmnop"}'
+    want: '{"kty": "RSA", "n": "canaryModulus0123456789abcdefghijklmnop", "e": "AQAB", "d": "<JWK_PRIVATE_KEY>", "p": "<JWK_PRIVATE_KEY>", "q": "<JWK_PRIVATE_KEY>"}'
+    key_redactions: 3
+    counts: {jwk_private_member: 3}
+    categories: [secrets]
+  - id: web_key_public_key_unchanged
+    why: a public key has no private member, and nothing in it is a credential
+    level: minimal
+    json: '{"kty": "EC", "crv": "P-256", "x": "canaryPublicX", "y": "canaryPublicY"}'
+    want: '{"kty": "EC", "crv": "P-256", "x": "canaryPublicX", "y": "canaryPublicY"}'
+  - id: private_member_name_without_key_type_unchanged
+    why: a member named d in an object with no key type is ordinary data
+    level: minimal
+    json: '{"d": "canaryNotAKeyValue0123456789abcdefg", "name": "delta"}'
+    want: '{"d": "canaryNotAKeyValue0123456789abcdefg", "name": "delta"}'
+  - id: password_beside_log_probability
+    why: a log probability excuses only the "token" member beside it; any other secret-named member of that object is still a credential
+    level: standard
+    json: '{"token": "localhost:8080x", "logprob": -0.1, "password": "canaryJsonPw0rd!2026"}'
+    want: '{"token": "localhost:8080x", "logprob": -0.1, "password": "<SECRET>"}'
+    key_redactions: 1
+  - id: authorization_header_key
+    why: a decoded request holds the header name as the key and the value apart from it, so the value is read as the value of that header
+    level: minimal
+    json: '{"headers": {"Authorization": "token canaryAuthTok0123456789abcd", "Accept": "application/json"}}'
+    want: '{"headers": {"Authorization": "token <AUTH_TOKEN>", "Accept": "application/json"}}'
+  - id: cookie_header_key
+    why: a cookie header in a decoded request is redacted like the header line
+    level: minimal
+    json: '{"headers": {"cookie": "sessionid=canarySessionCookie0123456789abcdef; theme=dark"}}'
+    want: '{"headers": {"cookie": "<COOKIE>"}}'
+  - id: header_key_with_placeholder_unchanged
+    why: a placeholder under a header key is not a credential
+    level: minimal
+    json: '{"headers": {"Authorization": "token YOUR-TOKEN", "Cookie": "$SESSION_COOKIE"}}'
+    want: '{"headers": {"Authorization": "token YOUR-TOKEN", "Cookie": "$SESSION_COOKIE"}}'
+  - id: basic_authorization_header_key
+    why: basic_auth replaces the header name together with the value, so nothing of the name is left to take off. The placeholder is the redacted value, and the value is not scanned a second time without its name.
+    level: standard
+    json: '{"Authorization": "Basic Y2FuYXJ5OmNhbmFyeXBhc3N3b3Jk"}'
+    want: '{"Authorization": "<BASIC_AUTH>"}'
+    counts: {basic_auth: 1}
+  - id: header_key_value_is_counted_once
+    why: The rule takes the space after the colon, so the redacted line no longer starts with the whole name. The value is still redacted in one pass and counted once.
+    level: standard
+    json: '{"authorization": "AKCcanary0123456789"}'
+    want: '{"authorization": "<ARTIFACTORY_API_TOKEN>"}'
+    counts: {artifactory_api_token: 1}
+  - id: cookie_header_key_is_counted_once
+    why: A value under a header key is one redaction in the report.
+    level: standard
+    json: '{"Cookie": "sessionid=canarySessionCookie0123456789abcdef"}'
+    want: '{"Cookie": "<COOKIE>"}'
+    counts: {cookie_header: 1}
+  - id: value_with_trailing_line_end
+    why: A decoded string is known whole, so the line end after the value is not part of it and does not make the value a description. The whole string is replaced.
+    level: standard
+    json: '{"password": "canaryPw0rd99x\n", "db_password": "  canaryPw0rd98x  "}'
+    want: '{"password": "<SECRET>", "db_password": "<SECRET>"}'
+    key_redactions: 2
+  - id: value_with_brackets_inside
+    why: A parenthesis or an angle bracket inside a value does not make it a call or a template; only a value that is one of those as a whole is kept.
+    level: standard
+    json: '{"password": "Xk9(canary2<vL7pR4", "db_password": "$ecret!Canary99", "token": "[canaryB3xkd92"}'
+    want: '{"password": "<SECRET>", "db_password": "<SECRET>", "token": "<SECRET>"}'
+    key_redactions: 3
+  - id: value_starting_with_slash
+    why: A credential in the base64 alphabet may start with a slash. One long segment that mixes letters and digits is not a path.
+    level: standard
+    json: '{"secret_key": "/canary0Fk29dLq0Pz71Xn5Rv3Tb6Yc4Wm2Qe8H", "private_key": "/etc/ssl/private/server-2026.key"}'
+    want: '{"secret_key": "<SECRET>", "private_key": "/etc/ssl/private/server-2026.key"}'
+    key_redactions: 1
+  - id: weak_password_value
+    why: A value of 8 or more characters that mixes letters and digits is redacted. Shorter values, letters alone and digits alone stay by decision.
+    level: standard
+    json: '{"password": "Summer2024", "db_password": "hunter2", "admin_password": "changeme", "pin_secret": "12345678"}'
+    want: '{"password": "<SECRET>", "db_password": "hunter2", "admin_password": "changeme", "pin_secret": "12345678"}'
+    key_redactions: 1
+  - id: whole_value_call_unchanged
+    why: A value that is a call, a type or a template as a whole is code, not a credential.
+    level: standard
+    json: '{"token": "getToken(user1)", "secret": "Optional<String1>", "password": "{password1}"}'
+    want: '{"token": "getToken(user1)", "secret": "Optional<String1>", "password": "{password1}"}'
+  - id: identifier_value_with_digit_unchanged
+    why: A name made of words in which digits only end a word is an identifier.
+    level: standard
+    json: '{"token": "oauth2_token", "password": "sha256_password", "existingSecret": "db-credentials-prod2"}'
+    want: '{"token": "oauth2_token", "password": "sha256_password", "existingSecret": "db-credentials-prod2"}'
+  - id: web_key_remaining_private_members
+    why: Together with web_key_private_members this covers every member of the closed list, and the public members beside them stay.
+    level: standard
+    json: '{"kty": "RSA", "kid": "canary-key-2026", "alg": "RS256", "use": "sig", "dp": "canaryExponentP0123456789abcdefghijklmn", "dq": "canaryExponentQ0123456789abcdefghijklmn", "qi": "canaryCoefficient0123456789abcdefghijkl", "k": "canarySymmetricKey0123456789abcd"}'
+    want: '{"kty": "RSA", "kid": "canary-key-2026", "alg": "RS256", "use": "sig", "dp": "<JWK_PRIVATE_KEY>", "dq": "<JWK_PRIVATE_KEY>", "qi": "<JWK_PRIVATE_KEY>", "k": "<JWK_PRIVATE_KEY>"}'
+    key_redactions: 4
+  - id: set_cookie_header_key
+    why: Set-Cookie is the third header key, and the key is compared without case.
+    level: standard
+    json: '{"headers": {"Set-Cookie": "sessionid=canarySetCookie0123456789; Path=/; HttpOnly"}}'
+    want: '{"headers": {"Set-Cookie": "<COOKIE>"}}'
+    counts: {cookie_header: 1}
+  - id: other_header_key_is_ordinary_text
+    why: A key outside the closed list is not read as a header, so the header rules, which need the header name in front of the value, do not apply to it.
+    level: standard
+    json: '{"headers": {"Proxy-Authorization": "token canaryAuthTok0123456789abcd", "X-Cookie": "sessionid=canarySessionCookie0123456789abcdef"}}'
+    want: '{"headers": {"Proxy-Authorization": "token canaryAuthTok0123456789abcd", "X-Cookie": "sessionid=canarySessionCookie0123456789abcdef"}}'
+  - id: keys_that_only_contain_a_secret_word_unchanged
+    why: A key that holds a secret word without ending in it names something else, so a value under it that would pass the value test is kept.
+    level: standard
+    json: '{"token_type": "canaryBearer2026", "author_id": "canaryAuthor12345", "secret_ref": "canarySecretRef2026", "password_hint": "canaryHint2026x"}'
+    want: '{"token_type": "canaryBearer2026", "author_id": "canaryAuthor12345", "secret_ref": "canarySecretRef2026", "password_hint": "canaryHint2026x"}'
+  - id: value_a_format_rule_matches_in_part
+    why: A format rule that matches the start of the value and not all of it does not take the value; the key-name placeholder replaces the whole value.
+    level: standard
+    json: '{"password": "ghp_canary0123456789abcdefghijklmnopqrst-tail99"}'
+    want: '{"password": "<SECRET>"}'
+    key_redactions: 1
+  - id: short_symmetric_key_member_unchanged
+    why: A private member of a JSON Web Key shorter than the smallest key in use is not key material.
+    level: standard
+    json: '{"kty": "oct", "k": "canary"}'
+    want: '{"kty": "oct", "k": "canary"}'
+  - id: credential_after_placeholder_in_value
+    why: A placeholder in the value holds none of the text it replaced, so the text after it is still judged.
+    level: standard
+    json: '{"password": "<SECRET>canaryXk9mQ2vL7pR4"}'
+    want: '{"password": "<SECRET>"}'
+    key_redactions: 1
+observed_json_keys:
+  - id: value_under_secret_key
+    why: A value replaced because of its key reaches the observer as one child record that names the rule, its category and its place in the rule table.
+    json: '{"db_password": "canaryJsonPw0rd!2026"}'
+    rule: key_name_secret
+    category: secrets
+  - id: web_key_private_member
+    why: The same holds for a private member of a JSON Web Key.
+    json: '{"kty": "oct", "k": "canarySymmetricKey0123456789abcd"}'
+    rule: jwk_private_member
+    category: secrets
+  - id: value_under_header_key
+    why: A value read as a header reaches the observer as the detection of the header rule, counted once.
+    json: '{"Authorization": "token canaryAuthTok0123456789abcd"}'
+    rule: authorization_token
+    category: secrets
+observed_text:
+  - id: value_covered_by_format_rule
+    why: The key-name match is dropped in detection, so an observer is told of the format rule alone.
+    input: 'GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789'
+    detections: {github_pat: 1}
+  - id: value_cut_by_later_match
+    why: Both matches are applied, and both are counted once.
+    input: 'token=abc12345Bearer canarybearer0123456789abcd'
+    detections: {key_name_secret: 1, bearer_token: 1}
+  - id: value_and_card_number
+    why: The card number after the value is found and counted beside the value.
+    input: 'password=canaryPw0rd2026,card=4111 1111 1111 1111'
+    detections: {key_name_secret: 1, credit_card: 1}
+inactive_json_key_rules:
+  - id: key_name_rule_inactive
+    why: RedactJSON replaces a value under a secret key only while key_name_secret is active at the configured level, as the text form does.
+    rule: key_name_secret
+    json: '{"db_password": "canaryJsonPw0rd!2026"}'
+  - id: web_key_rule_inactive
+    why: RedactJSON replaces a private member only while jwk_private_member is active at the configured level.
+    rule: jwk_private_member
+    json: '{"kty": "oct", "k": "canarySymmetricKey0123456789abcd"}'
+standard_text_outputs:
+  - id: tail_keeps_closing_parenthesis
+    why: the text a value continues with past an angle bracket does not end in the parenthesis that closes the condition
+    input: 'if (password=canaryPw0rd<x) then'
+    want: 'if (password=<SECRET>) then'
+  - id: redirect_after_value
+    why: a shell redirect after the value is not part of it, so the file name stays
+    input: 'echo token=canaryTok3n>>log9.txt'
+    want: 'echo token=<SECRET>>>log9.txt'
+  - id: redirect_after_value_to_stream
+    why: the same for a redirect to another stream
+    input: 'echo token=canaryTok3n>&2'
+    want: 'echo token=<SECRET>>&2'
+  - id: clone_url_with_token_user
+    why: the user of a clone URL ends in "token", and its password ends at the "@", so the host and the repository stay
+    input: 'git clone https://x-access-token:ghs_canary0123456789abcdefghijklmnopqrstu@github.com/o/r.git'
+    want: 'git clone https://<BASIC_AUTH_URI>@github.com/o/r.git'
+  - id: clone_url_with_ci_token_user
+    why: the same for the user name of a CI job token
+    input: 'https://gitlab-ci-token:canaryCiTok3n99@gitlab.example.com/group/proj.git'
+    want: 'https://<BASIC_AUTH_URI>@gitlab.example.com/group/proj.git'
+  - id: curl_pair_beside_commit_hash
+    why: the placeholder of the curl pair holds no word that the AWS secret key rule reads as context, so a second pass leaves the commit hash on the same line alone
+    input: 'curl -u admin:canaryCurlPw0rd https://api.github.com/repos/o/r/commits/3f786850e387550fdab836ed7e6dc881de23001b'
+    want: 'curl -u <USER_PASSWORD> https://api.github.com/repos/o/r/commits/3f786850e387550fdab836ed7e6dc881de23001b'
+  - id: url_query_value_percent_encoded
+    why: in a URL query a percent sign and two hex digits are an encoded character, not a format verb
+    input: 'https://api.example.com/v1?access_token=%2BcanaryB3xkd92LqZw81&x=1'
+    want: 'https://api.example.com/v1?access_token=<SECRET>&x=1'
+  - id: unquoted_value_with_dollar_signs
+    why: a dollar sign that does not start a variable name, a brace or a parenthesis is data
+    input: 'DB_PASSWORD=$2a$10$canaryN9qo8uLOickgx2ZMRZoMye'
+    want: 'DB_PASSWORD=<SECRET>'
+  - id: path_value_with_account_name_is_stable
+    why: a value read as a path keeps its form, the account name in it is replaced, and a second pass sees the placeholder and leaves the value alone
+    input: 'token=canary12345/Users/jane/secret9.txt'
+    want: 'token=canary12345/Users/<USER>/secret9.txt'
+  - id: slug_value_with_account_name_is_stable
+    why: the same for a quoted value made of words and dashes that holds an account name
+    input: "secret='--Users--johndoe--'"
+    want: "secret='--Users--<USER>--'"
+  - id: dotted_password_with_digits_after_capital_word
+    why: a dotted value whose last part is a capitalised word ending in a digit is a password, not a member access
+    input: 'password=Canary.Pass1'
+    want: 'password=<SECRET>'
+  - id: dotted_password_with_two_digits
+    why: the same with two digits
+    input: 'DB_PASSWORD=Canary.Snow24'
+    want: 'DB_PASSWORD=<SECRET>'
+  - id: format_token_ending_the_value
+    why: a format token that starts inside the value and ends with it lies inside the value, so the value match replaces all of it
+    input: 'token=canary12345-ghp_canary0123456789abcdefghijklmnopqrst'
+    want: 'token=<SECRET>'
+  - id: curl_pair_in_argument_list
+    why: the option and the pair as members of an argument list
+    input: 'subprocess.run([''curl'', ''-u'', ''admin:canaryCurlPw0rd'', url])'
+    want: 'subprocess.run([''curl'', ''-u'', ''<USER_PASSWORD>'', url])'
+  - id: curl_pair_in_escaped_quotes
+    why: a pair in escaped quotes inside a JSON string keeps its quotes
+    input: '{"cmd": "curl -u \"admin:canaryCurlPw0rd\" https://api.example.com"}'
+    want: '{"cmd": "curl -u \"<USER_PASSWORD>\" https://api.example.com"}'
+  - id: curl_pair_after_encoded_continuation
+    why: a backslash before an encoded line end continues the curl command onto the next line
+    input: '{"cmd": "curl -s \\\n  -u admin:canaryCurlPw0rd https://api.example.com"}'
+    want: '{"cmd": "curl -s \\\n  -u <USER_PASSWORD> https://api.example.com"}'
+  - id: absolute_path_value_with_plus
+    why: a value that opens with a slash and holds a plus sign is base64, not a path
+    input: 'SECRET_KEY=/canary/Pw0rd+9x/abc'
+    want: 'SECRET_KEY=<SECRET>'
+  - id: absolute_path_value_with_equals
+    why: the same with an equals sign
+    input: 'SECRET_KEY=/canary/Pw0rd=9x/abc'
+    want: 'SECRET_KEY=<SECRET>'
+  - id: value_with_sigils_and_digits
+    why: sigils around a value that mixes letters and digits are part of a credential
+    input: 'password=*canaryPw0rd9 secret=@canaryPw0rd9 token=canaryPw0rd9! passwd=canaryPw0rd9?'
+    want: 'password=<SECRET> secret=<SECRET> token=<SECRET> passwd=<SECRET>'
+  - id: words_with_digits_inside_a_word
+    why: a name made of words in which digits sit inside a word, not at its end, is a credential
+    input: 'password=canary_pass9x_word'
+    want: 'password=<SECRET>'
+  - id: token_after_encoded_carriage_return
+    why: the letter of an encoded carriage return before a token prefix does not make the prefix part of a word
+    input: '{"out": "done\rhf_canarytoken0123456789abcdefghij"}'
+    want: '{"out": "done\r<HUGGINGFACE_TOKEN>"}'
+  - id: quoted_setting_after_unquoted_setting
+    why: a double-quoted setting after an unquoted one in a comma-separated run is judged on the first pass
+    input: 'password=canary12345,token="canaryXyz12345"'
+    want: 'password=<SECRET>,token="<SECRET>"'
+  - id: single_quoted_setting_after_unquoted_setting
+    why: the same for a single-quoted setting after a semicolon
+    input: 'password=canary12345;token=''canaryXyz12345'' next'
+    want: 'password=<SECRET>;token=''<SECRET>'' next'
+  - id: escaped_quoted_setting_after_unquoted_setting
+    why: the same for an escaped double-quoted setting inside a JSON string
+    input: '{"cmd": "run password=canary12345,token=\"canaryXyz12345\" now"}'
+    want: '{"cmd": "run password=<SECRET>,token=\"<SECRET>\" now"}'
+  - id: unquoted_setting_after_quoted_setting
+    why: an unquoted setting after a single-quoted one is judged too
+    input: 'a_token=''canaryAbc12345'';db_password=canaryPw0rd99'
+    want: 'a_token=''<SECRET>'';db_password=<SECRET>'
+  - id: quoted_setting_between_other_settings
+    why: settings that are not secret around the quoted one stay
+    input: 'password=canary12345,user=jane,token="canaryXyz12345",mode=x'
+    want: 'password=<SECRET>,user=jane,token="<SECRET>",mode=x'
+  - id: credential_before_placeholder_in_quotes
+    why: a placeholder in a quoted value holds none of the text it replaced, so the text before it is still judged
+    input: 'password="canaryXk9mQ2vL7pR4<SECRET>"'
+    want: 'password="<SECRET>"'
+  - id: credential_before_other_rule_placeholder
+    why: the same for another rule's placeholder
+    input: 'password="canaryXk9mQ2vL7pR4<EMAIL>"'
+    want: 'password="<SECRET>"'
+  - id: credential_after_placeholder_unquoted
+    why: an unquoted value that opens with a placeholder goes on through it, and the text after it is judged
+    input: 'token=<SECRET>canaryTok3n99'
+    want: 'token=<SECRET>'
+  - id: credential_around_placeholder_unquoted
+    why: the same for text on both sides of a placeholder
+    input: 'token=canary<SECRET>realTok3n99 next'
+    want: 'token=<SECRET> next'
+  - id: placeholders_alone_unchanged
+    why: a value made of placeholders alone is left as it is
+    input: 'token=<SECRET><BEARER_TOKEN> next'
+    want: 'token=<SECRET><BEARER_TOKEN> next'
+  - id: template_before_text_unchanged
+    why: an angle-bracket template that is not a placeholder of this package does not open a value
+    input: 'token=<TOKEN>canary12345x'
+    want: 'token=<TOKEN>canary12345x'
+  - id: braced_variable_followed_by_text
+    why: a braced variable followed by literal text holds a credential
+    input: 'DB_PASSWORD=${VAR}canaryXk9mQ2vL7pR4'
+    want: 'DB_PASSWORD=<SECRET>'
+  - id: command_substitution_followed_by_text
+    why: the same for a command substitution followed by literal text
+    input: 'DB_PASSWORD=$(echo)canaryXk9mQ2vL7pR4'
+    want: 'DB_PASSWORD=<SECRET>'
+  - id: connection_string_key_with_space_after
+    why: the key after the password in a connection string holds a space, and the value ends before it
+    input: 'Data Source=x;Password=canaryXk9mQ2vL7pR4;User ID=sa'
+    want: 'Data Source=x;Password=<SECRET>;User ID=sa'
+  - id: connection_string_keys_with_spaces_around
+    why: the same with keys holding spaces before and after the password
+    input: 'Data Source=x;Initial Catalog=db;Password=canaryXk9mQ2vL7pR4;User ID=sa;'
+    want: 'Data Source=x;Initial Catalog=db;Password=<SECRET>;User ID=sa;'
+  - id: connection_string_flag_key_with_space
+    why: the same for a lower-case password key and a flag key with a space
+    input: 'password=canaryXk9mQ2vL7pR4;Integrated Security=true'
+    want: 'password=<SECRET>;Integrated Security=true'
+# The rules that replace a value and not their whole pattern match. Each
+# Replacement is the bare placeholder; the recovery path keeps the name.
+value_rule_replacements:
+  - id: key_name_secret
+    why: recovery keeps the name and the quotes around the value
+    placeholder: '<SECRET>'
+    recovery_input: 'DB_PASSWORD="canaryPw0rd2026"'
+    recovery_output: 'DB_PASSWORD="<SECRET>"'
+  - id: url_query_secret
+    why: recovery keeps the parameter name
+    placeholder: '<SECRET>'
+    recovery_input: 'https://api.example.com/v1?access_token=canaryQueryTok3n&x=1'
+    recovery_output: 'https://api.example.com/v1?access_token=<SECRET>&x=1'
+  - id: cookie_header
+    why: recovery keeps the header name
+    placeholder: '<COOKIE>'
+    recovery_input: 'Cookie: sid=canarySessi0nId99'
+    recovery_output: 'Cookie: <COOKIE>'
+  - id: curl_user_password
+    why: recovery keeps the option and the quotes around the pair
+    placeholder: '<USER_PASSWORD>'
+    recovery_input: 'curl -u "admin:canaryCurlPw0rd" https://api.example.com'
+    recovery_output: 'curl -u "<USER_PASSWORD>" https://api.example.com'
+linear_time:
+  - id: settings_joined_by_commas
+    why: every setting of the run is cut from one unquoted value and read once
+    unit: 'db_password=a1b2c3d4,'
+  - id: settings_joined_by_semicolons
+    why: the same for settings joined by semicolons, with settings that are not secret between them
+    unit: 'password=abc12345;b=1,'
+  - id: values_before_an_opening_angle_bracket
+    why: the text read past an angle bracket after each value is bounded
+    unit: 'token=abcd1234<'
+  - id: values_before_a_closing_angle_bracket
+    why: the same for a closing angle bracket
+    unit: 'token=abcd1234>'
+  - id: quoted_settings_after_unquoted_settings
+    why: the quoted value after the last setting of each run is read up to its closing quote, once
+    unit: 'a=b,db_token="canaryQ1w2e3"'
+  - id: settings_with_spaced_names
+    why: the look-ahead for a setting name that holds a space is bounded
+    unit: 'Password=a1b2c3d4;User ID=sa;'
+unchanged_text:
+  - id: shell_variable
+    why: a variable reference holds no credential
+    input: 'INTERNAL_API_TOKEN=$DEPLOY_TOKEN_VALUE'
+  - id: braced_shell_variable
+    why: a braced variable reference holds no credential
+    input: 'INTERNAL_API_TOKEN=${DEPLOY_TOKEN_VALUE}'
+  - id: process_environment_read
+    why: reading the environment is code
+    input: 'const token = process.env.INTERNAL_API_TOKEN'
+  - id: environment_index_read
+    why: reading the environment is code
+    input: 'password = os.environ["DB_PASSWORD"]'
+  - id: angle_template
+    why: an angle-bracket template is a placeholder
+    input: 'curl "https://api.example.test/export?token=<token>"'
+  - id: placeholder_words
+    why: a placeholder made of words is not a credential
+    input: 'api_key=your_api_key and token=your_api_token'
+  - id: asterisk_mask
+    why: a mask means the value was already removed
+    input: 'password=***'
+  - id: ellipsis
+    why: an ellipsis stands for an omitted value
+    input: 'token: ...'
+  - id: type_name
+    why: a type name in a declaration is not a value
+    input: 'password: string'
+  - id: null_literal
+    why: a null literal is not a value
+    input: '{"token": null, "secret": "null"}'
+  - id: true_literal
+    why: a boolean literal is not a value
+    input: 'use_token: true, secret=true'
+  - id: maximum_token_count
+    why: a token limit is a count
+    input: 'max_tokens=4096'
+  - id: input_token_count
+    why: a token usage figure is a count
+    input: 'input_tokens: 10'
+  - id: name_only_contains_auth
+    why: a name that contains a secret word and does not end in it is ordinary
+    input: 'author=jane-doe-2026x authority: registry.example.test oauth_callback_url=/callback/2026x'
+  - id: curl_other_command
+    why: the user option of another command is not a credential
+    input: 'sort -u names:canaryList0123 sorted.txt'
+  - id: object_without_key_type
+    why: a member named d outside a JSON Web Key is ordinary data
+    input: '{"d": "canaryNotAKeyValue0123456789abcdefg", "name": "delta"}'
+  - id: api_key_header_placeholder
+    why: a template in an API-key header is not a credential
+    input: 'api-key: <your-api-key>'
+  - id: x_api_key_header_variable
+    why: a variable reference in an API-key header is not a credential
+    input: 'x-api-key: $SERVICE_API_KEY_VALUE_2026'
+  - id: auth_token_header_placeholder
+    why: a placeholder word in a token header is not a credential
+    input: 'auth-token: your-auth-token'
+  - id: access_token_header_variable
+    why: a variable reference in a token header is not a credential
+    input: 'access-token: ${SERVICE_ACCESS_TOKEN_2026}'
+  - id: call_result_indexed
+    why: the result of a call, then indexed, is code; the unquoted value stops at the quote of the index
+    input: 'token = response.json()["access_token"]'
+  - id: schema_builder_chain
+    why: a chain of calls that builds a schema is code
+    input: 'password: z.string().min(8),'
+  - id: generated_key_decoded
+    why: a call on the result of a call is code
+    input: 'secret = Fernet.generate_key().decode()'
+  - id: random_bytes_as_text
+    why: a chain of calls cut at the quote of its argument is code
+    input: "const secret = crypto.randomBytes(32).toString('hex')"
+  - id: optional_chain_call
+    why: an optional member access that ends in a call is code
+    input: "const token = req.headers.authorization?.split(' ')[1]"
+  - id: unquoted_command_substitution
+    why: a command substitution cut at its first space is a reference
+    input: 'TOKEN=$(cat /run/secrets/canary_tok3n)'
+  - id: url_query_format_verb
+    why: a format verb in a URL query does not decode and stays a template
+    input: 'https://api.example.com/v1?access_token=%s&x=1'
+  - id: url_query_percent_variable
+    why: a variable between percent signs in a URL query does not decode and stays a reference
+    input: 'https://api.example.com/v1?access_token=%API_TOKEN_2026%&x=1'
+  - id: unquoted_percent_variable
+    why: a variable between percent signs is a reference
+    input: 'DB_PASSWORD=%DB_PASSWORD_2026%'
+  - id: member_access_with_digit_in_lower_case_part
+    why: a member access whose parts start in lower case stays code although it holds digits
+    input: 'token = config.oauth2.accessToken9'
+  - id: prefixed_identifier_with_version_digit
+    why: a name of words that starts with a token prefix and holds a digit only at the end of a word is an identifier
+    input: 'vcr_cassette_library_dir_py3 = "fixtures/cassettes"'
+  - id: curl_placeholder_password_password
+    why: the word "password" in place of the password is a placeholder
+    input: 'curl -u admin:password https://api.example.com'
+  - id: curl_placeholder_password_passwd
+    why: the word "passwd" in place of the password is a placeholder
+    input: 'curl -u admin:passwd https://api.example.com'
+  - id: curl_placeholder_password_pass
+    why: the word "pass" in place of the password is a placeholder
+    input: 'curl -u admin:pass https://api.example.com'
+  - id: curl_placeholder_password_pwd
+    why: the word "pwd" in place of the password is a placeholder
+    input: 'curl -u admin:pwd https://api.example.com'
+  - id: curl_placeholder_password_secret
+    why: the word "secret" in place of the password is a placeholder
+    input: 'curl -u admin:secret https://api.example.com'
+  - id: curl_placeholder_password_token
+    why: the word "token" in place of the password is a placeholder
+    input: 'curl -u admin:token https://api.example.com'
+  - id: curl_placeholder_password_key
+    why: the word "key" in place of the password is a placeholder
+    input: 'curl -u admin:key https://api.example.com'
+  - id: curl_placeholder_password_apikey
+    why: the word "apikey" in place of the password is a placeholder
+    input: 'curl -u admin:apikey https://api.example.com'
+  - id: curl_placeholder_password_api_key
+    why: the word "api_key" in place of the password is a placeholder
+    input: 'curl -u admin:api_key https://api.example.com'
+  - id: nested_call_uuid
+    why: a call whose argument is another call is code
+    input: 'token = str(uuid.uuid4())'
+  - id: nested_call_random_bytes
+    why: the same for an encoder over random bytes
+    input: 'secret_key = base64.urlsafe_b64encode(os.urandom(32))'
+  - id: nested_call_password_hash
+    why: a hash call whose arguments hold calls and a quoted text is code
+    input: 'hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())'
+  - id: nested_call_signed_object
+    why: a call whose argument is a call with a keyword argument is code
+    input: 'auth_token = sign(dict(user_id=uid), key)'
+  - id: nested_call_go_conversion
+    why: a call on a conversion is code
+    input: 'token := base64.StdEncoding.EncodeToString([]byte(user + ":" + pass))'
+  - id: nested_call_hmac_digest
+    why: a call chain over a call with a call in its arguments is code
+    input: 'secret = hmac.new(key.encode(), msg, hashlib.sha256).hexdigest()'
+  - id: nested_call_hash_digest
+    why: a digest of a hash of random bytes is code
+    input: 'secret = hashlib.sha256(os.urandom(32)).hexdigest()'
+  - id: braced_variable_with_default
+    why: a braced variable with a default value is a reference
+    input: 'DB_PASSWORD=${DB_PASSWORD_2026:-canaryDefault9}'
+  - id: braced_variable_then_path
+    why: a braced variable followed by a path is a reference
+    input: 'TOKEN_FILE_SECRET=${HOME}/.canary/tok3n_2026'
+  - id: closed_command_substitution
+    why: a closed command substitution in quotes is a reference
+    input: 'DB_PASSWORD="$(cat /run/canary_pw2026)"'
+  - id: variable_then_path
+    why: a variable followed by a path is a reference
+    input: 'api_token=$HOME/.canary/tok3n_2026'
+  - id: curl_password_variable
+    why: a password that opens with a dollar sign is a variable reference
+    input: 'curl -u admin:$CURL_PASSWORD_2026 https://api.example.com'
+  - id: curl_password_angle_template
+    why: a password that opens with an angle bracket is a template
+    input: 'curl -u admin:<password-2026> https://api.example.com'
+  - id: curl_password_brace_template
+    why: a password that opens with a brace is a template
+    input: 'curl -u admin:{password_2026} https://api.example.com'
+  - id: curl_password_format_verb
+    why: a password that opens with a percent sign is a format verb
+    input: 'curl -u admin:%s https://api.example.com'
+  - id: curl_placeholder_password_upper_case
+    why: a placeholder password is matched without case
+    input: 'curl -u admin:PASSWORD https://api.example.com'
+  - id: curl_user_and_group_numbers
+    why: a pair of numbers is a user and a group, not a credential
+    input: 'curl -u 1000:1000 https://api.example.com'
+  - id: curl_longer_command_word
+    why: a longer word that starts with curl is not the curl command
+    input: 'curling -u admin:canaryCurlPw0rd https://api.example.com'
+  - id: curl_before_encoded_line_end
+    why: an encoded line end with no continuation ends the curl command, so the option on the next line belongs to another command
+    input: '{"out": "curl ok\nsort -u names:canaryList0123 x"}'
+  - id: value_relative_path_up
+    why: a value that opens with ../ is a path
+    input: 'password=../canary/Pw0rd9x'
+  - id: value_identifier_with_sigils
+    why: sigils around a name made of words do not make it a credential
+    input: 'password=*canaryPassword secret=@canary_password token=canary_password! passwd=canaryPassword?'
 metadata_paths:
   - id: nested_project_becomes_path_project
     why: a project below an intermediate folder keeps only its own folder name, so a published path names the project and nothing about the machine it sat on

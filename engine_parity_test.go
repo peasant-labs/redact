@@ -27,6 +27,9 @@ type engineParityCase struct {
 	Patterns            []UserPattern          `yaml:"patterns"`
 	Reports             []engineExpectedReport `yaml:"reports"`
 	RequiredReportNames []string               `yaml:"required_report_names"`
+	// Stable, when set, asks that RedactText return Output unchanged when it
+	// is given Output: a second pass changes nothing.
+	Stable bool `yaml:"stable"`
 }
 
 type engineExpectedReport struct {
@@ -249,6 +252,13 @@ func TestEnginePublicStructuredParity(t *testing.T) {
 				}
 				assertExpectedEngineReport(t, engineGoRegexp, call+1, baseline.Report(), expected)
 				assertEngineReports(t, actual.Report(), baseline.Report())
+			}
+			if row.Stable {
+				for name, redactor := range map[engineName]Redactor{engineGoRE2: actual, engineGoRegexp: baseline} {
+					if again := redactor.RedactText(row.Output); again != row.Output {
+						t.Fatalf("%s: second RedactText pass over %q = %q, want it unchanged", name, row.Output, again)
+					}
+				}
 			}
 			// unstring-allow: go-json-body-map — dynamic JSON shape the redactor must traverse
 			value := []any{row.Input, map[string]any{"text": row.Input}, json.Number("9007199254740993")}

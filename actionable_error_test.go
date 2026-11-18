@@ -27,6 +27,7 @@ const (
 	actionableErrorMaximumUnavailableKind  actionableErrorCaseKind = "maximum_unavailable"
 	actionableErrorMalformedFixtureKind    actionableErrorCaseKind = "false_positive_malformed_yaml"
 	actionableErrorInvalidFixtureLevelKind actionableErrorCaseKind = "false_positive_invalid_level"
+	actionableErrorValueRulePatternKind    actionableErrorCaseKind = "value_rule_pattern_replaced"
 )
 
 func (k actionableErrorCaseKind) isValid() bool {
@@ -41,7 +42,8 @@ func (k actionableErrorCaseKind) isValid() bool {
 		actionableErrorInvalidPatternRegexKind,
 		actionableErrorMaximumUnavailableKind,
 		actionableErrorMalformedFixtureKind,
-		actionableErrorInvalidFixtureLevelKind:
+		actionableErrorInvalidFixtureLevelKind,
+		actionableErrorValueRulePatternKind:
 		return true
 	default:
 		return false
@@ -75,8 +77,8 @@ func loadActionableErrorFixtures() ([]actionableErrorFixture, error) {
 	if err := yaml.Unmarshal(actionableErrorFixtureData, &fixtures); err != nil {
 		return nil, fmt.Errorf("redact: could not parse testdata/actionable_errors.yaml while loading constructor-error cases: %w; actionable-error coverage cannot run; fix the YAML syntax", err)
 	}
-	if len(fixtures.Cases) != 11 {
-		return nil, fmt.Errorf("redact: testdata/actionable_errors.yaml defines %d cases, want 11 constructor, loader, and rendering branches; exact actionable-error coverage is incomplete or duplicated; restore one case per supported kind", len(fixtures.Cases))
+	if len(fixtures.Cases) != 12 {
+		return nil, fmt.Errorf("redact: testdata/actionable_errors.yaml defines %d cases, want 12 constructor, loader, and rendering branches; exact actionable-error coverage is incomplete or duplicated; restore one case per supported kind", len(fixtures.Cases))
 	}
 	seenNames := make(map[string]struct{}, len(fixtures.Cases))
 	seenKinds := make(map[actionableErrorCaseKind]struct{}, len(fixtures.Cases))
@@ -161,6 +163,8 @@ func produceActionableError(fixture actionableErrorFixture) error {
 		return err
 	case actionableErrorMaximumUnavailableKind:
 		return validateMaximumAvailability(Maximum, false)
+	case actionableErrorValueRulePatternKind:
+		return validateValueRules([]Rule{{ID: keyNameSecretRuleID, Category: CategorySecrets, Pattern: regexp.MustCompile("fixture")}})
 	case actionableErrorMalformedFixtureKind, actionableErrorInvalidFixtureLevelKind:
 		_, err := loadFalsePositiveFixtures([]byte(fixture.Input))
 		return err

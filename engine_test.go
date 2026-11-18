@@ -3,6 +3,7 @@ package redact
 import (
 	_ "embed"
 	"errors"
+	"reflect"
 	"regexp"
 	"slices"
 	"testing"
@@ -23,11 +24,26 @@ type engineNameFixture struct {
 }
 
 type engineConfigurationFixtures struct {
-	Engines            []engineName          `yaml:"engines"`
-	RequiredNames      []string              `yaml:"required_names"`
-	Cases              []engineNameFixture   `yaml:"cases"`
-	ResidueOnlyPattern string                `yaml:"residue_only_pattern"`
-	Routing            engineRoutingFixtures `yaml:"routing"`
+	Engines            []engineName           `yaml:"engines"`
+	RequiredNames      []string               `yaml:"required_names"`
+	Cases              []engineNameFixture    `yaml:"cases"`
+	ResidueOnlyPattern string                 `yaml:"residue_only_pattern"`
+	Routing            engineRoutingFixtures  `yaml:"routing"`
+	JSONKeyRouting     jsonKeyRoutingFixtures `yaml:"json_key_routing"`
+}
+
+type jsonKeyRoutingFixtures struct {
+	RequiredNames []string             `yaml:"required_names"`
+	Cases         []jsonKeyRoutingCase `yaml:"cases"`
+}
+
+type jsonKeyRoutingCase struct {
+	Name      string `yaml:"name"`
+	JSON      string `yaml:"json"`
+	Want      string `yaml:"want"`
+	ProbeRule string `yaml:"probe_rule"`
+	Scans     int    `yaml:"scans"`
+	LastScan  string `yaml:"last_scan"`
 }
 
 type engineRoutingFixtures struct {
@@ -59,6 +75,9 @@ func loadEngineConfigurationFixtures(t *testing.T) engineConfigurationFixtures {
 		t.Fatal("restore the residue-only pattern in the engine configuration fixture to exercise compiler isolation")
 	}
 	if err := requireFixtureNames(engineConfigurationTestFixturePath, "routing/required_names", fixtures.Routing.RequiredNames, fixtureNames(fixtures.Routing.Cases, func(row engineRoutingCase) string { return row.Name })); err != nil {
+		t.Fatal(err)
+	}
+	if err := requireFixtureNames(engineConfigurationTestFixturePath, "json_key_routing/required_names", fixtures.JSONKeyRouting.RequiredNames, fixtureNames(fixtures.JSONKeyRouting.Cases, func(row jsonKeyRoutingCase) string { return row.Name })); err != nil {
 		t.Fatal(err)
 	}
 	if len(fixtures.Routing.Patterns) == 0 || fixtures.Routing.XDGDataHome == "" {
@@ -249,6 +268,37 @@ func TestEngineConfiguredAndXDGRouting(t *testing.T) {
 			}
 			if row.ExpectReplacement && (spy.lastReplace != matches[0].MatchedText || spy.lastReplacement != target.Replacement) {
 				t.Fatalf("%s: spy rewrite input=%q replacement=%q; want matched text %q and rule replacement %q", row.Rule, spy.lastReplace, spy.lastReplacement, matches[0].MatchedText, target.Replacement)
+			}
+		})
+	}
+}
+
+// TestEngineJSONKeyRouting pins which scans RedactJSON makes for a string
+// under an object key, and that each goes through the injected engine. The
+// decision to replace a value whole reads the value with the same detection as
+// text, so a bypass of the compiled lookup fails the scan counts here.
+func TestEngineJSONKeyRouting(t *testing.T) {
+	for _, row := range loadEngineConfigurationFixtures(t).JSONKeyRouting.Cases {
+		t.Run(row.Name, func(t *testing.T) {
+			redactor, err := newRedactorWithEngine(routingSpyEngine{}, Standard, nil, XDGPaths{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := redactor.(*DefaultRedactor)
+			rule := findRuleByID(row.ProbeRule)
+			if rule == nil {
+				t.Fatalf("probe rule %q is not compiled", row.ProbeRule)
+			}
+			spy, ok := r.patterns[rule.Pattern].(*routingSpyPattern)
+			if !ok {
+				t.Fatalf("%s: no compiled spy entry; construction bypassed the injected engine", row.ProbeRule)
+			}
+			got := r.RedactJSON(decodeJSONFixture(t, row.Name, row.JSON))
+			if want := decodeJSONFixture(t, row.Name, row.Want); !reflect.DeepEqual(got, want) {
+				t.Fatalf("RedactJSON(%s) = %#v, want %#v", row.JSON, got, want)
+			}
+			if spy.scans != row.Scans || spy.lastScan != row.LastScan {
+				t.Fatalf("%s: scans=%d last=%q; want %d scans, the last of %q", row.ProbeRule, spy.scans, spy.lastScan, row.Scans, row.LastScan)
 			}
 		})
 	}
