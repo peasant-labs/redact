@@ -154,10 +154,12 @@ var Rules = []Rule{
 		// Extended to also cover test keys (sk_test_, rk_test_) which detect-secrets
 		// does not cover — Stripe documents both live and test variants:
 		//   https://docs.stripe.com/keys
-		// Real Stripe keys are exactly 24 chars after the prefix.
+		// A key has at least 24 chars after the prefix. Current keys are longer,
+		// so the body is open-ended: an exact {24} would leave the tail of a
+		// longer key in the output.
 		ID:          "stripe_key",
 		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`(?:r|s)k_(?:live|test)_[0-9a-zA-Z]{24}`),
+		Pattern:     regexp.MustCompile(`(?:r|s)k_(?:live|test)_[0-9a-zA-Z]{24,}`),
 		Replacement: "<STRIPE_KEY>",
 	},
 	{
