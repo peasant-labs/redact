@@ -224,6 +224,13 @@ required_unchanged_text_ids:
   - curl_placeholder_password_key
   - curl_placeholder_password_apikey
   - curl_placeholder_password_api_key
+  - nested_call_uuid
+  - nested_call_random_bytes
+  - nested_call_password_hash
+  - nested_call_signed_object
+  - nested_call_go_conversion
+  - nested_call_hmac_digest
+  - nested_call_hash_digest
   - curl_password_variable
   - curl_password_angle_template
   - curl_password_brace_template
@@ -828,6 +835,27 @@ unchanged_text:
   - id: curl_placeholder_password_api_key
     why: the word "api_key" in place of the password is a placeholder
     input: 'curl -u admin:api_key https://api.example.com'
+  - id: nested_call_uuid
+    why: a call whose argument is another call is code
+    input: 'token = str(uuid.uuid4())'
+  - id: nested_call_random_bytes
+    why: the same for an encoder over random bytes
+    input: 'secret_key = base64.urlsafe_b64encode(os.urandom(32))'
+  - id: nested_call_password_hash
+    why: a hash call whose arguments hold calls and a quoted text is code
+    input: 'hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())'
+  - id: nested_call_signed_object
+    why: a call whose argument is a call with a keyword argument is code
+    input: 'auth_token = sign(dict(user_id=uid), key)'
+  - id: nested_call_go_conversion
+    why: a call on a conversion is code
+    input: 'token := base64.StdEncoding.EncodeToString([]byte(user + ":" + pass))'
+  - id: nested_call_hmac_digest
+    why: a call chain over a call with a call in its arguments is code
+    input: 'secret = hmac.new(key.encode(), msg, hashlib.sha256).hexdigest()'
+  - id: nested_call_hash_digest
+    why: a digest of a hash of random bytes is code
+    input: 'secret = hashlib.sha256(os.urandom(32)).hexdigest()'
   - id: curl_password_variable
     why: a password that opens with a dollar sign is a variable reference
     input: 'curl -u admin:$CURL_PASSWORD_2026 https://api.example.com'

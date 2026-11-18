@@ -264,11 +264,12 @@ var (
 	// quote, so the rest of the expression is often cut off:
 	// "token = get_token(client, scope)" gives "get_token(client,", and
 	// "token = response.json()["access_token"]" gives "response.json()[".
-	// The call is either left open or closed and followed by the end of the
-	// value or by a character that is not a letter or a digit (".", "[", ")",
-	// ","). A letter or a digit straight after the closing parenthesis is not
-	// code: aB3xkd(92)LqZw81.
-	unquotedCallPattern = regexp.MustCompile(`^[A-Za-z_$@][A-Za-z0-9_$.:>?\-]*\([^()]*(?:$|\)(?:$|[^A-Za-z0-9]))`)
+	// The arguments up to the first closing parenthesis may open other calls:
+	// "str(uuid.uuid4(" and "hashlib.sha256(os.urandom(32)).hexdigest(". The
+	// first closing parenthesis, if any, is followed by the end of the value
+	// or by a character that is not a letter or a digit (".", "[", ")", ",").
+	// A letter or a digit straight after it is not code: aB3xkd(92)LqZw81.
+	unquotedCallPattern = regexp.MustCompile(`^[A-Za-z_$@][A-Za-z0-9_$.:>?\-]*\([^)]*(?:$|\)(?:$|[^A-Za-z0-9]))`)
 )
 
 // notCredentialPrefixes open a value that is a reference, a path or an escape
