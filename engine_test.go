@@ -13,6 +13,8 @@ import (
 //go:embed testdata/engine_configuration.yaml
 var engineConfigurationData []byte
 
+const engineConfigurationTestFixturePath = "testdata/engine_configuration.yaml"
+
 type engineNameFixture struct {
 	Name  string     `yaml:"name"`
 	Value string     `yaml:"value"`
@@ -50,13 +52,13 @@ func loadEngineConfigurationFixtures(t *testing.T) engineConfigurationFixtures {
 	if err := yaml.Unmarshal(engineConfigurationData, &fixtures); err != nil {
 		t.Fatal(err)
 	}
-	if err := requireFixtureNames("testdata/engine_configuration.yaml", "required_names", fixtures.RequiredNames, fixtureNames(fixtures.Cases, func(row engineNameFixture) string { return row.Name })); err != nil {
+	if err := requireFixtureNames(engineConfigurationTestFixturePath, "required_names", fixtures.RequiredNames, fixtureNames(fixtures.Cases, func(row engineNameFixture) string { return row.Name })); err != nil {
 		t.Fatal(err)
 	}
 	if fixtures.ResidueOnlyPattern == "" {
-		t.Fatal("restore residue_only_pattern in testdata/engine_configuration.yaml to exercise compiler isolation")
+		t.Fatal("restore the residue-only pattern in the engine configuration fixture to exercise compiler isolation")
 	}
-	if err := requireFixtureNames("testdata/engine_configuration.yaml", "routing/required_names", fixtures.Routing.RequiredNames, fixtureNames(fixtures.Routing.Cases, func(row engineRoutingCase) string { return row.Name })); err != nil {
+	if err := requireFixtureNames(engineConfigurationTestFixturePath, "routing/required_names", fixtures.Routing.RequiredNames, fixtureNames(fixtures.Routing.Cases, func(row engineRoutingCase) string { return row.Name })); err != nil {
 		t.Fatal(err)
 	}
 	if len(fixtures.Routing.Patterns) == 0 || fixtures.Routing.XDGDataHome == "" {

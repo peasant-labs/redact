@@ -17,6 +17,8 @@ import (
 //go:embed testdata/engine_parity.yaml
 var engineParityData []byte
 
+const engineParityTestFixturePath = "testdata/engine_parity.yaml"
+
 type engineParityCase struct {
 	Name                string                 `yaml:"name"`
 	Input               string                 `yaml:"input"`
@@ -52,14 +54,14 @@ func loadEngineParityFixtures(t *testing.T) engineParityFixtures {
 		t.Fatal(err)
 	}
 	names := fixtureNames(fixtures.Cases, func(row engineParityCase) string { return row.Name })
-	if err := requireFixtureNames("testdata/engine_parity.yaml", "required_names", fixtures.RequiredNames, names); err != nil {
+	if err := requireFixtureNames(engineParityTestFixturePath, "required_names", fixtures.RequiredNames, names); err != nil {
 		t.Fatal(err)
 	}
-	if err := requireFixtureNames("testdata/engine_parity.yaml", "required_operations", fixtures.RequiredOperations, fixtures.Operations); err != nil {
+	if err := requireFixtureNames(engineParityTestFixturePath, "required_operations", fixtures.RequiredOperations, fixtures.Operations); err != nil {
 		t.Fatal(err)
 	}
 	for _, row := range fixtures.Cases {
-		if err := requireFixtureNames("testdata/engine_parity.yaml", row.Name+"/required_report_names", row.RequiredReportNames, fixtureNames(row.Reports, func(report engineExpectedReport) string { return report.Name })); err != nil {
+		if err := requireFixtureNames(engineParityTestFixturePath, row.Name+"/required_report_names", row.RequiredReportNames, fixtureNames(row.Reports, func(report engineExpectedReport) string { return report.Name })); err != nil {
 			t.Fatal(err)
 		}
 		for _, report := range row.Reports {
@@ -248,6 +250,7 @@ func TestEnginePublicStructuredParity(t *testing.T) {
 				assertExpectedEngineReport(t, engineGoRegexp, call+1, baseline.Report(), expected)
 				assertEngineReports(t, actual.Report(), baseline.Report())
 			}
+			// unstring-allow: go-json-body-map — dynamic JSON shape the redactor must traverse
 			value := []any{row.Input, map[string]any{"text": row.Input}, json.Number("9007199254740993")}
 			if got, want := actual.RedactJSON(value), baseline.RedactJSON(value); !reflect.DeepEqual(got, want) {
 				t.Fatalf("RedactJSON = %#v, stdlib = %#v", got, want)
