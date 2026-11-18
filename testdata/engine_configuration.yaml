@@ -35,3 +35,42 @@ routing:
       # expected output stays identical to the unmodified XDG replacement.
       replacement_override: '${1}/data/<USER>'
       expect_replacement: true
+# RedactJSON under an object key. probe_rule names a built-in rule whose
+# compiled entry the test reads: scans is how often the injected engine scanned
+# with it, and last_scan the text of the last scan.
+json_key_routing:
+  required_names: [value_under_secret_key, format_value_under_secret_key, ordinary_value_under_secret_key, web_key_private_member]
+  cases:
+    - name: value_under_secret_key
+      # One scan of the value with every active rule, through the injected
+      # engine, asks whether a format rule matches all of it. None does, so the
+      # value is replaced whole and no text pass follows.
+      json: '{"db_password": "canaryJsonPw0rd!2026"}'
+      want: '{"db_password": "<SECRET>"}'
+      probe_rule: github_pat
+      scans: 1
+      last_scan: 'canaryJsonPw0rd!2026'
+    - name: format_value_under_secret_key
+      # The same scan finds that github_pat matches the whole value, so the
+      # value goes to the text pass: a second scan.
+      json: '{"token": "ghp_abcdefghijklmnopqrstuvwxyz0123456789"}'
+      want: '{"token": "<GITHUB_PAT>"}'
+      probe_rule: github_pat
+      scans: 2
+      last_scan: 'ghp_abcdefghijklmnopqrstuvwxyz0123456789'
+    - name: ordinary_value_under_secret_key
+      # The value test, which needs no engine, rejects the value. Only the
+      # text pass scans it.
+      json: '{"password": "string"}'
+      want: '{"password": "string"}'
+      probe_rule: github_pat
+      scans: 1
+      last_scan: 'string'
+    - name: web_key_private_member
+      # A private member is decided by the member name and the shape of the
+      # value alone. The key-type member is the only string the engine scans.
+      json: '{"kty": "oct", "k": "canarySymmetricKey0123456789abcd"}'
+      want: '{"kty": "oct", "k": "<JWK_PRIVATE_KEY>"}'
+      probe_rule: jwk_private_member
+      scans: 1
+      last_scan: 'oct'

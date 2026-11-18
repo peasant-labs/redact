@@ -115,6 +115,20 @@ required_json_keys_ids:
   - weak_password_value
   - whole_value_call_unchanged
   - identifier_value_with_digit_unchanged
+  - web_key_remaining_private_members
+  - set_cookie_header_key
+  - other_header_key_is_ordinary_text
+required_observed_json_keys_ids:
+  - value_under_secret_key
+  - web_key_private_member
+required_inactive_json_key_rules_ids:
+  - key_name_rule_inactive
+  - web_key_rule_inactive
+# The closed lists RedactJSON reads a key by. The test asserts exact membership
+# against the compiled lists; the json_keys rows show what each list does.
+json_key_sets:
+  jwk_private_members: [d, p, q, dp, dq, qi, k]
+  header_value_keys: [authorization, cookie, set-cookie]
 required_unchanged_text_ids:
   - shell_variable
   - braced_shell_variable
@@ -390,6 +404,43 @@ json_keys:
     level: standard
     json: '{"token": "oauth2_token", "password": "sha256_password", "existingSecret": "db-credentials-prod2"}'
     want: '{"token": "oauth2_token", "password": "sha256_password", "existingSecret": "db-credentials-prod2"}'
+  - id: web_key_remaining_private_members
+    why: Together with web_key_private_members this covers every member of the closed list, and the public members beside them stay.
+    level: standard
+    json: '{"kty": "RSA", "kid": "canary-key-2026", "alg": "RS256", "use": "sig", "dp": "canaryExponentP0123456789abcdefghijklmn", "dq": "canaryExponentQ0123456789abcdefghijklmn", "qi": "canaryCoefficient0123456789abcdefghijkl", "k": "canarySymmetricKey0123456789abcd"}'
+    want: '{"kty": "RSA", "kid": "canary-key-2026", "alg": "RS256", "use": "sig", "dp": "<JWK_PRIVATE_KEY>", "dq": "<JWK_PRIVATE_KEY>", "qi": "<JWK_PRIVATE_KEY>", "k": "<JWK_PRIVATE_KEY>"}'
+    key_redactions: 4
+  - id: set_cookie_header_key
+    why: Set-Cookie is the third header key, and the key is compared without case.
+    level: standard
+    json: '{"headers": {"Set-Cookie": "sessionid=canarySetCookie0123456789; Path=/; HttpOnly"}}'
+    want: '{"headers": {"Set-Cookie": "<COOKIE>"}}'
+    counts: {cookie_header: 1}
+  - id: other_header_key_is_ordinary_text
+    why: A key outside the closed list is not read as a header, so the header rules, which need the header name in front of the value, do not apply to it.
+    level: standard
+    json: '{"headers": {"Proxy-Authorization": "token canaryAuthTok0123456789abcd", "X-Cookie": "sessionid=canarySessionCookie0123456789abcdef"}}'
+    want: '{"headers": {"Proxy-Authorization": "token canaryAuthTok0123456789abcd", "X-Cookie": "sessionid=canarySessionCookie0123456789abcdef"}}'
+observed_json_keys:
+  - id: value_under_secret_key
+    why: A value replaced because of its key reaches the observer as one child record that names the rule, its category and its place in the rule table.
+    json: '{"db_password": "canaryJsonPw0rd!2026"}'
+    rule: key_name_secret
+    category: secrets
+  - id: web_key_private_member
+    why: The same holds for a private member of a JSON Web Key.
+    json: '{"kty": "oct", "k": "canarySymmetricKey0123456789abcd"}'
+    rule: jwk_private_member
+    category: secrets
+inactive_json_key_rules:
+  - id: key_name_rule_inactive
+    why: RedactJSON replaces a value under a secret key only while key_name_secret is active at the configured level, as the text form does.
+    rule: key_name_secret
+    json: '{"db_password": "canaryJsonPw0rd!2026"}'
+  - id: web_key_rule_inactive
+    why: RedactJSON replaces a private member only while jwk_private_member is active at the configured level.
+    rule: jwk_private_member
+    json: '{"kty": "oct", "k": "canarySymmetricKey0123456789abcd"}'
 unchanged_text:
   - id: shell_variable
     why: a variable reference holds no credential

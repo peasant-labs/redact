@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -36,6 +37,36 @@ type redactorBehaviorFixtures struct {
 	JSONKeys                []jsonKeyFixture       `yaml:"json_keys"`
 	RequiredUnchangedIDs    []string               `yaml:"required_unchanged_text_ids"`
 	UnchangedText           []unchangedTextFixture `yaml:"unchanged_text"`
+	RequiredObservedKeyIDs  []string               `yaml:"required_observed_json_keys_ids"`
+	ObservedJSONKeys        []observedKeyFixture   `yaml:"observed_json_keys"`
+	RequiredInactiveRuleIDs []string               `yaml:"required_inactive_json_key_rules_ids"`
+	InactiveJSONKeyRules    []inactiveRuleFixture  `yaml:"inactive_json_key_rules"`
+	JSONKeySets             jsonKeySetsFixture     `yaml:"json_key_sets"`
+}
+
+// observedKeyFixture is a JSON document in which RedactJSON replaces exactly
+// one value because of its key, and the rule an observer must see for it.
+type observedKeyFixture struct {
+	ID       string   `yaml:"id"`
+	Why      string   `yaml:"why"`
+	JSON     string   `yaml:"json"`
+	Rule     string   `yaml:"rule"`
+	Category Category `yaml:"category"`
+}
+
+// inactiveRuleFixture is a JSON document that RedactJSON must return as it is
+// while the named rule is not active at the configured level.
+type inactiveRuleFixture struct {
+	ID   string `yaml:"id"`
+	Why  string `yaml:"why"`
+	Rule string `yaml:"rule"`
+	JSON string `yaml:"json"`
+}
+
+// jsonKeySetsFixture holds the closed lists RedactJSON reads an object key by.
+type jsonKeySetsFixture struct {
+	JWKPrivateMembers []string `yaml:"jwk_private_members"`
+	HeaderValueKeys   []string `yaml:"header_value_keys"`
 }
 
 // unchangedTextFixture is a text that RedactText must return as it is, at
@@ -134,6 +165,21 @@ func loadRedactorBehaviorFixtures(t *testing.T) redactorBehaviorFixtures {
 		if row.Why == "" || row.Input == "" {
 			t.Fatalf("unchanged text fixture %q is incomplete; why and input are required", row.ID)
 		}
+	}
+	checkFixtureFamily(t, "observed_json_keys", fixtures.RequiredObservedKeyIDs, fixtureNames(fixtures.ObservedJSONKeys, func(row observedKeyFixture) string { return row.ID }))
+	for _, row := range fixtures.ObservedJSONKeys {
+		if row.Why == "" || row.JSON == "" || row.Rule == "" || !row.Category.IsValid() {
+			t.Fatalf("observed JSON key fixture %q is incomplete; why, json, rule and a valid category are required", row.ID)
+		}
+	}
+	checkFixtureFamily(t, "inactive_json_key_rules", fixtures.RequiredInactiveRuleIDs, fixtureNames(fixtures.InactiveJSONKeyRules, func(row inactiveRuleFixture) string { return row.ID }))
+	for _, row := range fixtures.InactiveJSONKeyRules {
+		if row.Why == "" || row.JSON == "" || row.Rule == "" {
+			t.Fatalf("inactive JSON key rule fixture %q is incomplete; why, rule and json are required", row.ID)
+		}
+	}
+	if len(fixtures.JSONKeySets.JWKPrivateMembers) == 0 || len(fixtures.JSONKeySets.HeaderValueKeys) == 0 {
+		t.Fatal("testdata/redactor_behavior.yaml has no json_key_sets; restore both closed lists")
 	}
 	for _, row := range fixtures.MetadataPaths {
 		checkFixtureLevel(t, row.ID, row.Level)
@@ -356,32 +402,100 @@ func TestRules_KeyNameRulesComeLast(t *testing.T) {
 	}
 }
 
-// TestRedactJSON_KeyRedactionIsObserved pins that a value replaced because of
-// its key reaches the observer: one child record that names the rule.
+// TestRedactJSON_KeyRedactionIsObserved pins what an observer sees for a value
+// replaced because of its key: one child RedactText record, linked to the
+// RedactJSON call, that names the rule, its category and its index in Rules.
 func TestRedactJSON_KeyRedactionIsObserved(t *testing.T) {
-	var records []Observation
-	run, err := NewRun(mustNewRedactor(t, Standard, nil), "run", func(record Observation) error {
-		records = append(records, record)
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, status := run.RedactJSON("call", decodeJSONFixture(t, "observed key redaction", `{"db_password": "canaryJsonPw0rd!2026"}`)); status != DeliveryOK {
-		t.Fatalf("RedactJSON delivery status = %v, want DeliveryOK", status)
-	}
-	var seen int
-	for _, record := range records {
-		for _, detection := range record.Rules {
-			if detection.Rule.ID == keyNameSecretRuleID {
-				seen += detection.Count
-				if record.Operation != OperationRedactText || record.ParentCallID == 0 || record.RegexDetected.Value != 1 {
-					t.Errorf("key redaction record = %+v, want a child RedactText record with one detection", record)
+	for _, row := range loadRedactorBehaviorFixtures(t).ObservedJSONKeys {
+		t.Run(row.ID, func(t *testing.T) {
+			var records []Observation
+			run, err := NewRun(mustNewRedactor(t, Standard, nil), "run", func(record Observation) error {
+				records = append(records, record)
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, status := run.RedactJSON("call", decodeJSONFixture(t, row.ID, row.JSON)); status != DeliveryOK {
+				t.Fatalf("RedactJSON delivery status = %v, want DeliveryOK", status)
+			}
+			var parent uint64
+			for _, record := range records {
+				if record.Operation == OperationRedactJSON {
+					parent = record.CallID
 				}
 			}
-		}
+			if parent == 0 {
+				t.Fatalf("no RedactJSON record was delivered (records: %+v)", records)
+			}
+			want := RuleDetection{Rule: RuleIdentity{ID: row.Rule, Origin: RuleOriginBuiltin, Index: slices.IndexFunc(Rules, func(rule Rule) bool { return rule.ID == row.Rule })}, Category: row.Category, Count: 1}
+			seen := 0
+			for _, record := range records {
+				for _, detection := range record.Rules {
+					if detection.Count == 0 {
+						continue
+					}
+					seen++
+					if detection != want {
+						t.Errorf("detection = %+v, want %+v", detection, want)
+					}
+					if record.Operation != OperationRedactText || record.ParentCallID != parent || record.CorrelationID != "call" || record.RegexDetected.Value != 1 {
+						t.Errorf("key redaction record = %+v, want a RedactText child of call %d with one detection", record, parent)
+					}
+				}
+			}
+			if seen != 1 {
+				t.Errorf("observer saw %d detections, want exactly 1 of %s (records: %+v)", seen, row.Rule, records)
+			}
+		})
 	}
-	if seen != 1 {
-		t.Errorf("observer saw %d detections of %s, want 1 (records: %+v)", seen, keyNameSecretRuleID, records)
+}
+
+// TestRedactJSON_KeyRuleMustBeActive pins that RedactJSON replaces a value
+// because of its key only while the rule that does so is active at the
+// configured level. No built-in level switches these rules off, so the test
+// raises the rule's minimum level in a copy of the rule table.
+func TestRedactJSON_KeyRuleMustBeActive(t *testing.T) {
+	for _, row := range loadRedactorBehaviorFixtures(t).InactiveJSONKeyRules {
+		t.Run(row.ID, func(t *testing.T) {
+			original := Rules
+			Rules = slices.Clone(Rules)
+			t.Cleanup(func() { Rules = original })
+			index := slices.IndexFunc(Rules, func(rule Rule) bool { return rule.ID == row.Rule })
+			if index < 0 {
+				t.Fatalf("fixture rule %q is not compiled", row.Rule)
+			}
+			input := decodeJSONFixture(t, row.ID, row.JSON)
+			active := mustNewRedactor(t, Standard, nil)
+			if got := active.RedactJSON(input); reflect.DeepEqual(got, input) || active.Report().Counts[row.Rule] != 1 {
+				t.Fatalf("RedactJSON(%s) = %#v with the rule active; the fixture must be one the rule redacts", row.JSON, got)
+			}
+			Rules[index].MinimumLevel = Maximum
+			inactive := mustNewRedactor(t, Standard, nil)
+			if got := inactive.RedactJSON(input); !reflect.DeepEqual(got, input) {
+				t.Errorf("RedactJSON(%s) = %#v with %s inactive, want it unchanged", row.JSON, got, row.Rule)
+			}
+			if count := inactive.Report().Counts[row.Rule]; count != 0 {
+				t.Errorf("Report() counts %d redactions of the inactive rule %s", count, row.Rule)
+			}
+		})
+	}
+}
+
+// TestRedactJSON_KeyListsAreClosed pins the exact membership of the two lists
+// RedactJSON reads an object key by.
+func TestRedactJSON_KeyListsAreClosed(t *testing.T) {
+	sets := loadRedactorBehaviorFixtures(t).JSONKeySets
+	for _, list := range []struct {
+		name      string
+		got, want []string
+	}{
+		{"jwkPrivateMembers", jwkPrivateMembers, sets.JWKPrivateMembers},
+		{"headerValueKeys", headerValueKeys, sets.HeaderValueKeys},
+	} {
+		got, want := slices.Sorted(slices.Values(list.got)), slices.Sorted(slices.Values(list.want))
+		if !slices.Equal(got, want) {
+			t.Errorf("%s = %v, want exactly %v (testdata/redactor_behavior.yaml json_key_sets)", list.name, got, want)
+		}
 	}
 }
