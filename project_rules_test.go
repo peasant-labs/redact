@@ -155,7 +155,7 @@ func TestVersion(t *testing.T) {
 	if got := Version(); got != RuleSetVersion {
 		t.Errorf("Version() = %q, want %q", got, RuleSetVersion)
 	}
-	if got := Version(); got != "3.1.1" {
-		t.Errorf("Version() = %q, want %q", got, "3.1.1")
+	if got := Version(); got != "3.1.2" {
+		t.Errorf("Version() = %q, want %q", got, "3.1.2")
 	}
 }

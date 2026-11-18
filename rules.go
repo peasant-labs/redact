@@ -475,15 +475,14 @@ var Rules = []Rule{
 		Replacement: "<SSN>",
 	},
 	{
-		// Trade-off: this pattern matches any 16-digit number (with optional separators),
-		// which may produce false positives on numeric IDs or version numbers that happen
-		// to be 16 digits long. The alternative — requiring at least one separator — would
-		// miss cards stored without formatting (e.g. in databases or logs). We accept the
-		// false-positive risk here because the cost of missing a real card number is higher
-		// than the cost of over-redacting a numeric ID.
+		// The pattern finds 16-digit groups separated by spaces or hyphens; it
+		// does not treat a newline or tab as a card separator. creditCardFilter
+		// then applies Luhn and rejects a match that is part of a longer
+		// dash-separated identifier. This redacts real cards in either common
+		// format and keeps non-card numeric IDs suppressed.
 		ID:          "credit_card",
 		Category:    CategoryPII,
-		Pattern:     regexp.MustCompile(`\b(?:\d{4}[-\s]?){3}\d{4}\b`),
+		Pattern:     regexp.MustCompile(`\b(?:\d{4}[ -]?){3}\d{4}\b`),
 		Replacement: "<CREDIT_CARD>",
 	},
 	{
@@ -663,11 +662,52 @@ func awsSecretKeyFilter(matched, input string, offset int) bool {
 	return false // no context → reject
 }
 
-// creditCardFilter rejects credit_card matches that contain dashes.
-// Real credit cards use spaces or no separator — dashes strongly indicate UUID
-// fragments (8-4-4-4-12 hex), order numbers, or other non-card identifiers.
-func creditCardFilter(matched, _ string, _ int) bool {
-	return !strings.Contains(matched, "-")
+// creditCardFilter accepts only Luhn-valid card numbers. It accepts spaces or
+// hyphens between the four-digit groups and rejects a match that is part of a
+// longer dash-separated identifier, such as a UUID or an order number.
+func creditCardFilter(matched, input string, offset int) bool {
+	if !luhnValid(matched) {
+		return false
+	}
+	end := offset + len(matched)
+	if end+1 < len(input) && input[end] == '-' && isASCIIDigit(input[end+1]) {
+		return false
+	}
+	if offset >= 2 && input[offset-1] == '-' && isASCIIDigit(input[offset-2]) {
+		return false
+	}
+	return true
+}
+
+func isASCIIDigit(b byte) bool { return b >= '0' && b <= '9' }
+
+func luhnValid(matched string) bool {
+	digits := make([]int, 0, len(matched))
+	for i := 0; i < len(matched); i++ {
+		switch b := matched[i]; {
+		case b >= '0' && b <= '9':
+			digits = append(digits, int(b-'0'))
+		case b == ' ' || b == '-':
+			continue
+		default:
+			return false
+		}
+	}
+	if len(digits) != 16 {
+		return false
+	}
+	sum := 0
+	for i := len(digits) - 1; i >= 0; i-- {
+		d := digits[i]
+		if (len(digits)-1-i)%2 == 1 {
+			d *= 2
+			if d > 9 {
+				d -= 9
+			}
+		}
+		sum += d
+	}
+	return sum%10 == 0
 }
 
 // extractBase64Body returns the base64 body of an aws_secret_key match, stripping
