@@ -12,6 +12,12 @@ import (
 // PreviewMaxLength is the maximum number of bytes in a ResidueWarning.Preview.
 const PreviewMaxLength = 40
 
+// DefaultResidueWarningLimit is the maximum number of residue warning strings a
+// redactor retains in RedactionReport.Warnings. Warnings found after the cap are
+// counted in RedactionReport.WarningsDropped instead, so a long-lived redactor's
+// report memory stays bounded.
+const DefaultResidueWarningLimit = 256
+
 // ResidueDetector scans already-redacted text for potential missed patterns.
 // Advisory only — never modifies content.
 type ResidueDetector interface {
