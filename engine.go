@@ -5,19 +5,30 @@ import (
 	"regexp"
 )
 
-// engineName identifies the implementation, not the rule-set version.
-type engineName string
+// EngineName identifies the engine implementation, not the rule-set version.
+type EngineName string
 
 const (
-	engineGoRegexp engineName = "go-regexp"
-	engineGoRE2    engineName = "go-re2"
+	EngineGoRegexp EngineName = "go-regexp"
+	EngineGoRE2    EngineName = "go-re2"
+
+	// Internal aliases keep the package's existing call sites unchanged.
+	engineGoRegexp = EngineGoRegexp
+	engineGoRE2    = EngineGoRE2
 )
 
+// engineName is the internal alias used by the engine implementations.
+type engineName = EngineName
+
 // AllEngines returns the ordered engine identities. The returned slice is a copy.
-func AllEngines() []engineName { return []engineName{engineGoRegexp, engineGoRE2} }
+func AllEngines() []EngineName { return []EngineName{EngineGoRegexp, EngineGoRE2} }
+
+// EngineIdentity reports the engine this build selected. It is the value a
+// projection row records with the redaction output.
+func EngineIdentity() EngineName { return selectEngine().Identity() }
 
 // NewEngineName refuses identities outside the closed engine registry.
-func NewEngineName(value string) (engineName, error) {
+func NewEngineName(value string) (EngineName, error) {
 	for _, name := range AllEngines() {
 		if string(name) == value {
 			return name, nil

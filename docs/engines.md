@@ -5,6 +5,8 @@ implementation. Existing redactor interfaces, `Rule.Pattern` (`*regexp.Regexp`),
 rule tables, replacements, and the rule-set version are unchanged.
 `AllEngines` enumerates `go-regexp` then `go-re2`; `NewEngineName` validates an
 identity against that closed registry without selecting it as the default.
+`EngineIdentity` reports the engine this build selected, for a projection row
+to record with the redaction output.
 
 The private constructors accept an `engine`. The alternative adapter compiles
 each rule's `Pattern.String()` at construction, then shares an immutable pattern
