@@ -518,6 +518,32 @@ var Rules = []Rule{
 		Replacement: "<SUPABASE_TOKEN>",
 	},
 
+	// --- Secrets: identified by the construct around them ---
+	// Patterns and filters are in credential_context_rules.go.
+	{
+		// Authorization header with the "token" or "Bot" scheme.
+		ID:          authorizationTokenRuleID,
+		Category:    CategorySecrets,
+		Pattern:     authorizationTokenPattern,
+		Replacement: "${1}<AUTH_TOKEN>",
+	},
+	{
+		// The password in curl -u user:password and --user user:password.
+		ID:          curlUserPasswordRuleID,
+		Category:    CategorySecrets,
+		Pattern:     curlUserPasswordPattern,
+		Replacement: "${1}" + keyNameSecretPlaceholder,
+		FilterFn:    curlUserPasswordFilter,
+	},
+	{
+		// A private member of a JSON Web Key.
+		ID:          jwkPrivateMemberRuleID,
+		Category:    CategorySecrets,
+		Pattern:     jwkPrivateMemberPattern,
+		Replacement: "${1}" + jwkPrivateMemberPlaceholder,
+		FilterFn:    jwkPrivateMemberFilter,
+	},
+
 	// --- Secrets: identified by key name or header, not by value format ---
 	// Patterns, name lists and value tests are in key_name_rules.go. These
 	// rules come after every format rule, and the first two give way to a
