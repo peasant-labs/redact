@@ -566,7 +566,8 @@ func (r *DefaultRedactor) redactText(input string, call *observationCall) (outpu
 // RedactJSON recursively descends through a JSON-decoded value and redacts strings.
 // A string under an object key that names a secret (see key_name_rules.go), and
 // a private member of a JSON Web Key (see credential_context_rules.go), is
-// replaced whole; every other string goes through RedactText.
+// replaced whole. A string under a key that names a header is redacted as the
+// value of that header. Every other string goes through RedactText.
 // Supported types: string, []any, map[string]any, json.Number. Other types pass through unchanged.
 // json.Number is returned as-is: integers > 2^53 decoded via UseNumber() retain full precision.
 func (r *DefaultRedactor) RedactJSON(value any) any {
@@ -596,6 +597,10 @@ func (r *DefaultRedactor) redactJSON(value any, call *observationCall) any {
 					r.observeWholeValue(call, ruleID)
 					continue
 				}
+				if isHeaderValueKey(key) {
+					result[key] = r.redactHeaderValue(key, text, call)
+					continue
+				}
 			}
 			result[key] = r.redactJSON(val, call)
 		}
@@ -615,8 +620,12 @@ type jsonObjectFacts struct {
 	sampledToken bool
 }
 
-// logProbabilityMember marks an entry of a model's token-probability list.
-const logProbabilityMember = "logprob"
+// logProbabilityMember marks an entry of a model's token-probability list,
+// and sampledTokenMember is the member of that entry that holds the text.
+const (
+	logProbabilityMember = "logprob"
+	sampledTokenMember   = "token"
+)
 
 func jsonObjectKind(object map[string]any) jsonObjectFacts {
 	_, webKey := object[jwkKeyTypeMember]
@@ -633,7 +642,9 @@ func (r *DefaultRedactor) wholeValueRule(object jsonObjectFacts, key, value stri
 	switch {
 	case object.webKey && isJWKPrivateMember(key, value):
 		ruleID, placeholder = jwkPrivateMemberRuleID, jwkPrivateMemberPlaceholder
-	case !object.sampledToken && secretValueUnderKey(key, value):
+	case object.sampledToken && key == sampledTokenMember:
+		return "", "", false
+	case secretValueUnderKey(key, value):
 		ruleID, placeholder = keyNameSecretRuleID, keyNameSecretPlaceholder
 	default:
 		return "", "", false
@@ -643,6 +654,18 @@ func (r *DefaultRedactor) wholeValueRule(object jsonObjectFacts, key, value stri
 		return "", "", false
 	}
 	return ruleID, placeholder, true
+}
+
+// redactHeaderValue redacts the string under an object key that names a header
+// (see headerValueKeys). The rules for these headers match the header name and
+// the value together, so the value is redacted as the line "Name: value" and
+// the name is taken off again. Every other rule sees the value as usual.
+func (r *DefaultRedactor) redactHeaderValue(key, value string, call *observationCall) string {
+	prefix := key + ": "
+	if line := r.redactTextChild(prefix+value, call); strings.HasPrefix(line, prefix) {
+		return line[len(prefix):]
+	}
+	return r.redactTextChild(value, call)
 }
 
 // privateMetadata holds the path-bearing values of one session's metadata.
