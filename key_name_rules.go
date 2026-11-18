@@ -171,8 +171,8 @@ var (
 
 // cookieHeaderPattern matches the value of a Cookie or Set-Cookie header, as a
 // header line or as a JSON member. The header name starts a word, or follows
-// an encoded line end in JSON-encoded text (see encodedBreakPattern), where
-// the letter of the line end would otherwise join the name. The value must start with a cookie name and
+// an encoded line end in JSON-encoded text (see encodedBreakLetters), where
+// the letter of the line end joins the name. The value must start with a cookie name and
 // an equals sign, then a first value with no space in it (plain or quoted) or
 // a semicolon, so prose after the word "Cookie:" does not match, and the first
 // value must not open a template or a variable reference. Whatever follows the
@@ -181,7 +181,7 @@ var (
 // a quote or a backslash, which end the header inside a quoted argument or a
 // JSON string.
 var cookieHeaderPattern = regexp.MustCompile(
-	`(?i)(?P<before>(?:` + encodedBreakPattern + `|\b)(?:set-)?cookie(?:\\*["'])?:[ \t]*(?:\\*["'])?)[a-z0-9_.\-$]+=` +
+	`(?i)\b(?P<before>[` + encodedBreakLetters + `]?(?:set-)?cookie(?:\\*["'])?:[ \t]*(?:\\*["'])?)[a-z0-9_.\-$]+=` +
 		`(?:(?:[^\s;"'<${\\][^\s;"'\\]*|\\*"[^\s;"'<${\\][^\s;"'\\]*\\*")(?:;[^\r\n"'\\]*)?|;[^\r\n"'\\]*)`)
 
 var cookieHeaderBeforeGroup = cookieHeaderPattern.SubexpIndex("before")
@@ -614,7 +614,12 @@ func urlQuerySecretValues(matched, input string, offset int) []valueSpan {
 // header name: the cookie pairs and attributes.
 func cookieHeaderValues(matched, input string, offset int) []valueSpan {
 	groups := cookieHeaderPattern.FindStringSubmatchIndex(matched)
-	if groups == nil || groups[0] != 0 || !startsAtEncodedBreak(matched, input, offset) {
+	if groups == nil || groups[0] != 0 {
+		return nil
+	}
+	// Neither header name starts with one of encodedBreakLetters, so such a
+	// letter at the start is the one the pattern lets stand before the name.
+	if strings.IndexByte(encodedBreakLetters, matched[0]|0x20) >= 0 && !endsEncodedBreak(input, offset+1) {
 		return nil
 	}
 	return []valueSpan{{offset + groups[2*cookieHeaderBeforeGroup+1], offset + len(matched)}}

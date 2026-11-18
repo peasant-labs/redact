@@ -692,6 +692,10 @@ requiredCaseNames:
   - fp_curl_command_word_outside_lookback
   - tp_key_name_short_segments_with_base64_signs
   - fp_key_name_short_segments_path
+  - fp_cookie_header_after_plain_letter
+  - fp_cookie_header_after_upper_case_escape
+  - fp_jwk_private_member_longer_name
+  - fp_jwk_private_member_longer_name_at_start
 
 cases:
   # ---------------------------------------------------------------------------
@@ -6092,4 +6096,32 @@ cases:
     rule: key_name_secret
     expect: no_match
     reason: 'Short segments with no "+" and no "=" are a path.'
+    source: synthetic
+
+  - name: fp_cookie_header_after_plain_letter
+    input: 'tcookie: sessionid=canarySessionCookie0123456789'
+    rule: cookie_header
+    expect: no_match
+    reason: 'A "t" with no backslash before it is part of a longer word, not an encoded tab before the header name.'
+    source: synthetic
+
+  - name: fp_cookie_header_after_upper_case_escape
+    input: '{"path": "C:\Ncookie: sessionid=canarySessionCookie0123456789"}'
+    rule: cookie_header
+    expect: no_match
+    reason: 'A JSON string writes a line end with a lower-case letter. An upper-case letter after a backslash is part of the word.'
+    source: synthetic
+
+  - name: fp_jwk_private_member_longer_name
+    input: '{"kty":"oct","nd":"canaryNotAMember0123456789abcdef"}'
+    rule: jwk_private_member
+    expect: no_match
+    reason: '"nd" is another member. The "n" is read as an encoded line end only after a backslash.'
+    source: synthetic
+
+  - name: fp_jwk_private_member_longer_name_at_start
+    input: "nd: canaryNotAMember0123456789abcdef\nkty: oct"
+    rule: jwk_private_member
+    expect: no_match
+    reason: 'At the start of the text no backslash stands before the "n", so "nd" is a longer name.'
     source: synthetic

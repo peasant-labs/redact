@@ -73,17 +73,20 @@ func isWordByte(b byte) bool {
 	return b == '_' || (b >= '0' && b <= '9') || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }
 
-// encodedBreakPattern is a line end, a carriage return or a tab as a JSON
-// string carries it: a backslash and one letter. A pattern that needs the start
-// of a word or of a line accepts it there, because in JSON-encoded text the
-// letter is not part of the word after it.
-const encodedBreakPattern = `\\[nrt]`
+// encodedBreakLetters are the letters that, after a backslash, make a line
+// end, a carriage return or a tab in a JSON string. A pattern that needs the
+// start of a word or of a line lets one of them stand before its first word,
+// and its filter then checks with endsEncodedBreak that the letter really
+// follows a backslash: in JSON-encoded text the letter is not part of the word
+// after it. The letter is optional in the pattern, and not an alternative at
+// its start, because that keeps the scan as fast as it was without it.
+const encodedBreakLetters = "nrt"
 
 // endsEncodedBreak reports whether input[:end] ends in an encoded line end,
 // carriage return or tab. The backslash must itself be unescaped: in "\\n"
 // the two backslashes are one literal backslash and the "n" is a letter.
 func endsEncodedBreak(input string, end int) bool {
-	if end < 2 || !strings.ContainsRune("nrt", rune(input[end-1])) {
+	if end < 2 || strings.IndexByte(encodedBreakLetters, input[end-1]) < 0 {
 		return false
 	}
 	return unescapedBackslash(input, end-2)
@@ -98,16 +101,6 @@ func unescapedBackslash(input string, at int) bool {
 		at--
 	}
 	return run%2 == 1
-}
-
-// startsAtEncodedBreak reports whether a match that may begin with
-// encodedBreakPattern does so with a real one. It is false only when the match
-// begins with a backslash that is itself escaped.
-func startsAtEncodedBreak(matched, input string, offset int) bool {
-	if len(matched) < 2 || matched[0] != '\\' || !strings.ContainsRune("nrt", rune(matched[1])) {
-		return true
-	}
-	return unescapedBackslash(input, offset)
 }
 
 // authorizationTokenPattern matches an Authorization header whose scheme is
@@ -349,20 +342,27 @@ var jwkValueBody = `[A-Za-z0-9_\-]{` + strconv.Itoa(minJWKMemberLength) + `,}={0
 // jwkPrivateMemberPattern matches a private member and its base64url value.
 // The member name is a whole word, with double quotes, escaped quotes, single
 // quotes or none, so JSON, a JSON string, a printed dictionary and YAML all
-// match. In YAML inside a JSON string the name follows an encoded line end. The name stays in the output. jwkPrivateMemberFilter keeps a match
+// match. In YAML inside a JSON string the name follows an encoded line end
+// (see encodedBreakLetters); no member name starts with one of those letters. The name stays in the output. jwkPrivateMemberFilter keeps a match
 // only inside a JSON Web Key.
 var jwkPrivateMemberPattern = regexp.MustCompile(
-	`((?:^|[\s{,"'\\]|` + encodedBreakPattern + `)(?:` + strings.Join(jwkPrivateMembers, "|") + `)(?:\\*["'])?[ \t]*:[ \t]*(?:\\*["'])?)` + jwkValueBody)
+	`((?:^|[\s{,"'\\])[` + encodedBreakLetters + `]?(?:` + strings.Join(jwkPrivateMembers, "|") + `)(?:\\*["'])?[ \t]*:[ \t]*(?:\\*["'])?)` + jwkValueBody)
 
 // jwkValuePattern is a whole member value, for RedactJSON.
 var jwkValuePattern = regexp.MustCompile(`^` + jwkValueBody + `$`)
 
 // jwkKeyTypePattern is the key-type member in the same four spellings.
-var jwkKeyTypePattern = regexp.MustCompile(`(?:^|[\s{,"'\\]|` + encodedBreakPattern + `)` + jwkKeyTypeMember + `(?:\\*["'])?[ \t]*:`)
+var jwkKeyTypePattern = regexp.MustCompile(`(?:^|[\s{,"'\\])[` + encodedBreakLetters + `]?` + jwkKeyTypeMember + `(?:\\*["'])?[ \t]*:`)
 
 // jwkPrivateMemberFilter keeps a match that has a key-type member near it.
 func jwkPrivateMemberFilter(matched, input string, offset int) bool {
-	if !startsAtEncodedBreak(matched, input, offset) {
+	// The match is the character before the name, if any, then the letter of
+	// an encoded line end, if any, then the name.
+	name := 0
+	if !isWordByte(matched[0]) {
+		name = 1
+	}
+	if strings.IndexByte(encodedBreakLetters, matched[name]) >= 0 && !endsEncodedBreak(input, offset+name+1) {
 		return false
 	}
 	start := max(0, offset-jwkContextWindow)
