@@ -490,6 +490,13 @@ func keyNameSecretValues(matched, input string, offset int) []valueSpan {
 		end += len(unquotedTail(input[end:]))
 	}
 	valueStart := pair.valueStart
+	if strings.HasSuffix(input[:pair.pairStart], "://") {
+		// The user and password of a URL, as in a clone URL whose user is
+		// x-access-token. The password ends at the "@" before the host.
+		if at := strings.IndexByte(input[valueStart:end], '@'); at >= 0 {
+			end = valueStart + at
+		}
+	}
 	cuts := nextSettingPattern.FindAllStringIndex(input[valueStart:end], -1)
 	var spans []valueSpan
 	for k := 0; ; k++ {

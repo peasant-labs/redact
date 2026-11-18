@@ -137,6 +137,8 @@ required_standard_text_outputs_ids:
   - tail_keeps_closing_parenthesis
   - redirect_after_value
   - redirect_after_value_to_stream
+  - clone_url_with_token_user
+  - clone_url_with_ci_token_user
 required_linear_time_ids:
   - settings_joined_by_commas
   - settings_joined_by_semicolons
@@ -489,6 +491,14 @@ standard_text_outputs:
     why: the same for a redirect to another stream
     input: 'echo token=canaryTok3n>&2'
     want: 'echo token=<SECRET>>&2'
+  - id: clone_url_with_token_user
+    why: the user of a clone URL ends in "token", and its password ends at the "@", so the host and the repository stay
+    input: 'git clone https://x-access-token:ghs_canary0123456789abcdefghijklmnopqrstu@github.com/o/r.git'
+    want: 'git clone https://<BASIC_AUTH_URI>@github.com/o/r.git'
+  - id: clone_url_with_ci_token_user
+    why: the same for the user name of a CI job token
+    input: 'https://gitlab-ci-token:canaryCiTok3n99@gitlab.example.com/group/proj.git'
+    want: 'https://<BASIC_AUTH_URI>@gitlab.example.com/group/proj.git'
 linear_time:
   - id: settings_joined_by_commas
     why: every setting of the run is cut from one unquoted value and read once
