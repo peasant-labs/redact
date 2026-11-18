@@ -94,6 +94,9 @@ func TestEngineDefaultRemainsStdlib(t *testing.T) {
 	if selectEngine().Identity() != engineGoRegexp || defaultRedactor.patterns != nil {
 		t.Fatal("NewRedactor must reuse the original stdlib patterns by default")
 	}
+	if detector := NewResidueDetector().(*DefaultResidueDetector); detector.patterns != nil {
+		t.Fatal("NewResidueDetector must reuse the original stdlib patterns by default")
+	}
 }
 
 type rejectingEngine struct {
@@ -111,6 +114,9 @@ func TestEngineCompileFailureRefusesConstruction(t *testing.T) {
 	}
 	if p, err := newTitlePipelineWithEngine(e); p != nil || !errors.Is(err, cause) {
 		t.Fatalf("title pipeline = %v, %v; want no partial pipeline and wrapped compiler error", p, err)
+	}
+	if d, err := newResidueDetector(e); d != nil || !errors.Is(err, cause) {
+		t.Fatalf("residue detector = %v, %v; want no partial detector and wrapped compiler error", d, err)
 	}
 }
 
