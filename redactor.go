@@ -131,6 +131,9 @@ func newRedactorWithEngine(e engine, level RedactionLevel, userPatterns []UserPa
 	if err := validateRuleActivationMetadata(Rules); err != nil {
 		return nil, err
 	}
+	if err := validateValueRules(Rules); err != nil {
+		return nil, err
+	}
 
 	userRules, err := compileUserPatterns(userPatterns)
 	if err != nil {

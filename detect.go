@@ -1,6 +1,7 @@
 package redact
 
 import (
+	"fmt"
 	"regexp"
 	"sort"
 )
@@ -123,6 +124,10 @@ type valueFinder func(matched, input string, offset int) []valueSpan
 // not in Rule.Replacement, so a reader of the rule table sees the placeholder
 // that is written.
 type valueRule struct {
+	// id is the ID of the rule the entry belongs to. Constructing a redactor
+	// checks that the rule with that ID still has this pattern (see
+	// validateValueRules).
+	id          string
 	find        valueFinder
 	placeholder string
 	recovery    string
@@ -137,11 +142,34 @@ type valueRule struct {
 // valueRules holds the value rules by their pattern. The entry lives beside
 // the rule table and not in Rule, whose field layout is public.
 var valueRules = map[*regexp.Regexp]valueRule{
-	keyNameSecretPattern:    {find: keyNameSecretValues, placeholder: keyNameSecretPlaceholder, recovery: keyNameSecretReplacement},
-	urlQuerySecretPattern:   {find: urlQuerySecretValues, placeholder: keyNameSecretPlaceholder, recovery: "${before}" + keyNameSecretPlaceholder},
-	cookieHeaderPattern:     {find: cookieHeaderValues, placeholder: cookieHeaderPlaceholder, recovery: "${before}" + cookieHeaderPlaceholder},
-	curlUserPasswordPattern: {find: curlUserPasswordValues, placeholder: curlUserPasswordPlaceholder, recovery: curlUserPasswordReplacement},
+	keyNameSecretPattern:    {id: keyNameSecretRuleID, find: keyNameSecretValues, placeholder: keyNameSecretPlaceholder, recovery: keyNameSecretReplacement},
+	urlQuerySecretPattern:   {id: urlQuerySecretRuleID, find: urlQuerySecretValues, placeholder: keyNameSecretPlaceholder, recovery: "${before}" + keyNameSecretPlaceholder},
+	cookieHeaderPattern:     {id: cookieHeaderRuleID, find: cookieHeaderValues, placeholder: cookieHeaderPlaceholder, recovery: "${before}" + cookieHeaderPlaceholder},
+	curlUserPasswordPattern: {id: curlUserPasswordRuleID, find: curlUserPasswordValues, placeholder: curlUserPasswordPlaceholder, recovery: curlUserPasswordReplacement},
 	// The rules built by prefixTokenRule add themselves.
+}
+
+// validateValueRules reports a rule whose ID belongs to a value rule but whose
+// pattern is not the one that value rule is keyed by. Detection finds the
+// value rule by the pattern, so such a rule would match and replace its whole
+// construct, name included, without a word of warning.
+func validateValueRules(rules []Rule) error {
+	for _, rule := range rules {
+		for _, value := range valueRules {
+			if value.id != rule.ID || valueRules[rule.Pattern].id == rule.ID {
+				continue
+			}
+			return &actionableError{
+				what:  fmt.Sprintf("built-in redaction rule %q has a pattern its value finder does not know", rule.ID),
+				why:   "the rule replaces only the value it finds inside its pattern match, and detection finds the value by the pattern",
+				where: "redact.validateValueRules",
+				when:  "NewRedactor validated built-in rule metadata before scanning content",
+				means: "the rule would replace its whole pattern match, so no redactor was created",
+				fix:   "keep the rule's compiled pattern, or register the new pattern with its value finder",
+			}
+		}
+	}
+	return nil
 }
 
 // hasValue adapts a valueFinder to Rule.FilterFn, so a caller that applies a

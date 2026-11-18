@@ -199,3 +199,20 @@ cases:
       when: validating embedded fixtures before selecting a redactor level
       means: the test cannot safely choose a level and the false-positive corpus cannot run
       fix: set the fixture level to minimal, standard, maximum, or remove it to use Standard
+
+  - name: value_rule_pattern_replaced
+    kind: value_rule_pattern_replaced
+    expected:
+      what: 'built-in redaction rule "key_name_secret" has a pattern its value finder does not know'
+      why: the rule replaces only the value it finds inside its pattern match, and detection finds the value by the pattern
+      where: redact.validateValueRules
+      when: NewRedactor validated built-in rule metadata before scanning content
+      means: the rule would replace its whole pattern match, so no redactor was created
+      fix: keep the rule's compiled pattern, or register the new pattern with its value finder
+    rendered: |-
+      what: built-in redaction rule "key_name_secret" has a pattern its value finder does not know
+      why: the rule replaces only the value it finds inside its pattern match, and detection finds the value by the pattern
+      where: redact.validateValueRules
+      when: NewRedactor validated built-in rule metadata before scanning content
+      means: the rule would replace its whole pattern match, so no redactor was created
+      fix: keep the rule's compiled pattern, or register the new pattern with its value finder

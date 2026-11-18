@@ -46,7 +46,7 @@ const (
 func prefixTokenRule(id, pattern, placeholder string) Rule {
 	compiled := regexp.MustCompile(pattern)
 	find := prefixTokenValues(compiled)
-	valueRules[compiled] = valueRule{find: find, placeholder: placeholder, knowsFormat: true}
+	valueRules[compiled] = valueRule{id: id, find: find, placeholder: placeholder, knowsFormat: true}
 	return Rule{ID: id, Category: CategorySecrets, Pattern: compiled, Replacement: placeholder, FilterFn: hasValue(find)}
 }
 
