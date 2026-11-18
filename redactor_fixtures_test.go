@@ -179,7 +179,7 @@ func loadRedactorBehaviorFixtures(t *testing.T) redactorBehaviorFixtures {
 		}
 	}
 	if len(fixtures.JSONKeySets.JWKPrivateMembers) == 0 || len(fixtures.JSONKeySets.HeaderValueKeys) == 0 {
-		t.Fatal("testdata/redactor_behavior.yaml has no json_key_sets; restore both closed lists")
+		t.Fatal("the redactor behavior fixture has no json_key_sets; restore both closed lists")
 	}
 	for _, row := range fixtures.MetadataPaths {
 		checkFixtureLevel(t, row.ID, row.Level)
@@ -495,7 +495,7 @@ func TestRedactJSON_KeyListsAreClosed(t *testing.T) {
 	} {
 		got, want := slices.Sorted(slices.Values(list.got)), slices.Sorted(slices.Values(list.want))
 		if !slices.Equal(got, want) {
-			t.Errorf("%s = %v, want exactly %v (testdata/redactor_behavior.yaml json_key_sets)", list.name, got, want)
+			t.Errorf("%s = %v, want exactly %v, the json_key_sets list of the redactor behavior fixture", list.name, got, want)
 		}
 	}
 }
