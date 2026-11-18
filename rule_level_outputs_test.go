@@ -11,6 +11,9 @@ import (
 //go:embed testdata/rule_level_outputs.yaml
 var ruleLevelOutputsData []byte
 
+// ruleLevelOutputsFile names the fixture file in messages.
+const ruleLevelOutputsFile = "testdata/rule_level_outputs.yaml"
+
 type ruleLevelExpectation struct {
 	Active bool   `yaml:"active"`
 	Output string `yaml:"output"`
@@ -156,7 +159,7 @@ func loadRuleLevelOutputFixtures() ([]ruleLevelOutputFixture, error) {
 		}
 		seenControls[fixture.Control] = struct{}{}
 	}
-	if err := requireFixtureNames("testdata/rule_level_outputs.yaml", "requiredSecretCaseNames", fixtures.RequiredSecretCaseNames, secretCaseNames); err != nil {
+	if err := requireFixtureNames(ruleLevelOutputsFile, "requiredSecretCaseNames", fixtures.RequiredSecretCaseNames, secretCaseNames); err != nil {
 		return nil, err
 	}
 	for ruleID := range projectIDs {
