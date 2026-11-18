@@ -298,11 +298,13 @@ func TestEngineInputRefusalPublicPaths(t *testing.T) {
 				output, err = r.RedactTextChecked(input)
 			case refusalOperationCheckedJSON:
 				var v any
+				// unstring-allow: go-json-body-map — dynamic refusal payload the redactor must traverse
 				v, err = r.RedactJSONChecked(map[string]any{"nested": []any{input}})
 				if v != nil {
 					t.Fatal("refusal returned partial JSON")
 				}
 			case refusalOperationJSONL:
+				// unstring-allow: go-json-body-map — dynamic JSONL payload the redactor must traverse
 				data, _ := json.Marshal(map[string]any{"value": input})
 				data = append(data, '\n')
 				var out []byte
