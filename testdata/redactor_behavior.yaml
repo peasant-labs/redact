@@ -181,6 +181,9 @@ required_standard_text_outputs_ids:
   - template_before_text_unchanged
   - braced_variable_followed_by_text
   - command_substitution_followed_by_text
+  - connection_string_key_with_space_after
+  - connection_string_keys_with_spaces_around
+  - connection_string_flag_key_with_space
 required_value_rule_replacements_ids:
   - key_name_secret
   - url_query_secret
@@ -192,6 +195,7 @@ required_linear_time_ids:
   - values_before_an_opening_angle_bracket
   - values_before_a_closing_angle_bracket
   - quoted_settings_after_unquoted_settings
+  - settings_with_spaced_names
 required_unchanged_text_ids:
   - shell_variable
   - braced_shell_variable
@@ -726,6 +730,18 @@ standard_text_outputs:
     why: the same for a command substitution followed by literal text
     input: 'DB_PASSWORD=$(echo)canaryXk9mQ2vL7pR4'
     want: 'DB_PASSWORD=<SECRET>'
+  - id: connection_string_key_with_space_after
+    why: the key after the password in a connection string holds a space, and the value ends before it
+    input: 'Data Source=x;Password=canaryXk9mQ2vL7pR4;User ID=sa'
+    want: 'Data Source=x;Password=<SECRET>;User ID=sa'
+  - id: connection_string_keys_with_spaces_around
+    why: the same with keys holding spaces before and after the password
+    input: 'Data Source=x;Initial Catalog=db;Password=canaryXk9mQ2vL7pR4;User ID=sa;'
+    want: 'Data Source=x;Initial Catalog=db;Password=<SECRET>;User ID=sa;'
+  - id: connection_string_flag_key_with_space
+    why: the same for a lower-case password key and a flag key with a space
+    input: 'password=canaryXk9mQ2vL7pR4;Integrated Security=true'
+    want: 'password=<SECRET>;Integrated Security=true'
 # The rules that replace a value and not their whole pattern match. Each
 # Replacement is the bare placeholder; the recovery path keeps the name.
 value_rule_replacements:
@@ -765,6 +781,9 @@ linear_time:
   - id: quoted_settings_after_unquoted_settings
     why: the quoted value after the last setting of each run is read up to its closing quote, once
     unit: 'a=b,db_token="canaryQ1w2e3"'
+  - id: settings_with_spaced_names
+    why: the look-ahead for a setting name that holds a space is bounded
+    unit: 'Password=a1b2c3d4;User ID=sa;'
 unchanged_text:
   - id: shell_variable
     why: a variable reference holds no credential

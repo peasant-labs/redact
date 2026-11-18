@@ -139,7 +139,18 @@ var keyNameSecretPattern = regexp.MustCompile(
 // no lookahead, so the pattern cannot stop there itself, and
 // keyNameSecretValues cuts the value. A password that holds ",name=" is cut
 // short; the text after the cut is read as the next setting.
-var nextSettingPattern = regexp.MustCompile(`[,;][A-Za-z_][A-Za-z0-9_.\-]*=`)
+//
+// After a semicolon the name may hold spaces, as the keys of a connection
+// string do: "Password=abc12345;User ID=sa", ";Initial Catalog=db". The
+// unquoted value stops at the space inside such a name, so the cut is looked
+// for up to maxSettingNameLookahead bytes past the end of the value. After a
+// comma the name holds no space, so prose such as "a, b=c" is not cut.
+var nextSettingPattern = regexp.MustCompile(`,[A-Za-z_][A-Za-z0-9_.\-]*=|;[A-Za-z_][A-Za-z0-9_ .\-]*=`)
+
+// maxSettingNameLookahead bounds how far past the end of an unquoted value
+// keyNameSecretValues reads for the name of the next setting, so the time
+// taken still follows the length of the input.
+const maxSettingNameLookahead = 64
 
 // keyNameSecretReplacement replaces a whole pattern match: it keeps the text
 // before the value and whichever pair of quotes matched. Detection replaces the
@@ -595,7 +606,12 @@ func keyNameSecretValues(matched, input string, offset int) []valueSpan {
 			end = valueStart + at
 		}
 	}
-	cuts := nextSettingPattern.FindAllStringIndex(input[valueStart:end], -1)
+	// A cut must start inside the value; its name may run on past the end of
+	// the value when it holds a space (see nextSettingPattern).
+	cuts := nextSettingPattern.FindAllStringIndex(input[valueStart:min(len(input), end+maxSettingNameLookahead)], -1)
+	for len(cuts) > 0 && valueStart+cuts[len(cuts)-1][0] >= end {
+		cuts = cuts[:len(cuts)-1]
+	}
 	var spans []valueSpan
 	for k := 0; ; k++ {
 		if pair.bare {
