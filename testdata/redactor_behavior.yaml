@@ -118,6 +118,7 @@ required_json_keys_ids:
   - web_key_remaining_private_members
   - set_cookie_header_key
   - other_header_key_is_ordinary_text
+  - keys_that_only_contain_a_secret_word_unchanged
 required_observed_json_keys_ids:
   - value_under_secret_key
   - web_key_private_member
@@ -133,6 +134,14 @@ required_inactive_json_key_rules_ids:
 json_key_sets:
   jwk_private_members: [d, p, q, dp, dq, qi, k]
   header_value_keys: [authorization, cookie, set-cookie]
+# The closed lists the key-name rules and the curl rule read a name, a message
+# and a password by. The test asserts exact membership against the compiled
+# lists.
+value_test_sets:
+  credential_name_endings: [token, secret, password, passwd, passphrase]
+  key_material_name_endings: [credential, private_key, access_key, api_key, secret_key, auth]
+  message_words: [unexpected, expected, invalid, unknown, unrecognized, unrecognised, illegal, bad, malformed, missing, stray, extra, next, previous, current, first, last]
+  placeholder_passwords: [password, passwd, pass, pwd, secret, token, key, apikey, api_key]
 required_standard_text_outputs_ids:
   - tail_keeps_closing_parenthesis
   - redirect_after_value
@@ -464,6 +473,11 @@ json_keys:
     level: standard
     json: '{"headers": {"Proxy-Authorization": "token canaryAuthTok0123456789abcd", "X-Cookie": "sessionid=canarySessionCookie0123456789abcdef"}}'
     want: '{"headers": {"Proxy-Authorization": "token canaryAuthTok0123456789abcd", "X-Cookie": "sessionid=canarySessionCookie0123456789abcdef"}}'
+  - id: keys_that_only_contain_a_secret_word_unchanged
+    why: A key that holds a secret word without ending in it names something else, so a value under it that would pass the value test is kept.
+    level: standard
+    json: '{"token_type": "canaryBearer2026", "author_id": "canaryAuthor12345", "secret_ref": "canarySecretRef2026", "password_hint": "canaryHint2026x"}'
+    want: '{"token_type": "canaryBearer2026", "author_id": "canaryAuthor12345", "secret_ref": "canarySecretRef2026", "password_hint": "canaryHint2026x"}'
 observed_json_keys:
   - id: value_under_secret_key
     why: A value replaced because of its key reaches the observer as one child record that names the rule, its category and its place in the rule table.

@@ -46,6 +46,7 @@ type redactorBehaviorFixtures struct {
 	RequiredInactiveRuleIDs []string               `yaml:"required_inactive_json_key_rules_ids"`
 	InactiveJSONKeyRules    []inactiveRuleFixture  `yaml:"inactive_json_key_rules"`
 	JSONKeySets             jsonKeySetsFixture     `yaml:"json_key_sets"`
+	ValueTestSets           valueTestSetsFixture   `yaml:"value_test_sets"`
 	RequiredTextOutputIDs   []string               `yaml:"required_standard_text_outputs_ids"`
 	TextOutputs             []textOutputFixture    `yaml:"standard_text_outputs"`
 	RequiredValueRuleIDs    []string               `yaml:"required_value_rule_replacements_ids"`
@@ -109,6 +110,15 @@ type inactiveRuleFixture struct {
 	Why  string `yaml:"why"`
 	Rule string `yaml:"rule"`
 	JSON string `yaml:"json"`
+}
+
+// valueTestSetsFixture holds the closed lists the key-name rules and the curl
+// rule read a name, a message and a password by.
+type valueTestSetsFixture struct {
+	CredentialNameEndings  []string `yaml:"credential_name_endings"`
+	KeyMaterialNameEndings []string `yaml:"key_material_name_endings"`
+	MessageWords           []string `yaml:"message_words"`
+	PlaceholderPasswords   []string `yaml:"placeholder_passwords"`
 }
 
 // jsonKeySetsFixture holds the closed lists RedactJSON reads an object key by.
@@ -255,6 +265,9 @@ func loadRedactorBehaviorFixtures(t *testing.T) redactorBehaviorFixtures {
 	}
 	if len(fixtures.JSONKeySets.JWKPrivateMembers) == 0 || len(fixtures.JSONKeySets.HeaderValueKeys) == 0 {
 		t.Fatal("the redactor behavior fixture has no json_key_sets; restore both closed lists")
+	}
+	if sets := fixtures.ValueTestSets; len(sets.CredentialNameEndings) == 0 || len(sets.KeyMaterialNameEndings) == 0 || len(sets.MessageWords) == 0 || len(sets.PlaceholderPasswords) == 0 {
+		t.Fatal("the redactor behavior fixture has no value_test_sets; restore all four closed lists")
 	}
 	for _, row := range fixtures.MetadataPaths {
 		checkFixtureLevel(t, row.ID, row.Level)
@@ -598,6 +611,26 @@ func TestRedactJSON_KeyRuleMustBeActive(t *testing.T) {
 				t.Errorf("Report() counts %d redactions of the inactive rule %s", count, row.Rule)
 			}
 		})
+	}
+}
+
+// TestKeyNameRules_ListsAreClosed pins the exact membership of the lists the
+// key-name rules and the curl rule read a name, a message and a password by.
+func TestKeyNameRules_ListsAreClosed(t *testing.T) {
+	sets := loadRedactorBehaviorFixtures(t).ValueTestSets
+	for _, list := range []struct {
+		name      string
+		got, want []string
+	}{
+		{"credentialNameEndings", credentialNameEndings, sets.CredentialNameEndings},
+		{"keyMaterialNameEndings", keyMaterialNameEndings, sets.KeyMaterialNameEndings},
+		{"messageWords", messageWords, sets.MessageWords},
+		{"placeholderPasswords", placeholderPasswords, sets.PlaceholderPasswords},
+	} {
+		got, want := slices.Sorted(slices.Values(list.got)), slices.Sorted(slices.Values(list.want))
+		if !slices.Equal(got, want) {
+			t.Errorf("%s = %v, want exactly %v, the value_test_sets list of the redactor behavior fixture", list.name, got, want)
+		}
 	}
 }
 
