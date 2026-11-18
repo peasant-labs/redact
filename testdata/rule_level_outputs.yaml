@@ -369,6 +369,21 @@ cases:
         active: true
         output: "GITHUB_TOKEN=<GITHUB_PAT>"
 
+  - name: longer_match_wins_at_one_offset
+    ruleId: key_name_secret
+    category: secrets
+    input: 'api_key = "canaryKey0123456789abcdef-part!9"'
+    expectations:
+      minimal:
+        active: true
+        output: 'api_key = "<SECRET>"'
+      standard:
+        active: true
+        output: 'api_key = "<SECRET>"'
+      maximum:
+        active: true
+        output: 'api_key = "<SECRET>"'
+
 # Reviewed manifest of the secret-rule rows above. The loader asserts exact
 # membership in both directions.
 requiredSecretCaseNames:
@@ -382,3 +397,4 @@ requiredSecretCaseNames:
   - cookie_response_header
   - stripe_key_long_body
   - vendor_token_keeps_its_label
+  - longer_match_wins_at_one_offset

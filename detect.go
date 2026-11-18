@@ -107,7 +107,15 @@ func detectWithRulesInto(input string, rules []Rule, accepted func(ruleIndex int
 	if len(matches) == 0 {
 		return nil
 	}
-	sort.Slice(matches, func(i, j int) bool { return matches[i].Offset < matches[j].Offset })
+	// Order by offset. Two matches that start at the same offset are ordered
+	// longest first, so Redact, which keeps the first of two overlapping
+	// matches, never prefers a rule that covers less of the same text.
+	sort.SliceStable(matches, func(i, j int) bool {
+		if matches[i].Offset != matches[j].Offset {
+			return matches[i].Offset < matches[j].Offset
+		}
+		return matches[i].Length > matches[j].Length
+	})
 	return matches
 }
 
