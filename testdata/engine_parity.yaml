@@ -21,6 +21,10 @@ required_names:
   - value_under_secret_name_keeps_match_one_character_past
   - value_under_secret_name_after_partial_cover
   - value_under_secret_name_keeps_configured_rule_on_its_start
+  - value_under_secret_name_after_two_configured_rules
+  - value_under_secret_name_after_cover_and_crossing_match
+  - value_under_secret_name_after_configured_rule_on_name_and_separator
+  - configured_rule_longer_than_format_rule_at_one_offset
 cases:
   # A match that starts inside the value cuts it when it ends two or more
   # characters after the value. One character after it is the character a
@@ -68,6 +72,58 @@ cases:
       - {name: first_call, total: 2, counts: {ua: 1, key_name_secret: 1}}
     patterns:
       - {id: ua, category: secrets, pattern: 'auth_token=[a-z]+', replacement: '<UA>'}
+  # Two configured matches: the first is applied, the second starts inside it
+  # and is skipped, and the value match starts where the first one ends, not
+  # where the skipped one ends.
+  - name: value_under_secret_name_after_two_configured_rules
+    input: AAAA password=canary12345xyz99
+    output: '<A>word=<SECRET>'
+    rules: [head, across, key_name_secret]
+    stable: true
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 3, counts: {head: 1, across: 1, key_name_secret: 1}}
+    patterns:
+      - {id: head, category: secrets, pattern: 'AAAA pass', replacement: '<A>'}
+      - {id: across, category: secrets, pattern: 'A password=canary12', replacement: '<B>'}
+  # A configured match covers the start of the value, and another starts inside
+  # the first and ends past the value. The value match keeps what lies between
+  # the end of the first and the end of the value; the second is skipped.
+  - name: value_under_secret_name_after_cover_and_crossing_match
+    input: xx token=canary12345INNERdef-rest9 tail
+    output: '<OUTER><SECRET> tail'
+    rules: [outer, inner, key_name_secret]
+    stable: true
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 3, counts: {outer: 1, inner: 1, key_name_secret: 1}}
+    patterns:
+      - {id: outer, category: secrets, pattern: 'xx token=canary12345INNERdef', replacement: '<OUTER>'}
+      - {id: inner, category: secrets, pattern: 'INNERdef-rest9 ta', replacement: '<INNER>'}
+  # A configured match on the name and the separator touches the value and
+  # does not overlap it; both are applied, and a second pass changes nothing.
+  - name: value_under_secret_name_after_configured_rule_on_name_and_separator
+    input: ACME_DB_PASSWORD=canaryPw0rd2026
+    output: '<ENV_NAME><SECRET>'
+    rules: [env_name, key_name_secret]
+    stable: true
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 2, counts: {env_name: 1, key_name_secret: 1}}
+    patterns:
+      - {id: env_name, category: project, pattern: 'ACME_[A-Z_]+=', replacement: '<ENV_NAME>'}
+  # Two matches at one offset: the longer one comes first and is applied,
+  # whichever rule table it comes from.
+  - name: configured_rule_longer_than_format_rule_at_one_offset
+    input: ghp_canary0123456789abcdefghijklmnopqrst-tail
+    output: '<TOKEN_TAIL>'
+    rules: [token_tail, github_pat]
+    stable: true
+    required_report_names: [first_call]
+    reports:
+      - {name: first_call, total: 2, counts: {token_tail: 1, github_pat: 1}}
+    patterns:
+      - {id: token_tail, category: secrets, pattern: 'ghp_[A-Za-z0-9]{36}-tail', replacement: '<TOKEN_TAIL>'}
   # A key-name match spans the value alone and is settled against the matches
   # of every other rule, configured rules included. Report counts hold only the
   # matches that remain, so a count never names a redaction that was not made.

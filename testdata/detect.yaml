@@ -6,3 +6,60 @@ parity:
   - {id: empty_string, level: standard, input: ""}
   - {id: github_pat_minimal, level: minimal, input: "ghp_abc123def456abc123def456abc12345"}
   - {id: aws_access_key_minimal, level: minimal, input: "AKIAIOSFODNN7EXAMPLE config value"}
+required_value_span_ids:
+  - key_name_value
+  - url_query_value
+  - cookie_header_value
+  - curl_pair
+  - token_after_glued_prefix
+  - value_cut_by_later_match
+  - value_after_partial_cover
+  - second_setting_in_one_value
+value_spans:
+  - id: key_name_value
+    why: the match is the value, not the name or the separator
+    input: 'DB_PASSWORD=canaryPw0rd2026 PORT=5432'
+    matches:
+      - {rule: key_name_secret, offset: 12, length: 15}
+  - id: url_query_value
+    why: the match is the parameter value, up to the next parameter
+    input: 'GET https://api.example.com/v1?access_token=canaryQueryTok3n&x=1'
+    matches:
+      - {rule: url_query_secret, offset: 44, length: 16}
+  - id: cookie_header_value
+    why: the match is every pair after the header name
+    input: 'Cookie: sid=canarySessi0nId99; theme=dark'
+    matches:
+      - {rule: cookie_header, offset: 8, length: 33}
+  - id: curl_pair
+    why: the match is the user and the password, not the option
+    input: 'curl -u admin:canaryCurlPw0rd https://api.example.com'
+    matches:
+      - {rule: curl_user_password, offset: 8, length: 21}
+  - id: token_after_glued_prefix
+    why: the token starts at the prefix that starts a word, not at the one that ends the word before it
+    input: 'task-admin-sk-admin-canaryDEF123456ghiJKL789mno'
+    matches:
+      - {rule: openai_project_key, offset: 11, length: 36}
+  - id: value_cut_by_later_match
+    why: the value match ends where a match that runs past its end starts
+    input: 'token=canary12345Bearer canarybearer0123456789abcd'
+    matches:
+      - {rule: key_name_secret, offset: 6, length: 11}
+      - {rule: bearer_token, offset: 17, length: 33}
+  - id: value_after_partial_cover
+    why: the value match starts where a configured match that covers its start ends, and Detect keeps offset order
+    input: 'xx token=canary12345INNERdef-rest9 tail'
+    patterns:
+      - {id: outer, category: secrets, pattern: 'xx token=canary12345INNERdef', replacement: '<OUTER>'}
+      - {id: inner, category: secrets, pattern: 'INNERdef-rest9 ta', replacement: '<INNER>'}
+    matches:
+      - {rule: outer, offset: 0, length: 28}
+      - {rule: inner, offset: 20, length: 17}
+      - {rule: key_name_secret, offset: 28, length: 6}
+  - id: second_setting_in_one_value
+    why: a setting after a comma is cut from the value before it and judged by its own name
+    input: 'xx token=canary12345,user_token=canaryTok3n99'
+    matches:
+      - {rule: key_name_secret, offset: 9, length: 11}
+      - {rule: key_name_secret, offset: 32, length: 13}

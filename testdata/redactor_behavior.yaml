@@ -146,6 +146,7 @@ required_standard_text_outputs_ids:
   - slug_value_with_account_name_is_stable
   - dotted_password_with_digits_after_capital_word
   - dotted_password_with_two_digits
+  - format_token_ending_the_value
 required_value_rule_replacements_ids:
   - key_name_secret
   - url_query_secret
@@ -545,6 +546,10 @@ standard_text_outputs:
     why: the same with two digits
     input: 'DB_PASSWORD=Canary.Snow24'
     want: 'DB_PASSWORD=<SECRET>'
+  - id: format_token_ending_the_value
+    why: a format token that starts inside the value and ends with it lies inside the value, so the value match replaces all of it
+    input: 'token=canary12345-ghp_canary0123456789abcdefghijklmnopqrst'
+    want: 'token=<SECRET>'
 # The rules that replace a value and not their whole pattern match. Each
 # Replacement is the bare placeholder; the recovery path keeps the name.
 value_rule_replacements:
