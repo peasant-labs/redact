@@ -155,7 +155,9 @@ var (
 )
 
 // cookieHeaderPattern matches the value of a Cookie or Set-Cookie header, as a
-// header line or as a JSON member. The value must start with a cookie name and
+// header line or as a JSON member. The header name starts a word, or follows
+// an encoded line end in JSON-encoded text (see encodedBreakPattern), where
+// the letter of the line end would otherwise join the name. The value must start with a cookie name and
 // an equals sign, then a first value with no space in it (plain or quoted) or
 // a semicolon, so prose after the word "Cookie:" does not match, and the first
 // value must not open a template or a variable reference. Whatever follows the
@@ -164,7 +166,7 @@ var (
 // a quote or a backslash, which end the header inside a quoted argument or a
 // JSON string.
 var cookieHeaderPattern = regexp.MustCompile(
-	`(?i)\b(?P<before>(?:set-)?cookie(?:\\*["'])?:[ \t]*(?:\\*["'])?)[a-z0-9_.\-$]+=` +
+	`(?i)(?P<before>(?:` + encodedBreakPattern + `|\b)(?:set-)?cookie(?:\\*["'])?:[ \t]*(?:\\*["'])?)[a-z0-9_.\-$]+=` +
 		`(?:(?:[^\s;"'<${\\][^\s;"'\\]*|\\*"[^\s;"'<${\\][^\s;"'\\]*\\*")(?:;[^\r\n"'\\]*)?|;[^\r\n"'\\]*)`)
 
 var cookieHeaderBeforeGroup = cookieHeaderPattern.SubexpIndex("before")
@@ -380,7 +382,7 @@ func urlQuerySecretValues(matched, input string, offset int) []valueSpan {
 // header name: the cookie pairs and attributes.
 func cookieHeaderValues(matched, input string, offset int) []valueSpan {
 	groups := cookieHeaderPattern.FindStringSubmatchIndex(matched)
-	if groups == nil || groups[0] != 0 {
+	if groups == nil || groups[0] != 0 || !startsAtEncodedBreak(matched, input, offset) {
 		return nil
 	}
 	return []valueSpan{{offset + groups[2*cookieHeaderBeforeGroup+1], offset + len(matched)}}

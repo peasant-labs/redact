@@ -608,6 +608,7 @@ var Rules = []Rule{
 		Category:    CategorySecrets,
 		Pattern:     cookieHeaderPattern,
 		Replacement: "${1}" + cookieHeaderPlaceholder,
+		FilterFn:    hasValue(cookieHeaderValues),
 	},
 
 	// --- PII ---

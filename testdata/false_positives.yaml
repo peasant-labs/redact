@@ -4607,3 +4607,52 @@ cases:
     expect: no_match
     reason: "A body with no digit is read as an identifier, as for the other prefix rules."
     source: synthetic
+
+  - name: tp_prefix_token_after_encoded_tab
+    input: '{"row": "name\tnpm_canarytoken0123456789abcdefghij"}'
+    rule: npm_token
+    expect: match
+    reason: 'The letter before the prefix is the "t" of an encoded tab, not part of a word.'
+    source: synthetic
+
+  - name: tp_prefix_token_after_encoded_carriage_return
+    input: '{"out": "line one\r\nvcp_canarytoken0123456789abcdef"}'
+    rule: vercel_token
+    expect: match
+    reason: 'The prefix follows an encoded line end.'
+    source: synthetic
+
+  - name: fp_prefix_token_after_escaped_backslash
+    input: '{"path": "C:\\nhf_canarytoken0123456789abcdefghij"}'
+    rule: huggingface_token
+    expect: no_match
+    reason: 'Two backslashes are one literal backslash, so the "n" after them is a letter and the prefix does not start a word.'
+    source: synthetic
+
+  - name: fp_prefix_token_after_letter_n
+    input: 'unhf_canarytoken0123456789abcdefghij'
+    rule: huggingface_token
+    expect: no_match
+    reason: 'An "n" with no backslash before it is part of the word.'
+    source: synthetic
+
+  - name: fp_cookie_header_after_escaped_backslash
+    input: '{"path": "C:\\ncookie: sessionid=canarySessionCookie0123456789"}'
+    rule: cookie_header
+    expect: no_match
+    reason: 'Two backslashes are one literal backslash, so the header name is the end of a longer word.'
+    source: synthetic
+
+  - name: tp_set_cookie_header_after_encoded_line_end
+    input: '{"response": "HTTP/1.1 200 OK\r\nSet-Cookie: sessionid=canarySetCookie0123456789; Path=/"}'
+    rule: cookie_header
+    expect: match
+    reason: 'The header name follows an encoded line end.'
+    source: synthetic
+
+  - name: fp_jwk_private_member_after_escaped_backslash
+    input: '{"note": "kty: oct C:\\nk: canarySymmetricKey0123456789abcd"}'
+    rule: jwk_private_member
+    expect: no_match
+    reason: 'Two backslashes are one literal backslash, so "nk" is not the member "k" on a new line.'
+    source: synthetic

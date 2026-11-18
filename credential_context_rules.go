@@ -25,14 +25,16 @@ const (
 // token. A prefix such as hf_ or vcr_ also starts ordinary identifiers
 // (hf_hub_download, vcr_cassette_library_dir), so two things must hold:
 //
-//   - The prefix starts a word. "usbp_" does not hold the prefix "sbp_".
+//   - The prefix starts a word. "usbp_" does not hold the prefix "sbp_". The
+//     letter of an encoded line end or tab before the prefix does not make a
+//     word: a token on its own line in JSON-encoded text follows "\n".
 //   - The body holds a digit. A generated token of 20 or more characters
 //     nearly always does; an identifier made of words does not.
 //
 // The second test leaves a token made of letters alone unredacted by these
 // rules. That is the price of not redacting code.
 func prefixTokenFilter(matched, input string, offset int) bool {
-	if offset > 0 && isWordByte(input[offset-1]) {
+	if offset > 0 && isWordByte(input[offset-1]) && !endsEncodedBreak(input, offset) {
 		return false
 	}
 	return strings.IndexFunc(matched, isASCIIDigitRune) >= 0
@@ -40,6 +42,43 @@ func prefixTokenFilter(matched, input string, offset int) bool {
 
 func isWordByte(b byte) bool {
 	return b == '_' || (b >= '0' && b <= '9') || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
+}
+
+// encodedBreakPattern is a line end, a carriage return or a tab as a JSON
+// string carries it: a backslash and one letter. A pattern that needs the start
+// of a word or of a line accepts it there, because in JSON-encoded text the
+// letter is not part of the word after it.
+const encodedBreakPattern = `\\[nrt]`
+
+// endsEncodedBreak reports whether input[:end] ends in an encoded line end,
+// carriage return or tab. The backslash must itself be unescaped: in "\\n"
+// the two backslashes are one literal backslash and the "n" is a letter.
+func endsEncodedBreak(input string, end int) bool {
+	if end < 2 || !strings.ContainsRune("nrt", rune(input[end-1])) {
+		return false
+	}
+	return unescapedBackslash(input, end-2)
+}
+
+// unescapedBackslash reports whether input[at] is a backslash that an odd run
+// of backslashes ends, so that it escapes the character after it.
+func unescapedBackslash(input string, at int) bool {
+	run := 0
+	for at >= 0 && input[at] == '\\' {
+		run++
+		at--
+	}
+	return run%2 == 1
+}
+
+// startsAtEncodedBreak reports whether a match that may begin with
+// encodedBreakPattern does so with a real one. It is false only when the match
+// begins with a backslash that is itself escaped.
+func startsAtEncodedBreak(matched, input string, offset int) bool {
+	if len(matched) < 2 || matched[0] != '\\' || !strings.ContainsRune("nrt", rune(matched[1])) {
+		return true
+	}
+	return unescapedBackslash(input, offset)
 }
 
 // authorizationTokenPattern matches an Authorization header whose scheme is
@@ -241,19 +280,22 @@ var jwkValueBody = `[A-Za-z0-9_\-]{` + strconv.Itoa(minJWKMemberLength) + `,}={0
 // jwkPrivateMemberPattern matches a private member and its base64url value.
 // The member name is a whole word, with double quotes, escaped quotes, single
 // quotes or none, so JSON, a JSON string, a printed dictionary and YAML all
-// match. The name stays in the output. jwkPrivateMemberFilter keeps a match
+// match. In YAML inside a JSON string the name follows an encoded line end. The name stays in the output. jwkPrivateMemberFilter keeps a match
 // only inside a JSON Web Key.
 var jwkPrivateMemberPattern = regexp.MustCompile(
-	`((?:^|[\s{,"'\\])(?:` + strings.Join(jwkPrivateMembers, "|") + `)(?:\\*["'])?[ \t]*:[ \t]*(?:\\*["'])?)` + jwkValueBody)
+	`((?:^|[\s{,"'\\]|` + encodedBreakPattern + `)(?:` + strings.Join(jwkPrivateMembers, "|") + `)(?:\\*["'])?[ \t]*:[ \t]*(?:\\*["'])?)` + jwkValueBody)
 
 // jwkValuePattern is a whole member value, for RedactJSON.
 var jwkValuePattern = regexp.MustCompile(`^` + jwkValueBody + `$`)
 
 // jwkKeyTypePattern is the key-type member in the same four spellings.
-var jwkKeyTypePattern = regexp.MustCompile(`(?:^|[\s{,"'\\])` + jwkKeyTypeMember + `(?:\\*["'])?[ \t]*:`)
+var jwkKeyTypePattern = regexp.MustCompile(`(?:^|[\s{,"'\\]|` + encodedBreakPattern + `)` + jwkKeyTypeMember + `(?:\\*["'])?[ \t]*:`)
 
 // jwkPrivateMemberFilter keeps a match that has a key-type member near it.
 func jwkPrivateMemberFilter(matched, input string, offset int) bool {
+	if !startsAtEncodedBreak(matched, input, offset) {
+		return false
+	}
 	start := max(0, offset-jwkContextWindow)
 	end := min(len(input), offset+len(matched)+jwkContextWindow)
 	return jwkKeyTypePattern.MatchString(input[start:end])

@@ -1121,6 +1121,51 @@ cases:
 
 # Reviewed manifest of the secret-rule rows above. The loader asserts exact
 # membership in both directions.
+  - name: prefix_token_after_encoded_line_end
+    ruleId: huggingface_token
+    category: secrets
+    input: '{"stdout": "$ cat token.txt\nhf_canarytoken0123456789abcdefghij\n"}'
+    expectations:
+      minimal:
+        active: true
+        output: '{"stdout": "$ cat token.txt\n<HUGGINGFACE_TOKEN>\n"}'
+      standard:
+        active: true
+        output: '{"stdout": "$ cat token.txt\n<HUGGINGFACE_TOKEN>\n"}'
+      maximum:
+        active: true
+        output: '{"stdout": "$ cat token.txt\n<HUGGINGFACE_TOKEN>\n"}'
+
+  - name: cookie_header_after_encoded_line_end
+    ruleId: cookie_header
+    category: secrets
+    input: '{"request": "GET / HTTP/1.1\nCookie: sessionid=canarySessionCookie0123456789\nAccept: */*"}'
+    expectations:
+      minimal:
+        active: true
+        output: '{"request": "GET / HTTP/1.1\nCookie: <COOKIE>\nAccept: */*"}'
+      standard:
+        active: true
+        output: '{"request": "GET / HTTP/1.1\nCookie: <COOKIE>\nAccept: */*"}'
+      maximum:
+        active: true
+        output: '{"request": "GET / HTTP/1.1\nCookie: <COOKIE>\nAccept: */*"}'
+
+  - name: jwk_private_member_yaml_in_json_string
+    ruleId: jwk_private_member
+    category: secrets
+    input: '{"stdout": "kty: oct\nk: canarySymmetricKey0123456789abcd\n"}'
+    expectations:
+      minimal:
+        active: true
+        output: '{"stdout": "kty: oct\nk: <JWK_PRIVATE_KEY>\n"}'
+      standard:
+        active: true
+        output: '{"stdout": "kty: oct\nk: <JWK_PRIVATE_KEY>\n"}'
+      maximum:
+        active: true
+        output: '{"stdout": "kty: oct\nk: <JWK_PRIVATE_KEY>\n"}'
+
 requiredSecretCaseNames:
   - key_name_env_assignment
   - key_name_json_text
@@ -1182,3 +1227,6 @@ requiredSecretCaseNames:
   - unlisted_format_after_bearer
   - unlisted_format_under_secret_name
   - curl_option_after_quoted_cookie_header
+  - prefix_token_after_encoded_line_end
+  - cookie_header_after_encoded_line_end
+  - jwk_private_member_yaml_in_json_string
