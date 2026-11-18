@@ -191,6 +191,12 @@ required_standard_text_outputs_ids:
   - tokenizer_piece_in_escaped_quotes
   - tokenizer_pieces_after_other_markers
   - tokenizer_marker_before_mixed_value
+  - reference_before_twice_encoded_line_end
+  - settings_on_twice_encoded_lines
+  - word_before_twice_encoded_line_end
+  - twice_encoded_tab_ends_value
+  - literal_backslashes_keep_value_whole
+  - twice_encoded_backslash_before_letter
 required_value_rule_replacements_ids:
   - key_name_secret
   - url_query_secret
@@ -203,6 +209,7 @@ required_linear_time_ids:
   - values_before_a_closing_angle_bracket
   - quoted_settings_after_unquoted_settings
   - settings_with_spaced_names
+  - settings_joined_by_twice_encoded_line_ends
 required_unchanged_text_ids:
   - shell_variable
   - braced_shell_variable
@@ -780,6 +787,30 @@ standard_text_outputs:
     why: a marker followed by a value that mixes letters and digits is not a tokenizer piece, and the value is judged as any other
     input: '{"token":"▁canaryXk9mQ2vL7pR4","activation":0}'
     want: '{"token":"<SECRET>","activation":0}'
+  - id: reference_before_twice_encoded_line_end
+    why: in JSON nested inside a JSON string a line end is two backslashes and the letter; the value ends there, and the reference before it is kept
+    input: 'ENV GITLAB_TOKEN=${GITLAB_TOKEN}\\nRUN apk add --no-cache git'
+    want: 'ENV GITLAB_TOKEN=${GITLAB_TOKEN}\\nRUN apk add --no-cache git'
+  - id: settings_on_twice_encoded_lines
+    why: each setting on a line of its own is judged by its own name and value
+    input: 'S3_ACCESS_KEY=minioadmin\\nS3_SECRET_KEY=canaryS3cretKey0123456789'
+    want: 'S3_ACCESS_KEY=minioadmin\\nS3_SECRET_KEY=<SECRET>'
+  - id: word_before_twice_encoded_line_end
+    why: a value of letters only, ended by a twice-encoded line end, is kept
+    input: 'MINIO_ROOT_PASSWORD: minioadmin\\n    ports:'
+    want: 'MINIO_ROOT_PASSWORD: minioadmin\\n    ports:'
+  - id: twice_encoded_tab_ends_value
+    why: a twice-encoded tab ends the value like a line end, so the text after it stays
+    input: 'password=canaryPw12\\tnext'
+    want: 'password=<SECRET>\\tnext'
+  - id: literal_backslashes_keep_value_whole
+    why: two backslashes before another character show text encoded once, so every backslash in the value is literal and the value is not cut
+    input: 'password=C:\\new\\canary12'
+    want: 'password=<SECRET>'
+  - id: twice_encoded_backslash_before_letter
+    why: four backslashes before the letter are a literal backslash encoded twice, not a line end
+    input: 'password=canary\\\\nPw12345'
+    want: 'password=<SECRET>'
 # The rules that replace a value and not their whole pattern match. Each
 # Replacement is the bare placeholder; the recovery path keeps the name.
 value_rule_replacements:
@@ -822,6 +853,9 @@ linear_time:
   - id: settings_with_spaced_names
     why: the look-ahead for a setting name that holds a space is bounded
     unit: 'Password=a1b2c3d4;User ID=sa;'
+  - id: settings_joined_by_twice_encoded_line_ends
+    why: every setting of the run is cut at its twice-encoded line end and read once
+    unit: 'db_password=a1b2c3d4\\n'
 unchanged_text:
   - id: shell_variable
     why: a variable reference holds no credential
