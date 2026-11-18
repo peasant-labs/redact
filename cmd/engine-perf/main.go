@@ -15,6 +15,8 @@ import (
 	"github.com/peasant-labs/redact/internal/perf"
 )
 
+const defaultBudgetPath = "testdata/engine_perf_budget.yaml"
+
 func main() {
 	os.Exit(run(os.Args[1:]))
 }
@@ -24,7 +26,7 @@ func run(args []string) int {
 	flags.SetOutput(os.Stderr)
 	record := flags.Bool("record", false, "explicitly replace the baseline after review; never used by make or CI")
 	ci := flags.Bool("ci", false, "enforce allocation budgets only; retain the timing report")
-	budgetPath := flags.String("budget", "testdata/engine_perf_budget.yaml", "reviewed budget to compare against")
+	budgetPath := flags.String("budget", defaultBudgetPath, "reviewed budget to compare against")
 	dir := flags.String("dir", ".", "directory holding the redaction package")
 	timeout := flags.Duration("timeout", 11*time.Minute, "cap on the benchmark subprocess")
 	if err := flags.Parse(args); err != nil {

@@ -37,13 +37,18 @@ type enginePerfFixtures struct {
 	Corpora       []enginePerfCorpus `yaml:"corpora"`
 }
 
+const (
+	enginePerfCorpusFixturePath = "testdata/engine_perf_corpus.yaml"
+	enginePerfBudgetFixturePath = "testdata/engine_perf_budget.yaml"
+)
+
 func loadEnginePerfFixtures(tb testing.TB) enginePerfFixtures {
 	tb.Helper()
 	var f enginePerfFixtures
 	if err := yaml.Unmarshal(enginePerfCorpusData, &f); err != nil {
 		tb.Fatal(err)
 	}
-	if err := requireFixtureNames("testdata/engine_perf_corpus.yaml", "required_names", f.RequiredNames, fixtureNames(f.Corpora, func(c enginePerfCorpus) string { return c.Name })); err != nil {
+	if err := requireFixtureNames(enginePerfCorpusFixturePath, "required_names", f.RequiredNames, fixtureNames(f.Corpora, func(c enginePerfCorpus) string { return c.Name })); err != nil {
 		tb.Fatal(err)
 	}
 	for _, c := range f.Corpora {
@@ -136,7 +141,7 @@ func TestEnginePerfBudgetCoverage(t *testing.T) {
 		t.Fatal("restore the reviewed go-re2 budget identity and relative factors >= 1")
 	}
 	expected := enginePerfBenchmarkNames(loadEnginePerfFixtures(t))
-	if err := requireFixtureNames("testdata/engine_perf_budget.yaml", "required_names", budget.RequiredNames, expected); err != nil {
+	if err := requireFixtureNames(enginePerfBudgetFixturePath, "required_names", budget.RequiredNames, expected); err != nil {
 		t.Fatal(err)
 	}
 	names := make([]string, 0, len(budget.Baselines))
@@ -156,7 +161,7 @@ func TestEnginePerfBudgetCoverage(t *testing.T) {
 			t.Errorf("%s: unexpected budget units; keep only ns/op, ns/byte for scans, B/op and allocs/op", name)
 		}
 	}
-	if err := requireFixtureNames("testdata/engine_perf_budget.yaml", "baselines", expected, names); err != nil {
+	if err := requireFixtureNames(enginePerfBudgetFixturePath, "baselines", expected, names); err != nil {
 		t.Fatal(err)
 	}
 }

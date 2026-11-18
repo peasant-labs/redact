@@ -117,9 +117,11 @@ type gateFixture struct {
 	ParseCases         []parseCase `yaml:"parse_cases"`
 }
 
+const enginePerfGateFixturePath = "testdata/engine_perf_gate_cases.yaml"
+
 func loadGateFixture(t *testing.T) gateFixture {
 	t.Helper()
-	data, err := os.ReadFile("testdata/engine_perf_gate_cases.yaml")
+	data, err := os.ReadFile(enginePerfGateFixturePath)
 	if err != nil {
 		t.Fatalf("read gate fixture: %v", err)
 	}
