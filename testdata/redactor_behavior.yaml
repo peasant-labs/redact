@@ -119,6 +119,8 @@ required_json_keys_ids:
   - set_cookie_header_key
   - other_header_key_is_ordinary_text
   - keys_that_only_contain_a_secret_word_unchanged
+  - value_a_format_rule_matches_in_part
+  - short_symmetric_key_member_unchanged
 required_observed_json_keys_ids:
   - value_under_secret_key
   - web_key_private_member
@@ -156,6 +158,13 @@ required_standard_text_outputs_ids:
   - dotted_password_with_digits_after_capital_word
   - dotted_password_with_two_digits
   - format_token_ending_the_value
+  - curl_pair_in_argument_list
+  - curl_pair_in_escaped_quotes
+  - curl_pair_after_encoded_continuation
+  - absolute_path_value_with_plus
+  - absolute_path_value_with_equals
+  - value_with_sigils_and_digits
+  - words_with_digits_inside_a_word
 required_value_rule_replacements_ids:
   - key_name_secret
   - url_query_secret
@@ -198,6 +207,25 @@ required_unchanged_text_ids:
   - unquoted_percent_variable
   - member_access_with_digit_in_lower_case_part
   - prefixed_identifier_with_version_digit
+  - curl_placeholder_password_password
+  - curl_placeholder_password_passwd
+  - curl_placeholder_password_pass
+  - curl_placeholder_password_pwd
+  - curl_placeholder_password_secret
+  - curl_placeholder_password_token
+  - curl_placeholder_password_key
+  - curl_placeholder_password_apikey
+  - curl_placeholder_password_api_key
+  - curl_password_variable
+  - curl_password_angle_template
+  - curl_password_brace_template
+  - curl_password_format_verb
+  - curl_placeholder_password_upper_case
+  - curl_user_and_group_numbers
+  - curl_longer_command_word
+  - curl_before_encoded_line_end
+  - value_relative_path_up
+  - value_identifier_with_sigils
 secrets:
   - {id: anthropic_key, level: minimal, input: "sk-ant-api03-abc123def456abc123def456abc123def456abc123", contains: "<ANTHROPIC_KEY>"}
   - {id: openai_key, level: minimal, input: "sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789", contains: "<OPENAI_KEY>"}
@@ -478,6 +506,17 @@ json_keys:
     level: standard
     json: '{"token_type": "canaryBearer2026", "author_id": "canaryAuthor12345", "secret_ref": "canarySecretRef2026", "password_hint": "canaryHint2026x"}'
     want: '{"token_type": "canaryBearer2026", "author_id": "canaryAuthor12345", "secret_ref": "canarySecretRef2026", "password_hint": "canaryHint2026x"}'
+  - id: value_a_format_rule_matches_in_part
+    why: A format rule that matches the start of the value and not all of it does not take the value; the key-name placeholder replaces the whole value.
+    level: standard
+    json: '{"password": "ghp_canary0123456789abcdefghijklmnopqrst-tail99"}'
+    want: '{"password": "<SECRET>"}'
+    key_redactions: 1
+  - id: short_symmetric_key_member_unchanged
+    why: A private member of a JSON Web Key shorter than the smallest key in use is not key material.
+    level: standard
+    json: '{"kty": "oct", "k": "canary"}'
+    want: '{"kty": "oct", "k": "canary"}'
 observed_json_keys:
   - id: value_under_secret_key
     why: A value replaced because of its key reaches the observer as one child record that names the rule, its category and its place in the rule table.
@@ -564,6 +603,34 @@ standard_text_outputs:
     why: a format token that starts inside the value and ends with it lies inside the value, so the value match replaces all of it
     input: 'token=canary12345-ghp_canary0123456789abcdefghijklmnopqrst'
     want: 'token=<SECRET>'
+  - id: curl_pair_in_argument_list
+    why: the option and the pair as members of an argument list
+    input: 'subprocess.run([''curl'', ''-u'', ''admin:canaryCurlPw0rd'', url])'
+    want: 'subprocess.run([''curl'', ''-u'', ''<USER_PASSWORD>'', url])'
+  - id: curl_pair_in_escaped_quotes
+    why: a pair in escaped quotes inside a JSON string keeps its quotes
+    input: '{"cmd": "curl -u \"admin:canaryCurlPw0rd\" https://api.example.com"}'
+    want: '{"cmd": "curl -u \"<USER_PASSWORD>\" https://api.example.com"}'
+  - id: curl_pair_after_encoded_continuation
+    why: a backslash before an encoded line end continues the curl command onto the next line
+    input: '{"cmd": "curl -s \\\n  -u admin:canaryCurlPw0rd https://api.example.com"}'
+    want: '{"cmd": "curl -s \\\n  -u <USER_PASSWORD> https://api.example.com"}'
+  - id: absolute_path_value_with_plus
+    why: a value that opens with a slash and holds a plus sign is base64, not a path
+    input: 'SECRET_KEY=/canary/Pw0rd+9x/abc'
+    want: 'SECRET_KEY=<SECRET>'
+  - id: absolute_path_value_with_equals
+    why: the same with an equals sign
+    input: 'SECRET_KEY=/canary/Pw0rd=9x/abc'
+    want: 'SECRET_KEY=<SECRET>'
+  - id: value_with_sigils_and_digits
+    why: sigils around a value that mixes letters and digits are part of a credential
+    input: 'password=*canaryPw0rd9 secret=@canaryPw0rd9 token=canaryPw0rd9! passwd=canaryPw0rd9?'
+    want: 'password=<SECRET> secret=<SECRET> token=<SECRET> passwd=<SECRET>'
+  - id: words_with_digits_inside_a_word
+    why: a name made of words in which digits sit inside a word, not at its end, is a credential
+    input: 'password=canary_pass9x_word'
+    want: 'password=<SECRET>'
 # The rules that replace a value and not their whole pattern match. Each
 # Replacement is the bare placeholder; the recovery path keeps the name.
 value_rule_replacements:
@@ -694,6 +761,63 @@ unchanged_text:
   - id: prefixed_identifier_with_version_digit
     why: a name of words that starts with a token prefix and holds a digit only at the end of a word is an identifier
     input: 'vcr_cassette_library_dir_py3 = "fixtures/cassettes"'
+  - id: curl_placeholder_password_password
+    why: the word "password" in place of the password is a placeholder
+    input: 'curl -u admin:password https://api.example.com'
+  - id: curl_placeholder_password_passwd
+    why: the word "passwd" in place of the password is a placeholder
+    input: 'curl -u admin:passwd https://api.example.com'
+  - id: curl_placeholder_password_pass
+    why: the word "pass" in place of the password is a placeholder
+    input: 'curl -u admin:pass https://api.example.com'
+  - id: curl_placeholder_password_pwd
+    why: the word "pwd" in place of the password is a placeholder
+    input: 'curl -u admin:pwd https://api.example.com'
+  - id: curl_placeholder_password_secret
+    why: the word "secret" in place of the password is a placeholder
+    input: 'curl -u admin:secret https://api.example.com'
+  - id: curl_placeholder_password_token
+    why: the word "token" in place of the password is a placeholder
+    input: 'curl -u admin:token https://api.example.com'
+  - id: curl_placeholder_password_key
+    why: the word "key" in place of the password is a placeholder
+    input: 'curl -u admin:key https://api.example.com'
+  - id: curl_placeholder_password_apikey
+    why: the word "apikey" in place of the password is a placeholder
+    input: 'curl -u admin:apikey https://api.example.com'
+  - id: curl_placeholder_password_api_key
+    why: the word "api_key" in place of the password is a placeholder
+    input: 'curl -u admin:api_key https://api.example.com'
+  - id: curl_password_variable
+    why: a password that opens with a dollar sign is a variable reference
+    input: 'curl -u admin:$CURL_PASSWORD_2026 https://api.example.com'
+  - id: curl_password_angle_template
+    why: a password that opens with an angle bracket is a template
+    input: 'curl -u admin:<password-2026> https://api.example.com'
+  - id: curl_password_brace_template
+    why: a password that opens with a brace is a template
+    input: 'curl -u admin:{password_2026} https://api.example.com'
+  - id: curl_password_format_verb
+    why: a password that opens with a percent sign is a format verb
+    input: 'curl -u admin:%s https://api.example.com'
+  - id: curl_placeholder_password_upper_case
+    why: a placeholder password is matched without case
+    input: 'curl -u admin:PASSWORD https://api.example.com'
+  - id: curl_user_and_group_numbers
+    why: a pair of numbers is a user and a group, not a credential
+    input: 'curl -u 1000:1000 https://api.example.com'
+  - id: curl_longer_command_word
+    why: a longer word that starts with curl is not the curl command
+    input: 'curling -u admin:canaryCurlPw0rd https://api.example.com'
+  - id: curl_before_encoded_line_end
+    why: an encoded line end with no continuation ends the curl command, so the option on the next line belongs to another command
+    input: '{"out": "curl ok\nsort -u names:canaryList0123 x"}'
+  - id: value_relative_path_up
+    why: a value that opens with ../ is a path
+    input: 'password=../canary/Pw0rd9x'
+  - id: value_identifier_with_sigils
+    why: sigils around a name made of words do not make it a credential
+    input: 'password=*canaryPassword secret=@canary_password token=canary_password! passwd=canaryPassword?'
 metadata_paths:
   - id: nested_project_becomes_path_project
     why: a project below an intermediate folder keeps only its own folder name, so a published path names the project and nothing about the machine it sat on
