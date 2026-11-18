@@ -624,6 +624,36 @@ cases:
         active: true
         output: "login(token=\"<HUGGINGFACE_TOKEN>\")"
 
+  - name: google_api_key
+    ruleId: google_api_key
+    category: secrets
+    input: "maps.load(key=AIzaSyCanary0123456789abcdefghijklmnopq)"
+    expectations:
+      minimal:
+        active: true
+        output: "maps.load(key=<GOOGLE_API_KEY>)"
+      standard:
+        active: true
+        output: "maps.load(key=<GOOGLE_API_KEY>)"
+      maximum:
+        active: true
+        output: "maps.load(key=<GOOGLE_API_KEY>)"
+
+  - name: openai_project_key
+    ruleId: openai_project_key
+    category: secrets
+    input: "client = OpenAI(sk-proj-canary0123456789_abcdefghij-klmnopqrstuv)"
+    expectations:
+      minimal:
+        active: true
+        output: "client = OpenAI(<OPENAI_KEY>)"
+      standard:
+        active: true
+        output: "client = OpenAI(<OPENAI_KEY>)"
+      maximum:
+        active: true
+        output: "client = OpenAI(<OPENAI_KEY>)"
+
   - name: vercel_token
     ruleId: vercel_token
     category: secrets
@@ -972,7 +1002,7 @@ cases:
   - name: unlisted_format_after_bearer
     ruleId: bearer_token
     category: secrets
-    input: "Authorization: Bearer sk-proj-canary0123456789abcdefghij"
+    input: "Authorization: Bearer zk-live-canary0123456789abcdefghij"
     expectations:
       minimal:
         active: true
@@ -987,7 +1017,7 @@ cases:
   - name: unlisted_format_under_secret_name
     ruleId: key_name_secret
     category: secrets
-    input: "PROVIDER_SECRET=sk-proj-canary0123456789abcdefghij"
+    input: "PROVIDER_SECRET=zk-live-canary0123456789abcdefghij"
     expectations:
       minimal:
         active: true
@@ -1044,6 +1074,8 @@ requiredSecretCaseNames:
   - github_fine_grained_pat
   - npm_token_outside_npmrc
   - huggingface_token
+  - google_api_key
+  - openai_project_key
   - vercel_token
   - supabase_personal_access_token
   - supabase_secret_key

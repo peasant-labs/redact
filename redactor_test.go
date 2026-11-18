@@ -400,6 +400,7 @@ func TestRules_AllIDsHaveTestCoverage(t *testing.T) {
 		// Token formats with a documented prefix, and the rules that read the
 		// construct around a credential (covered by the same YAML fixtures).
 		"github_fine_grained_pat", "npm_token", "huggingface_token", "vercel_token", "supabase_token",
+		"google_api_key", "openai_project_key",
 		authorizationTokenRuleID, curlUserPasswordRuleID, jwkPrivateMemberRuleID,
 	}
 	for _, id := range secretsCases {

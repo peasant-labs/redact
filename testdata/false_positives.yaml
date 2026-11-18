@@ -4245,14 +4245,14 @@ cases:
     source: synthetic
 
   - name: tp_unlisted_format_after_bearer
-    input: "Authorization: Bearer sk-proj-canary0123456789abcdefghij"
+    input: "Authorization: Bearer zk-live-canary0123456789abcdefghij"
     rule: bearer_token
     expect: match
     reason: "A key with no rule of its own is still redacted when it is sent as a bearer token."
     source: synthetic
 
   - name: tp_unlisted_format_under_secret_name
-    input: "PROVIDER_SECRET=sk-proj-canary0123456789abcdefghij"
+    input: "PROVIDER_SECRET=zk-live-canary0123456789abcdefghij"
     rule: key_name_secret
     expect: match
     reason: "A key with no rule of its own is still redacted when it sits under a secret name."
@@ -4506,4 +4506,83 @@ cases:
     rule: jwk_private_member
     expect: no_match
     reason: "The member name must be the whole word."
+    source: synthetic
+
+  - name: tp_google_api_key
+    input: "GOOGLE_MAPS_KEY: AIzaSyCanary0123456789abcdefghijklmnopq"
+    rule: google_api_key
+    expect: match
+    reason: "The well-known prefix and 35 characters."
+    source: synthetic
+
+  - name: tp_google_api_key_minimal
+    input: "AIzaSyCanary0123456789abcdefghijklmnopq"
+    rule: google_api_key
+    expect: match
+    level: minimal
+    reason: "A secrets rule is active at minimal."
+    source: synthetic
+
+  - name: fp_google_api_key_short
+    input: "AIzaSyCanary0123456789"
+    rule: google_api_key
+    expect: no_match
+    reason: "A body shorter than 35 characters is not a key."
+    source: synthetic
+
+  - name: fp_google_api_key_inside_word
+    input: "prefixAIzaSyCanary0123456789abcdefghijklmnopq"
+    rule: google_api_key
+    expect: no_match
+    reason: "The prefix must start a word."
+    source: synthetic
+
+  - name: tp_openai_project_key
+    input: "OPENAI_API_KEY=sk-proj-canary0123456789_abcdefghij-klmnopqrstuv"
+    rule: openai_project_key
+    expect: match
+    reason: "A project key with an underscore and a hyphen in its body."
+    source: synthetic
+
+  - name: tp_openai_project_key_minimal
+    input: "sk-proj-canary0123456789_abcdefghij-klmnopqrstuv"
+    rule: openai_project_key
+    expect: match
+    level: minimal
+    reason: "A secrets rule is active at minimal."
+    source: synthetic
+
+  - name: tp_openai_service_account_key
+    input: "sk-svcacct-canary0123456789_abcdefghij"
+    rule: openai_project_key
+    expect: match
+    reason: "The service-account prefix."
+    source: synthetic
+
+  - name: fp_openai_project_key_placeholder
+    input: "export OPENAI_API_KEY=sk-proj-your-project-key-goes-here"
+    rule: openai_project_key
+    expect: no_match
+    reason: "A placeholder made of words holds no digit."
+    source: synthetic
+
+  - name: fp_openai_project_key_stripe_shape
+    input: "sk-live-abcdefghijklmnopqrstuvwxyz1234567890"
+    rule: openai_project_key
+    expect: no_match
+    reason: "Only the three documented key kinds are read."
+    source: synthetic
+
+  - name: tp_openai_key_long_tail
+    input: "sk-abcdefghij0123456789T3BlbkFJabcdefghij0123456789_extra-tail0123"
+    rule: openai_key
+    expect: match
+    reason: "The part after the marker is open-ended."
+    source: synthetic
+
+  - name: fp_google_api_key_letters_only
+    input: "AIzaSyabcdefghijklmnopqrstuvwxyzABCDEFG"
+    rule: google_api_key
+    expect: no_match
+    reason: "A body with no digit is read as an identifier, as for the other prefix rules."
     source: synthetic

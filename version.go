@@ -80,6 +80,9 @@ package redact
 //	         key as that header, and leaves the "token" of a log-probability
 //	         entry alone. stripe_key matches 24 or more characters after the
 //	         prefix (was exactly 24), so a longer key no longer leaves its tail.
+//	         +google_api_key and +openai_project_key, from the prefixes the
+//	         open-source scanners use; openai_key takes the whole part after
+//	         its marker (was exactly 20 characters).
 //	         Detect orders matches at one offset longest first.
 const RuleSetVersion = "3.2.0"
 

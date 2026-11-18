@@ -57,7 +57,7 @@ type ResidueRule struct {
 var ResidueRules = []ResidueRule{
 	// --- Simplified secrets patterns (broader than main rules) ---
 	{ID: "residue_anthropic_key", Pattern: regexp.MustCompile(`sk-ant-[a-zA-Z0-9_-]{10,}`)},
-	{ID: "residue_openai_key", Pattern: regexp.MustCompile(`sk-(?:live|test|proj)-[a-zA-Z0-9_-]{10,}`)},
+	{ID: "residue_openai_key", Pattern: regexp.MustCompile(`sk-(?:live|test|proj|svcacct|admin)-[a-zA-Z0-9_-]{10,}`)},
 	{ID: "residue_github_pat", Pattern: regexp.MustCompile(`gh[pours]_[a-zA-Z0-9]{10,}`)},
 	{ID: "residue_aws_access_key", Pattern: regexp.MustCompile(`(?:A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{12,}`)},
 	{ID: "residue_stripe_key", Pattern: regexp.MustCompile(`sk_(?:live|test)_[a-zA-Z0-9]{10,}`)},
@@ -112,6 +112,7 @@ var ResidueRules = []ResidueRule{
 	{ID: "residue_npm_token", Pattern: regexp.MustCompile(`npm_[A-Za-z0-9]{10,}`)},
 	{ID: "residue_huggingface_token", Pattern: regexp.MustCompile(`hf_[A-Za-z0-9]{10,}`)},
 	{ID: "residue_vercel_token", Pattern: regexp.MustCompile(`vc[piark]_[A-Za-z0-9_-]{10,}`)},
+	{ID: "residue_google_api_key", Pattern: regexp.MustCompile(`AIza[A-Za-z0-9_-]{20,}`)},
 	{ID: "residue_supabase_token", Pattern: regexp.MustCompile(`(?:sbp|sb_secret)_[A-Za-z0-9_-]{10,}`)},
 
 	// --- Project identity residue rules (10 broader advisory patterns) ---

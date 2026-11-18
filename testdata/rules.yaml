@@ -266,6 +266,20 @@ rules:
       - {name: publishable_key, input: 'sb_publishable_canary0123456789abcdefgh', shouldFlag: false}
       - {name: short_body, input: 'sbp_example', shouldFlag: false}
 
+  - ruleId: google_api_key
+    cases:
+      - {name: prefix_and_body, input: 'AIzaSyCanary0123456789abcdefghijklmnopq', shouldFlag: true}
+      - {name: short_body, input: 'AIzaSyCanary0123456789', shouldFlag: false}
+      - {name: other_prefix, input: 'AIzbSyCanary0123456789abcdefghijklmnopq', shouldFlag: false}
+
+  - ruleId: openai_project_key
+    cases:
+      - {name: project_key, input: 'sk-proj-canary0123456789_abcdefghij-klmnopqrstuv', shouldFlag: true}
+      - {name: service_account_key, input: 'sk-svcacct-canary0123456789_abcdefghij', shouldFlag: true}
+      - {name: admin_key, input: 'sk-admin-canary0123456789_abcdefghij', shouldFlag: true}
+      - {name: other_key_kind, input: 'sk-live-canary0123456789_abcdefghij', shouldFlag: false}
+      - {name: short_body, input: 'sk-proj-example', shouldFlag: false}
+
   - ruleId: authorization_token
     cases:
       - {name: token_scheme, input: 'Authorization: token canaryAuthTok0123456789abcd', shouldFlag: true}
@@ -317,6 +331,7 @@ residues:
   - {name: huggingface_token, ruleId: residue_huggingface_token, input: 'hf_shorttoken12'}
   - {name: vercel_token, ruleId: residue_vercel_token, input: 'vcp_shorttoken12'}
   - {name: supabase_token, ruleId: residue_supabase_token, input: 'sbp_shorttoken12'}
+  - {name: google_api_key, ruleId: residue_google_api_key, input: 'AIzaSyShortCanary0123456789'}
 
 awsFilters:
   - {name: file_path_no_context, input: 'nttea/codebases/dayvidpham/bestiary/main.', wantDetect: false}
@@ -395,6 +410,8 @@ coveredRuleIds:
   - huggingface_token
   - vercel_token
   - supabase_token
+  - google_api_key
+  - openai_project_key
   - authorization_token
   - curl_user_password
   - jwk_private_member

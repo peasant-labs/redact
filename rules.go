@@ -102,9 +102,12 @@ var Rules = []Rule{
 		// (base64 of "OpenAI"). Covers both legacy keys (sk-{20}T3BlbkFJ{20})
 		// and project-scoped keys (sk-proj-{name}-{20}T3BlbkFJ{20}).
 		// ref: https://community.openai.com/t/what-are-the-valid-characters-for-the-apikey/288643
-		ID:          "openai_key",
-		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`sk-[A-Za-z0-9_-]*[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9]{20}`),
+		ID:       "openai_key",
+		Category: CategorySecrets,
+		// The part after the marker is open-ended and takes "_" and "-": a
+		// current key carries more than 20 characters there, and an exact {20}
+		// would leave its tail in the output.
+		Pattern:     regexp.MustCompile(`sk-[A-Za-z0-9_-]*[A-Za-z0-9]{20}T3BlbkFJ[A-Za-z0-9_-]{20,}`),
 		Replacement: "<OPENAI_KEY>",
 	},
 	{
@@ -523,6 +526,31 @@ var Rules = []Rule{
 		Category:    CategorySecrets,
 		Pattern:     regexp.MustCompile(`(?:sbp|sb_secret)_[A-Za-z0-9_\-]{20,}`),
 		Replacement: "<SUPABASE_TOKEN>",
+		FilterFn:    prefixTokenFilter,
+	},
+
+	// --- Secrets: token formats with a well-known prefix ---
+	// The vendor publishes no format for these two. The prefixes are the ones
+	// the open-source scanners agree on (gitleaks: gcp-api-key, openai-api-key),
+	// and the bodies are this rule set's own choice, as above.
+	{
+		// Google API key: "AIza" and 35 characters. The length is exact, so the
+		// rule does not run on into text that follows a key.
+		ID:          "google_api_key",
+		Category:    CategorySecrets,
+		Pattern:     regexp.MustCompile(`AIza[A-Za-z0-9_\-]{35}`),
+		Replacement: "<GOOGLE_API_KEY>",
+		FilterFn:    prefixTokenFilter,
+	},
+	{
+		// OpenAI project, service-account and admin keys. openai_key needs 20
+		// letters or digits straight before its marker, and a current key
+		// often holds "_" or "-" there, so that rule misses it. This rule
+		// reads the prefix and takes the whole key.
+		ID:          "openai_project_key",
+		Category:    CategorySecrets,
+		Pattern:     regexp.MustCompile(`sk-(?:proj|svcacct|admin)-[A-Za-z0-9_\-]{20,}`),
+		Replacement: "<OPENAI_KEY>",
 		FilterFn:    prefixTokenFilter,
 	},
 
