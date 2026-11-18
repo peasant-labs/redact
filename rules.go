@@ -464,95 +464,64 @@ var Rules = []Rule{
 	// and no alphabet for the token. The character class and the 20-character
 	// floor of each rule are therefore the rule's own choice, made to keep a
 	// bare prefix out; they are not statements about the format.
-	// prefixTokenFilter (credential_context_rules.go) keeps identifiers out.
-	{
-		// GitHub fine-grained personal access token. The prefix table in
-		//   https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github
-		// lists "github_pat_" next to the ghp_/gho_/ghu_/ghs_/ghr_ prefixes
-		// that github_pat covers. The body uses the character class of that
-		// rule.
-		ID:          "github_fine_grained_pat",
-		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`github_pat_[A-Za-z0-9_]{20,}`),
-		Replacement: "<GITHUB_PAT>",
-		FilterFn:    prefixTokenFilter,
-	},
-	{
-		// npm access token outside an .npmrc line (npm_auth_token covers that
-		// line). The prefix is stated in
-		//   https://github.blog/changelog/2021-09-23-npm-has-a-new-access-token-format/
-		// which also says the last six characters are a Base62 checksum. It
-		// states no alphabet for the rest. The body takes letters and digits
-		// only, so an environment name such as npm_config_registry or
-		// npm_package_version does not match.
-		ID:          "npm_token",
-		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`npm_[A-Za-z0-9]{20,}`),
-		Replacement: "<NPM_TOKEN>",
-		FilterFn:    prefixTokenFilter,
-	},
-	{
-		// Hugging Face user access token. The vendor's page shows the prefix
-		// in its example ("hf_...") and states no more:
-		//   https://huggingface.co/docs/hub/security-tokens
-		// The body takes letters and digits only, so a library name such as
-		// hf_hub_download does not match.
-		ID:          "huggingface_token",
-		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`hf_[A-Za-z0-9]{20,}`),
-		Replacement: "<HUGGINGFACE_TOKEN>",
-		FilterFn:    prefixTokenFilter,
-	},
-	{
-		// Vercel tokens and API keys. The prefixes are listed in
-		//   https://vercel.com/changelog/new-token-formats-and-secret-scanning
-		// (vcp personal access token, vci integration token, vca app access
-		// token, vcr app refresh token, vck API key). A token issued before
-		// that change has no prefix and no documented format, and this rule
-		// does not cover it.
-		ID:          "vercel_token",
-		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`vc[piark]_[A-Za-z0-9_\-]{20,}`),
-		Replacement: "<VERCEL_TOKEN>",
-		FilterFn:    prefixTokenFilter,
-	},
-	{
-		// Supabase secret key and personal access token.
-		//   sb_secret_: the key-type table in https://supabase.com/docs/guides/api/api-keys
-		//   sbp_:       the request example in https://supabase.com/docs/reference/api/introduction
-		// The publishable key (sb_publishable_) is meant to be public and is
-		// not redacted.
-		ID:          "supabase_token",
-		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`(?:sbp|sb_secret)_[A-Za-z0-9_\-]{20,}`),
-		Replacement: "<SUPABASE_TOKEN>",
-		FilterFn:    prefixTokenFilter,
-	},
+	// prefixTokenRule (credential_context_rules.go) keeps identifiers out.
+
+	// GitHub fine-grained personal access token. The prefix table in
+	//   https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github
+	// lists "github_pat_" next to the ghp_/gho_/ghu_/ghs_/ghr_ prefixes that
+	// github_pat covers. The body uses the character class of that rule.
+	prefixTokenRule("github_fine_grained_pat", `github_pat_[A-Za-z0-9_]{20,}`, "<GITHUB_PAT>"),
+
+	// npm access token outside an .npmrc line (npm_auth_token covers that
+	// line). The prefix is stated in
+	//   https://github.blog/changelog/2021-09-23-npm-has-a-new-access-token-format/
+	// which also says the last six characters are a Base62 checksum. It states
+	// no alphabet for the rest. The body takes letters and digits only, so an
+	// environment name such as npm_config_registry or npm_package_version does
+	// not match.
+	prefixTokenRule("npm_token", `npm_[A-Za-z0-9]{20,}`, "<NPM_TOKEN>"),
+
+	// Hugging Face user access token. The vendor's page shows the prefix in
+	// its example ("hf_...") and states no more:
+	//   https://huggingface.co/docs/hub/security-tokens
+	// The body takes letters and digits only, so a library name such as
+	// hf_hub_download does not match.
+	prefixTokenRule("huggingface_token", `hf_[A-Za-z0-9]{20,}`, "<HUGGINGFACE_TOKEN>"),
+
+	// Vercel tokens and API keys. The prefixes are listed in
+	//   https://vercel.com/changelog/new-token-formats-and-secret-scanning
+	// (vcp personal access token, vci integration token, vca app access
+	// token, vcr app refresh token, vck API key). A token issued before that
+	// change has no prefix and no documented format, and this rule does not
+	// cover it.
+	prefixTokenRule("vercel_token", `vc[piark]_[A-Za-z0-9_\-]{20,}`, "<VERCEL_TOKEN>"),
+
+	// Supabase secret key and personal access token.
+	//   sb_secret_: the key-type table in https://supabase.com/docs/guides/api/api-keys
+	//   sbp_:       the request example in https://supabase.com/docs/reference/api/introduction
+	// The publishable key (sb_publishable_) is meant to be public and is not
+	// redacted.
+	prefixTokenRule("supabase_token", `(?:sbp|sb_secret)_[A-Za-z0-9_\-]{20,}`, "<SUPABASE_TOKEN>"),
 
 	// --- Secrets: token formats with a well-known prefix ---
-	// The vendor publishes no format for these two. The prefixes are the ones
-	// the open-source scanners agree on (gitleaks: gcp-api-key, openai-api-key),
-	// and the bodies are this rule set's own choice, as above.
-	{
-		// Google API key: "AIza" and 35 characters. The length is exact, so the
-		// rule does not run on into text that follows a key.
-		ID:          "google_api_key",
-		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`AIza[A-Za-z0-9_\-]{35}`),
-		Replacement: "<GOOGLE_API_KEY>",
-		FilterFn:    prefixTokenFilter,
-	},
-	{
-		// OpenAI project, service-account and admin keys. openai_key needs 20
-		// letters or digits straight before its marker, and a current key
-		// often holds "_" or "-" there, so that rule misses it. This rule
-		// reads the prefix and takes the whole key.
-		ID:          "openai_project_key",
-		Category:    CategorySecrets,
-		Pattern:     regexp.MustCompile(`sk-(?:proj|svcacct|admin)-[A-Za-z0-9_\-]{20,}`),
-		Replacement: "<OPENAI_KEY>",
-		FilterFn:    prefixTokenFilter,
-	},
+	// The vendor publishes no format for these two. Each prefix is the one
+	// that keys of the kind are issued with, and the bodies are this rule
+	// set's own choice, as above.
+
+	// Google API key: "AIza" and 35 or more characters. Keys in use hold 35.
+	// The body is open-ended, because an exact length would leave the tail of
+	// a longer run in the output behind the placeholder.
+	prefixTokenRule("google_api_key", `AIza[A-Za-z0-9_\-]{35,}`, "<GOOGLE_API_KEY>"),
+
+	// OpenAI project, service-account and admin keys. openai_key needs 20
+	// letters or digits straight before its marker, and a current key often
+	// holds "_" or "-" there, so that rule misses it. This rule reads the
+	// prefix and takes the whole key.
+	//
+	// The body must hold a run of 20 characters with no hyphen. A generated
+	// key does; a name made of words joined by hyphens does not, such as the
+	// style class sk-proj-header-navigation-item-2col.
+	prefixTokenRule("openai_project_key", `sk-(?:proj|svcacct|admin)-[A-Za-z0-9_\-]*[A-Za-z0-9_]{20}[A-Za-z0-9_\-]*`, "<OPENAI_KEY>"),
 
 	// --- Secrets: identified by the construct around them ---
 	// Patterns and filters are in credential_context_rules.go.
@@ -569,7 +538,7 @@ var Rules = []Rule{
 		Category:    CategorySecrets,
 		Pattern:     curlUserPasswordPattern,
 		Replacement: curlUserPasswordReplacement,
-		FilterFn:    curlUserPasswordFilter,
+		FilterFn:    hasValue(curlUserPasswordValues),
 	},
 	{
 		// A private member of a JSON Web Key.

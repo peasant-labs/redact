@@ -270,6 +270,7 @@ rules:
     cases:
       - {name: prefix_and_body, input: 'AIzaSyCanary0123456789abcdefghijklmnopq', shouldFlag: true}
       - {name: short_body, input: 'AIzaSyCanary0123456789', shouldFlag: false}
+      - {name: longer_run, input: 'AIzaSyCanary0123456789abcdefghijklmnopqrstu', shouldFlag: true}
       - {name: other_prefix, input: 'AIzbSyCanary0123456789abcdefghijklmnopq', shouldFlag: false}
 
   - ruleId: openai_project_key
@@ -279,6 +280,10 @@ rules:
       - {name: admin_key, input: 'sk-admin-canary0123456789_abcdefghij', shouldFlag: true}
       - {name: other_key_kind, input: 'sk-live-canary0123456789_abcdefghij', shouldFlag: false}
       - {name: short_body, input: 'sk-proj-example', shouldFlag: false}
+      - {name: hyphenated_words, input: 'sk-proj-header-navigation-item-2col', shouldFlag: false}
+      - {name: run_of_nineteen, input: 'sk-proj-canary0123456789abc-canary0123456789abc', shouldFlag: false}
+      - {name: run_of_twenty, input: 'sk-proj-canary0123456789abcd-canary', shouldFlag: true}
+      - {name: glued_prefix_before_key, input: 'task-admin-sk-admin-canaryDEF123456ghiJKL789', shouldFlag: true}
 
   - ruleId: authorization_token
     cases:
@@ -298,6 +303,7 @@ rules:
       - {name: attached_value, input: 'curl -ujane:canaryCurlPw0rd https://api.example.com/v1', shouldFlag: true}
       - {name: bundled_short_options, input: 'curl -sSu jane:canaryCurlPw0rd https://api.example.com/v1', shouldFlag: true}
       - {name: option_inside_word, input: 'curl --no-user jane:canaryCurlPw0rd', shouldFlag: false}
+      - {name: token_as_user, input: 'curl -u apikey_canary81kq0Pw92mLr7vAb3dEf9Qw: https://api.example.com/v1', shouldFlag: true}
 
   - ruleId: jwk_private_member
     cases:
@@ -332,6 +338,9 @@ residues:
   - {name: vercel_token, ruleId: residue_vercel_token, input: 'vcp_shorttoken12'}
   - {name: supabase_token, ruleId: residue_supabase_token, input: 'sbp_shorttoken12'}
   - {name: google_api_key, ruleId: residue_google_api_key, input: 'AIzaSyShortCanary0123456789'}
+  - {name: supabase_secret_key, ruleId: residue_supabase_token, input: 'sb_secret_shorttoken12'}
+  - {name: openai_service_account_key, ruleId: residue_openai_key, input: 'sk-svcacct-shorttoken12'}
+  - {name: openai_admin_key, ruleId: residue_openai_key, input: 'sk-admin-shorttoken12'}
 
 awsFilters:
   - {name: file_path_no_context, input: 'nttea/codebases/dayvidpham/bestiary/main.', wantDetect: false}

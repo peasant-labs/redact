@@ -1256,6 +1256,141 @@ cases:
         active: false
         output: 'SyntaxError: Unexpected token: identifier1234'
 
+  - name: curl_pair_in_backticks
+    ruleId: curl_user_password
+    category: secrets
+    input: 'Run `curl -u admin:canaryCurlPw0rd` to test.'
+    expectations:
+      minimal:
+        active: true
+        output: 'Run `curl -u <CREDENTIALS>` to test.'
+      standard:
+        active: true
+        output: 'Run `curl -u <CREDENTIALS>` to test.'
+      maximum:
+        active: true
+        output: 'Run `curl -u <CREDENTIALS>` to test.'
+
+  - name: curl_pair_in_command_substitution
+    ruleId: curl_user_password
+    category: secrets
+    input: 'out=$(curl -s -u admin:canaryCurlPw0rd); echo done'
+    expectations:
+      minimal:
+        active: true
+        output: 'out=$(curl -s -u <CREDENTIALS>); echo done'
+      standard:
+        active: true
+        output: 'out=$(curl -s -u <CREDENTIALS>); echo done'
+      maximum:
+        active: true
+        output: 'out=$(curl -s -u <CREDENTIALS>); echo done'
+
+  - name: curl_long_user_option_with_equals
+    ruleId: curl_user_password
+    category: secrets
+    input: 'curl --user=jane:canaryCurlPw0rd https://api.example.com/v1'
+    expectations:
+      minimal:
+        active: true
+        output: 'curl --user=<CREDENTIALS> https://api.example.com/v1'
+      standard:
+        active: true
+        output: 'curl --user=<CREDENTIALS> https://api.example.com/v1'
+      maximum:
+        active: true
+        output: 'curl --user=<CREDENTIALS> https://api.example.com/v1'
+
+  - name: curl_variable_user_literal_password
+    ruleId: curl_user_password
+    category: secrets
+    input: 'curl -u "$USER:canaryCurlPw0rd" https://api.example.com/v1'
+    expectations:
+      minimal:
+        active: true
+        output: 'curl -u "<CREDENTIALS>" https://api.example.com/v1'
+      standard:
+        active: true
+        output: 'curl -u "<CREDENTIALS>" https://api.example.com/v1'
+      maximum:
+        active: true
+        output: 'curl -u "<CREDENTIALS>" https://api.example.com/v1'
+
+  - name: curl_token_as_user_empty_password
+    ruleId: curl_user_password
+    category: secrets
+    input: 'curl -u apikey_canary81kq0Pw92mLr7vAb3dEf9Qw: https://api.example.com/v1'
+    expectations:
+      minimal:
+        active: true
+        output: 'curl -u <CREDENTIALS> https://api.example.com/v1'
+      standard:
+        active: true
+        output: 'curl -u <CREDENTIALS> https://api.example.com/v1'
+      maximum:
+        active: true
+        output: 'curl -u <CREDENTIALS> https://api.example.com/v1'
+
+  - name: curl_pair_before_card_number
+    ruleId: curl_user_password
+    category: secrets
+    input: 'curl -u jane:canaryCurlPw0rd,card=4111 1111 1111 1111'
+    expectations:
+      minimal:
+        active: true
+        output: 'curl -u <CREDENTIALS> 1111 1111 1111'
+      standard:
+        active: true
+        output: 'curl -u <CREDENTIALS><CREDIT_CARD>'
+      maximum:
+        active: true
+        output: 'curl -u <CREDENTIALS><CREDIT_CARD>'
+
+  - name: google_api_key_longer_run
+    ruleId: google_api_key
+    category: secrets
+    input: 'key=AIzaSyCanary0123456789abcdefghijklmnopqrstu&v=1'
+    expectations:
+      minimal:
+        active: true
+        output: 'key=<GOOGLE_API_KEY>&v=1'
+      standard:
+        active: true
+        output: 'key=<GOOGLE_API_KEY>&v=1'
+      maximum:
+        active: true
+        output: 'key=<GOOGLE_API_KEY>&v=1'
+
+  - name: openai_project_key_after_glued_prefix
+    ruleId: openai_project_key
+    category: secrets
+    input: 'task-admin-sk-admin-canaryDEF123456ghiJKL789'
+    expectations:
+      minimal:
+        active: true
+        output: 'task-admin-<OPENAI_KEY>'
+      standard:
+        active: true
+        output: 'task-admin-<OPENAI_KEY>'
+      maximum:
+        active: true
+        output: 'task-admin-<OPENAI_KEY>'
+
+  - name: openai_key_long_part_after_marker
+    ruleId: openai_key
+    category: secrets
+    input: 'sk-canaryABCDEFGHIJKLMN01T3BlbkFJcanary_abcdefghij-0123456789klmnop'
+    expectations:
+      minimal:
+        active: true
+        output: '<OPENAI_KEY>'
+      standard:
+        active: true
+        output: '<OPENAI_KEY>'
+      maximum:
+        active: true
+        output: '<OPENAI_KEY>'
+
 requiredSecretCaseNames:
   - key_name_env_assignment
   - key_name_json_text
@@ -1326,3 +1461,12 @@ requiredSecretCaseNames:
   - key_name_quoted_value_with_parentheses
   - key_name_base64_value_with_leading_slash
   - key_name_parser_message_unchanged
+  - curl_pair_in_backticks
+  - curl_pair_in_command_substitution
+  - curl_long_user_option_with_equals
+  - curl_variable_user_literal_password
+  - curl_token_as_user_empty_password
+  - curl_pair_before_card_number
+  - google_api_key_longer_run
+  - openai_project_key_after_glued_prefix
+  - openai_key_long_part_after_marker

@@ -31,7 +31,7 @@ type Match struct {
 //
 // A match of a rule that reads the name of a key or the construct around a
 // value (key_name_secret, url_query_secret, cookie_header, curl_user_password)
-// spans the value alone, not the name. Where such a match overlaps a match of
+// spans the value alone, not the name or the option. Where such a match overlaps a match of
 // another rule, it is dropped or shortened so that the other match is applied.
 //
 // Detect does NOT modify the input string.
@@ -117,14 +117,22 @@ type valueFinder func(matched, input string, offset int) []valueSpan
 type valueRule struct {
 	find        valueFinder
 	placeholder string
+	// knowsFormat is set on a rule that recognises the text itself and uses
+	// find only to say where in the pattern match it starts. Its matches are
+	// left as they are when overlaps are settled, like those of any rule
+	// without a finder. The other value rules know only where a value sits,
+	// and resolveValueOverlaps makes them give way.
+	knowsFormat bool
 }
 
 // valueRules holds the value rules by their pattern. The entry lives beside
 // the rule table and not in Rule, whose field layout is public.
 var valueRules = map[*regexp.Regexp]valueRule{
-	keyNameSecretPattern:  {keyNameSecretValues, keyNameSecretPlaceholder},
-	urlQuerySecretPattern: {urlQuerySecretValues, keyNameSecretPlaceholder},
-	cookieHeaderPattern:   {cookieHeaderValues, cookieHeaderPlaceholder},
+	keyNameSecretPattern:    {find: keyNameSecretValues, placeholder: keyNameSecretPlaceholder},
+	urlQuerySecretPattern:   {find: urlQuerySecretValues, placeholder: keyNameSecretPlaceholder},
+	cookieHeaderPattern:     {find: cookieHeaderValues, placeholder: cookieHeaderPlaceholder},
+	curlUserPasswordPattern: {find: curlUserPasswordValues, placeholder: curlUserPasswordPlaceholder},
+	// The rules built by prefixTokenRule add themselves.
 }
 
 // hasValue adapts a valueFinder to Rule.FilterFn, so a caller that applies a
@@ -148,13 +156,13 @@ func detectWithRulesInto(input string, rules []Rule, patterns compiledPatterns, 
 		if pattern == nil {
 			continue
 		}
-		values := valueRules[rule.Pattern].find
+		values := valueRules[rule.Pattern]
 		for _, loc := range pattern.FindAllStringIndex(input, -1) {
 			matched := input[loc[0]:loc[1]]
-			if values != nil {
-				for _, span := range values(matched, input, loc[0]) {
-					found.add(Match{Rule: rule.ID, Offset: span.start, Length: span.end - span.start, Category: rule.Category, MatchedText: input[span.start:span.end]}, matchSource{rule: index, value: true, construct: loc[0]})
-					valueMatches = true
+			if values.find != nil {
+				for _, span := range values.find(matched, input, loc[0]) {
+					found.add(Match{Rule: rule.ID, Offset: span.start, Length: span.end - span.start, Category: rule.Category, MatchedText: input[span.start:span.end]}, matchSource{rule: index, value: !values.knowsFormat, construct: loc[0]})
+					valueMatches = valueMatches || !values.knowsFormat
 				}
 				continue
 			}
@@ -193,8 +201,9 @@ type detectedMatches struct {
 }
 
 // matchSource is the index of a match's rule in the scanned rule list. For a
-// value found by a valueRule it also holds where the pattern match that the
-// value was found in starts: the start of the name in "name=value".
+// value that resolveValueOverlaps settles (see valueRule.knowsFormat) it also
+// holds where the pattern match that the value was found in starts: the start
+// of the name in "name=value".
 type matchSource struct {
 	rule      int
 	value     bool

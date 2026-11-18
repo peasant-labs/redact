@@ -68,8 +68,8 @@ var expectedRuleFamilyCounts = map[string]int{
 	"key_name_secret": 13, "url_query_secret": 6, "cookie_header": 9,
 	"github_fine_grained_pat": 4, "npm_token": 3, "huggingface_token": 3,
 	"vercel_token": 7, "supabase_token": 4, "authorization_token": 6,
-	"curl_user_password": 7, "jwk_private_member": 6,
-	"google_api_key": 3, "openai_project_key": 5,
+	"curl_user_password": 8, "jwk_private_member": 6,
+	"google_api_key": 4, "openai_project_key": 9,
 }
 
 func mustLoadRuleFixtures(t *testing.T) ruleFixtures {
@@ -88,8 +88,8 @@ func validateRuleFixtures(fixtures ruleFixtures) error {
 	if len(fixtures.Rules) != len(expectedRuleFamilyCounts) {
 		return fmt.Errorf("testdata/rules.yaml loaded %d rule families, want %d; restore the missing or extra family", len(fixtures.Rules), len(expectedRuleFamilyCounts))
 	}
-	if len(fixtures.Residues) != 23 || len(fixtures.AWSFilters) != 8 || len(fixtures.ExtractBase64) != 6 || len(fixtures.HomePaths) != 2 || len(fixtures.CoveredRuleIDs) != 59 {
-		return fmt.Errorf("testdata/rules.yaml family counts are residues=%d awsFilters=%d extractBase64=%d homePaths=%d coveredRuleIds=%d, want 23/8/6/2/59; restore the changed rows", len(fixtures.Residues), len(fixtures.AWSFilters), len(fixtures.ExtractBase64), len(fixtures.HomePaths), len(fixtures.CoveredRuleIDs))
+	if len(fixtures.Residues) != 26 || len(fixtures.AWSFilters) != 8 || len(fixtures.ExtractBase64) != 6 || len(fixtures.HomePaths) != 2 || len(fixtures.CoveredRuleIDs) != 59 {
+		return fmt.Errorf("testdata/rules.yaml family counts are residues=%d awsFilters=%d extractBase64=%d homePaths=%d coveredRuleIds=%d, want 26/8/6/2/59; restore the changed rows", len(fixtures.Residues), len(fixtures.AWSFilters), len(fixtures.ExtractBase64), len(fixtures.HomePaths), len(fixtures.CoveredRuleIDs))
 	}
 	seen := map[string]struct{}{}
 	identity := func(id string) error {

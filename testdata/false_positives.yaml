@@ -5104,3 +5104,136 @@ cases:
     expect: match
     reason: 'The value ends at the tag.'
     source: synthetic
+
+  - name: fp_openai_project_key_no_digit
+    input: 'sk-proj-abcdefghijklmnopqrstuvwx'
+    rule: openai_project_key
+    expect: no_match
+    reason: 'A body with no digit is not a generated key.'
+    source: synthetic
+
+  - name: fp_openai_project_key_style_class
+    input: 'class="sk-proj-header-navigation-item-2col"'
+    rule: openai_project_key
+    expect: no_match
+    reason: 'A name made of words joined by hyphens holds no run of 20 characters without a hyphen.'
+    source: synthetic
+
+  - name: fp_openai_project_key_hyphenated_name
+    input: 'sk-admin-panel-configuration-settings-v2'
+    rule: openai_project_key
+    expect: no_match
+    reason: 'A name made of words joined by hyphens holds no run of 20 characters without a hyphen.'
+    source: synthetic
+
+  - name: tp_openai_project_key_after_glued_prefix
+    input: 'task-admin-sk-admin-canaryDEF123456ghiJKL789'
+    rule: openai_project_key
+    expect: match
+    reason: 'The pattern first matches from the "sk-admin-" that ends "task-admin-", which is part of a word. The key starts at the second prefix and is still found.'
+    source: synthetic
+
+  - name: fp_prefix_token_two_prefixes_in_one_word
+    input: 'chf_hf_canarytoken0123456789abcdefghij'
+    rule: huggingface_token
+    expect: no_match
+    reason: 'Both prefixes are part of one word.'
+    source: synthetic
+
+  - name: tp_google_api_key_longer_run
+    input: 'AIzaSyCanary0123456789abcdefghijklmnopqrstu'
+    rule: google_api_key
+    expect: match
+    reason: 'A run longer than 35 characters is taken whole.'
+    source: synthetic
+
+  - name: fp_curl_long_option_user_agent
+    input: 'curl --user-agent=canary:agent12345 https://api.example.com/v1'
+    rule: curl_user_password
+    expect: no_match
+    reason: '--user-agent is another option. The long option needs a space or an equals sign after it.'
+    source: synthetic
+
+  - name: fp_curl_long_option_user_agent_space
+    input: 'curl --user-agent canary:agent12345 https://api.example.com/v1'
+    rule: curl_user_password
+    expect: no_match
+    reason: '--user-agent is another option.'
+    source: synthetic
+
+  - name: fp_curl_bundle_with_value_option
+    input: 'curl -o menu https://api.example.com/v1 -menu host:8443'
+    rule: curl_user_password
+    expect: no_match
+    reason: '"m" takes a value, so "-menu" is not a bundle that ends in "-u".'
+    source: synthetic
+
+  - name: tp_curl_bundle_of_boolean_options
+    input: 'curl -kLsu jane:canaryCurlPw0rd https://api.example.com/v1'
+    rule: curl_user_password
+    expect: match
+    reason: 'k, L and s take no value, so the bundle ends in "-u".'
+    source: synthetic
+
+  - name: fp_curl_other_command_after_background
+    input: 'curl -s https://api.example.com/v1 & docker run -u builder:canaryGroup9 alpine'
+    rule: curl_user_password
+    expect: no_match
+    reason: 'An "&" followed by a space starts another command, and that command is not curl.'
+    source: synthetic
+
+  - name: tp_curl_after_unquoted_query
+    input: 'curl https://api.example.com/v1?a=1&b=2 -u jane:canaryCurlPw0rd'
+    rule: curl_user_password
+    expect: match
+    reason: 'An "&" with no space after it is part of the URL, so the option still belongs to curl.'
+    source: synthetic
+
+  - name: tp_curl_after_redirection
+    input: 'curl -s https://api.example.com/v1 2>&1 -u jane:canaryCurlPw0rd'
+    rule: curl_user_password
+    expect: match
+    reason: 'The "&" of a redirection does not start another command.'
+    source: synthetic
+
+  - name: tp_curl_variable_user_literal_password
+    input: 'curl -u "$USER:canaryCurlPw0rd" https://api.example.com/v1'
+    rule: curl_user_password
+    expect: match
+    reason: 'The user name is a variable, and the password is in the text.'
+    source: synthetic
+
+  - name: fp_curl_variable_user_and_password
+    input: 'curl -u "$USER:$PASSWORD_VALUE" https://api.example.com/v1'
+    rule: curl_user_password
+    expect: no_match
+    reason: 'Both parts are variable references.'
+    source: synthetic
+
+  - name: tp_curl_token_as_user_empty_password
+    input: 'curl -u apikey_canary81kq0Pw92mLr7vAb3dEf9Qw: https://api.example.com/v1'
+    rule: curl_user_password
+    expect: match
+    reason: 'A token sent as the user name with an empty password.'
+    source: synthetic
+
+  - name: fp_curl_user_with_empty_password
+    input: 'curl -u jane: https://api.example.com/v1'
+    rule: curl_user_password
+    expect: no_match
+    reason: 'A user name and an empty password: curl asks for the password.'
+    source: synthetic
+
+  - name: fp_curl_short_token_like_user_empty_password
+    input: 'curl -u canary0123456789abc: https://api.example.com/v1'
+    rule: curl_user_password
+    expect: no_match
+    reason: 'A user name of 19 characters is below the length a token sent as the user name must have.'
+    source: synthetic
+
+  - name: fp_curl_variable_user_empty_password
+    input: 'curl -u "$SERVICE_API_TOKEN_VALUE_2026:" https://api.example.com/v1'
+    rule: curl_user_password
+    expect: no_match
+    reason: 'A variable reference as the user name holds no credential.'
+    source: synthetic
