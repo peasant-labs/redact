@@ -458,9 +458,10 @@ var Rules = []Rule{
 
 	// --- Secrets: token formats with a documented prefix ---
 	// For each of these the vendor documents the prefix and publishes no length
-	// and no alphabet. The rule takes the prefix and the run of token characters
-	// after it. The 20-character floor is a noise guard that keeps a bare prefix
-	// and an ordinary identifier out; it is not a statement about the format.
+	// and no alphabet for the token. The character class and the 20-character
+	// floor of each rule are therefore the rule's own choice, made to keep a
+	// bare prefix out; they are not statements about the format.
+	// prefixTokenFilter (credential_context_rules.go) keeps identifiers out.
 	{
 		// GitHub fine-grained personal access token. The prefix table in
 		//   https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github
@@ -471,17 +472,21 @@ var Rules = []Rule{
 		Category:    CategorySecrets,
 		Pattern:     regexp.MustCompile(`github_pat_[A-Za-z0-9_]{20,}`),
 		Replacement: "<GITHUB_PAT>",
+		FilterFn:    prefixTokenFilter,
 	},
 	{
 		// npm access token outside an .npmrc line (npm_auth_token covers that
-		// line). The prefix and the Base62 checksum at the end are stated in
+		// line). The prefix is stated in
 		//   https://github.blog/changelog/2021-09-23-npm-has-a-new-access-token-format/
-		// Base62 has no underscore, so an environment name such as
-		// npm_config_registry or npm_package_version does not match.
+		// which also says the last six characters are a Base62 checksum. It
+		// states no alphabet for the rest. The body takes letters and digits
+		// only, so an environment name such as npm_config_registry or
+		// npm_package_version does not match.
 		ID:          "npm_token",
 		Category:    CategorySecrets,
 		Pattern:     regexp.MustCompile(`npm_[A-Za-z0-9]{20,}`),
 		Replacement: "<NPM_TOKEN>",
+		FilterFn:    prefixTokenFilter,
 	},
 	{
 		// Hugging Face user access token. The vendor's page shows the prefix
@@ -493,6 +498,7 @@ var Rules = []Rule{
 		Category:    CategorySecrets,
 		Pattern:     regexp.MustCompile(`hf_[A-Za-z0-9]{20,}`),
 		Replacement: "<HUGGINGFACE_TOKEN>",
+		FilterFn:    prefixTokenFilter,
 	},
 	{
 		// Vercel tokens and API keys. The prefixes are listed in
@@ -505,6 +511,7 @@ var Rules = []Rule{
 		Category:    CategorySecrets,
 		Pattern:     regexp.MustCompile(`vc[piark]_[A-Za-z0-9_\-]{20,}`),
 		Replacement: "<VERCEL_TOKEN>",
+		FilterFn:    prefixTokenFilter,
 	},
 	{
 		// Supabase secret key and personal access token.
@@ -516,6 +523,7 @@ var Rules = []Rule{
 		Category:    CategorySecrets,
 		Pattern:     regexp.MustCompile(`(?:sbp|sb_secret)_[A-Za-z0-9_\-]{20,}`),
 		Replacement: "<SUPABASE_TOKEN>",
+		FilterFn:    prefixTokenFilter,
 	},
 
 	// --- Secrets: identified by the construct around them ---
@@ -528,11 +536,11 @@ var Rules = []Rule{
 		Replacement: "${1}<AUTH_TOKEN>",
 	},
 	{
-		// The password in curl -u user:password and --user user:password.
+		// The pair in curl -u user:password and --user user:password.
 		ID:          curlUserPasswordRuleID,
 		Category:    CategorySecrets,
 		Pattern:     curlUserPasswordPattern,
-		Replacement: "${1}" + keyNameSecretPlaceholder,
+		Replacement: curlUserPasswordReplacement,
 		FilterFn:    curlUserPasswordFilter,
 	},
 	{
