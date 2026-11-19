@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.1.9
+
+- keep tokenizer pieces and stop a value at a twice-encoded line end (#105)
+
 ## v0.1.8
 
 - redact secrets identified by their key name, add missing token formats, and close two pattern gaps (#99)

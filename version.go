@@ -98,7 +98,12 @@ package redact
 //	         marker (was exactly 20 letters or digits), so a longer key no
 //	         longer leaves its tail.
 //	         Detect orders matches at one offset longest first.
-const RuleSetVersion = "3.2.0"
+//	3.2.1 — key_name_secret keeps a tokenizer piece (a word-boundary marker
+//	         followed by letters only) in text and in RedactJSON, and ends an
+//	         unquoted value at a line end, carriage return or tab encoded
+//	         twice, so each line is judged alone; a value whose backslashes
+//	         are literal is not cut (the rule is on twiceEncodedBreaks).
+const RuleSetVersion = "3.2.1"
 
 // Version returns the rule set version string.
 // It can be called without instantiating a Redactor.
