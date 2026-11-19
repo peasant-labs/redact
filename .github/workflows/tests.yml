@@ -20,7 +20,160 @@ permissions:
   contents: read
 
 jobs:
+  # Classifies the run. Only the bot release PR, or a merge group whose entry
+  # is that PR, builds release-intent and may inherit a verdict; every other
+  # run skips the build, records no inheritance and runs the full gate as
+  # before.
+  changes:
+    runs-on: ubuntu-latest
+    # A merge group may wait up to 20 minutes for its base's queue verdict.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: read
+      actions: read
+    outputs:
+      release_candidate: ${{ steps.entry.outputs.candidate }}
+      release_only: ${{ steps.inherit.outputs.release_only || 'false' }}
+      inherit: ${{ steps.inherit.outputs.inherit || 'false' }}
+      inherited_from: ${{ steps.inherit.outputs.inherited_from }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          filter: blob:none
+          persist-credentials: false
+
+      # A cheap pre-filter so an ordinary run never builds release-intent:
+      # only a bot PR, or a merge group whose entry PR, has the release bot
+      # branch as its head builds the tool. classify stays the authority (it
+      # also checks the author), so this check can only skip the build; a
+      # queue ref it cannot read builds the tool and lets classify decide.
+      # RELEASE_BRANCH is bot_branches.release in .github/release-intent.yaml;
+      # a test keeps the two equal.
+      - name: Pre-check the release entry
+        id: precheck
+        env:
+          EVENT: ${{ github.event_name }}
+          GROUP_REF: ${{ github.ref }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          RELEASE_BRANCH: automation/release
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head=
+          case "$EVENT" in
+            pull_request)
+              if [ "$PR_AUTHOR_TYPE" = Bot ]; then head="$PR_HEAD_REF"; fi
+              ;;
+            merge_group)
+              if [[ "$GROUP_REF" =~ ^refs/heads/gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$ ]]; then
+                head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/${BASH_REMATCH[1]}" --jq .head.ref)"
+              else
+                head="$RELEASE_BRANCH"
+              fi
+              ;;
+          esac
+          build=false
+          if [ -n "$head" ] && [ "$head" = "$RELEASE_BRANCH" ]; then build=true; fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+
+      - name: Check out the release-intent tool
+        if: steps.precheck.outputs.build == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: peasant-labs/infra
+          ref: 7d2a604afe5b50a3dcc20df06f02e85c2a0d4027
+          path: infra-tool
+          sparse-checkout: |
+            tools/release
+          persist-credentials: false
+
+      - name: Set up Go
+        if: steps.precheck.outputs.build == 'true'
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: infra-tool/tools/release/go.mod
+          cache-dependency-path: infra-tool/tools/release/go.sum
+
+      - name: Build release-intent
+        if: steps.precheck.outputs.build == 'true'
+        working-directory: infra-tool/tools/release
+        env:
+          GOWORK: "off"
+        run: go build -o "${RUNNER_TEMP}/release-intent" ./cmd/release-intent
+
+      # candidate: this run is the bot release PR, or a merge group whose
+      # entry is. Those are the only runs that may inherit a verdict. A run
+      # the pre-check filtered out never built the tool and is no candidate.
+      - name: Classify the release entry
+        id: entry
+        env:
+          BUILD: ${{ steps.precheck.outputs.build }}
+          EVENT: ${{ github.event_name }}
+          GROUP_REF: ${{ github.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE: ${{ github.event.merge_group.base_sha || github.event.pull_request.base.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "$BUILD" != true ]; then
+            echo "candidate=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          case "$EVENT" in
+            merge_group)
+              result="$("$RUNNER_TEMP/release-intent" group-pr --ref "$GROUP_REF")"
+              number="${result#pr=}"
+              ;;
+            *)
+              number="$PR_NUMBER"
+              ;;
+          esac
+          test -n "$number" || { echo "::error::cannot identify the entry PR"; exit 1; }
+          payload="$(gh pr view "$number" --repo "$GITHUB_REPOSITORY" --json author,headRefName)"
+          author="$(jq -r '.author.login' <<< "$payload")"
+          branch="$(jq -r '.headRefName' <<< "$payload")"
+          kind="$("$RUNNER_TEMP/release-intent" classify --author "$author" --head-branch "$branch" --rev "$BASE")"
+          candidate=false
+          if [ "$kind" = 'kind=release' ]; then candidate=true; fi
+          echo "candidate=$candidate" >> "$GITHUB_OUTPUT"
+
+      # A release candidate whose whole base..head change is release content
+      # (the changelog) inherits the verdict its exact base recorded in that
+      # commit's merge-queue run instead of rerunning the module gate. A
+      # release-only candidate whose base verdict is missing, pending past the
+      # wait, failed or ambiguous fails here; it never falls back to the
+      # suite. A merge group may be built on a group still ahead of it in the
+      # queue, so it waits for that verdict. The step always runs (no
+      # step-level if); every other run records no inheritance.
+      - name: Inherit the base commit's queue verdict
+        id: inherit
+        env:
+          EVENT: ${{ github.event_name }}
+          CANDIDATE: ${{ steps.entry.outputs.candidate }}
+          BASE: ${{ github.event.merge_group.base_sha || github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.merge_group.head_sha || github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "$CANDIDATE" != true ]; then
+            echo "release_only=false" >> "$GITHUB_OUTPUT"
+            echo "inherit=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          wait=0s
+          if [ "$EVENT" = merge_group ]; then wait=20m; fi
+          git fetch --no-tags origin "$BASE" "$HEAD"
+          "$RUNNER_TEMP/release-intent" inherit-verdict --base "$BASE" --head "$HEAD" --repo "$GITHUB_REPOSITORY" --wait "$wait"
+
   determine-runner:
+    needs: changes
+    if: needs.changes.outputs.inherit != 'true'
     permissions:
       contents: read
     uses: peasant-labs/infra/.github/workflows/runner-router.yml@71e687cef7eede9a63659be98ce9adac3c563398
@@ -31,7 +184,8 @@ jobs:
 
   test:
     name: test
-    needs: determine-runner
+    needs: [changes, determine-runner]
+    if: needs.changes.outputs.inherit != 'true'
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     timeout-minutes: 15
     permissions:
@@ -68,7 +222,8 @@ jobs:
 
   lint:
     name: lint
-    needs: determine-runner
+    needs: [changes, determine-runner]
+    if: needs.changes.outputs.inherit != 'true'
     runs-on: ${{ fromJson(needs.determine-runner.outputs.runner) }}
     timeout-minutes: 10
     permissions:
@@ -100,19 +255,59 @@ jobs:
             exit 1
           fi
 
+  # The required queue check. A run that did not inherit a verdict needs the
+  # test and lint jobs to succeed, as before. A release-only candidate that
+  # inherited its base's queue verdict skips both, and the gate accepts the
+  # skip only with that proof. The last three steps record where this run's
+  # verdict came from; exactly one runs on a passing gate. A later release
+  # candidate built on this commit reads them back through
+  # release-intent inherit-verdict, so an inherited verdict always traces
+  # back to a run where the test job ran. Redact has no path filter, so the
+  # gate refuses a skipped test job without inheritance and the unaffected
+  # marker never runs; it stays because the marker set is fixed.
   merge-gate:
-    # The required queue check: it fails if either the test or lint job fails,
-    # and reports on every merge-group build even when an upstream job is
-    # skipped.
     name: merge-gate
-    needs: [test, lint]
+    needs: [changes, determine-runner, test, lint]
     if: always()
     permissions:
       contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Require both gate jobs
+      - name: Require the gate jobs or a proven inherited verdict
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+          EVENT: ${{ github.event_name }}
+          RELEASE_CANDIDATE: ${{ needs.changes.outputs.release_candidate }}
+          RELEASE_ONLY: ${{ needs.changes.outputs.release_only }}
+          INHERIT: ${{ needs.changes.outputs.inherit }}
         run: |
-          test "${{ needs.test.result }}" = "success"
-          test "${{ needs.lint.result }}" = "success"
+          set -euo pipefail
+          fail() { echo "::error::merge-gate: $*"; exit 1; }
+          result() { jq -r --arg job "$1" '.[$job].result' <<< "$RESULTS"; }
+          case "$RELEASE_CANDIDATE" in true|false) ;; *) fail "release candidate classification is missing or invalid" ;; esac
+          case "$RELEASE_ONLY" in true|false) ;; *) fail "release-only classification is missing or invalid" ;; esac
+          case "$INHERIT" in true|false) ;; *) fail "verdict inheritance is missing or invalid" ;; esac
+          jq -e 'to_entries | all(.[]; .value.result == "success" or .value.result == "skipped")' <<< "$RESULTS" > /dev/null || fail "a needed job failed or was cancelled"
+          [ "$(result changes)" = success ] || fail "the changes job did not succeed"
+          if [ "$INHERIT" = true ]; then
+            case "$EVENT" in pull_request|merge_group) ;; *) fail "only pull_request and merge_group runs inherit a verdict" ;; esac
+            [ "$RELEASE_CANDIDATE" = true ] || fail "only a release candidate inherits a verdict"
+            [ "$RELEASE_ONLY" = true ] || fail "an inherited verdict needs a release-only change"
+            [ "$(result test)" = skipped ] || fail "the test job ran although the verdict was inherited"
+            [ "$(result lint)" = skipped ] || fail "the lint job ran although the verdict was inherited"
+          else
+            [ "$(result test)" = success ] || fail "the test job is required"
+            [ "$(result lint)" = success ] || fail "the lint job is required"
+          fi
+      - name: "verdict-source: full"
+        if: needs.test.result == 'success'
+        run: echo "verdict-source=full" >> "$GITHUB_STEP_SUMMARY"
+      - name: "verdict-source: inherited"
+        if: needs.changes.outputs.inherit == 'true' && needs.test.result == 'skipped'
+        env:
+          INHERITED_FROM: ${{ needs.changes.outputs.inherited_from }}
+        run: echo "verdict-source=inherited:${INHERITED_FROM}" >> "$GITHUB_STEP_SUMMARY"
+      - name: "verdict-source: unaffected"
+        if: needs.changes.outputs.inherit != 'true' && needs.test.result == 'skipped'
+        run: echo "verdict-source=unaffected" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,233 @@
+# Verdict inheritance in .github/workflows/tests.yml, checked by
+# TestMergeGateVerdict and TestVerdictInheritanceWiring.
+#
+# verdict_markers mirrors infra's exported marker step set at the pinned
+# release tool (tools/release/internal/intent/testdata/verdict_markers.yaml,
+# intent.VerdictMarkerStepNames and intent.VerdictMarkersVersion). The tool
+# reads these names back from a base commit's merge-queue run, so a change on
+# either side bumps the version and moves both together at a re-pin.
+verdict_markers:
+  version: 1
+  names:
+    - "verdict-source: full"
+    - "verdict-source: inherited"
+    - "verdict-source: unaffected"
+
+policy_file: .github/release-queue.policy.yml
+workflow_file: .github/workflows/tests.yml
+aggregator_job: merge-gate
+full_suite_job: test
+merge_gate_step: Require the gate jobs or a proven inherited verdict
+
+# The aggregator's final steps, in order, with the condition that selects
+# each. Redact has no path filter: the gate refuses a skipped test job without
+# inheritance, so the unaffected marker never runs on a passing gate.
+marker_steps:
+  - {name: "verdict-source: full", if: "needs.test.result == 'success'"}
+  - {name: "verdict-source: inherited", if: "needs.changes.outputs.inherit == 'true' && needs.test.result == 'skipped'"}
+  - {name: "verdict-source: unaffected", if: "needs.changes.outputs.inherit != 'true' && needs.test.result == 'skipped'"}
+
+# Every job the inherited verdict replaces is skipped exactly when the
+# verdict was inherited.
+heavy_jobs:
+  - {job: determine-runner, if: "needs.changes.outputs.inherit != 'true'"}
+  - {job: test, if: "needs.changes.outputs.inherit != 'true'"}
+  - {job: lint, if: "needs.changes.outputs.inherit != 'true'"}
+
+# The classifier job always runs, and the proof step always runs and never
+# fails softly. The token scopes are the ones inherit-verdict reads with.
+classifier_job: changes
+inherit_step: inherit
+classify_step: entry
+
+# The pre-check that keeps an ordinary run from building release-intent.
+# Every step that checks out, sets up or builds the tool carries tool_if, and
+# the pre-check's RELEASE_BRANCH equals bot_branches.release in the release
+# config.
+precheck_step: precheck
+release_config: .github/release-intent.yaml
+tool_if: "steps.precheck.outputs.build == 'true'"
+tool_steps:
+  - Check out the release-intent tool
+  - Set up Go
+  - Build release-intent
+classifier_permissions:
+  contents: read
+  pull-requests: read
+  checks: read
+  actions: read
+
+# Each case runs the real pre-check step with a stub gh that answers the
+# entry PR's head ref. When the pre-check skips the build, the real classify
+# and inherit steps run next and must record no candidate and no inheritance
+# without ever calling release-intent or git. An omitted event is
+# merge_group; expected_gh is the one gh call the pre-check makes, if any.
+precheck_cases:
+  - name: human-pr-skips-build
+    event: pull_request
+    pr_author_type: User
+    pr_head_ref: fix/tokenizer
+    expected_build: "false"
+  - name: human-pr-on-release-branch-skips-build
+    event: pull_request
+    pr_author_type: User
+    pr_head_ref: automation/release
+    expected_build: "false"
+  - name: dependabot-pr-skips-build
+    event: pull_request
+    pr_author_type: Bot
+    pr_head_ref: dependabot/go_modules/golang.org/x/text-0.31.0
+    expected_build: "false"
+  - name: cut-release-bot-pr-skips-build
+    event: pull_request
+    pr_author_type: Bot
+    pr_head_ref: automation/cut-release
+    expected_build: "false"
+  - name: release-bot-pr-builds
+    event: pull_request
+    pr_author_type: Bot
+    pr_head_ref: automation/release
+    expected_build: "true"
+  - name: normal-merge-group-skips-build
+    group_ref: refs/heads/gh-readonly-queue/main/pr-105-0123456789abcdef0123456789abcdef01234567
+    gh_head: fix/tokenizer
+    expected_gh: "api repos/peasant-labs/redact/pulls/105 --jq .head.ref"
+    expected_build: "false"
+  - name: release-merge-group-builds
+    group_ref: refs/heads/gh-readonly-queue/main/pr-107-0123456789abcdef0123456789abcdef01234567
+    gh_head: automation/release
+    expected_gh: "api repos/peasant-labs/redact/pulls/107 --jq .head.ref"
+    expected_build: "true"
+  - name: unreadable-queue-ref-builds-for-classify
+    group_ref: refs/heads/main
+    expected_build: "true"
+  - name: failed-head-lookup-fails-the-step
+    group_ref: refs/heads/gh-readonly-queue/main/pr-105-0123456789abcdef0123456789abcdef01234567
+    gh_exit: 1
+    expected_gh: "api repos/peasant-labs/redact/pulls/105 --jq .head.ref"
+    expected_exit: 1
+  - name: push-skips-build
+    event: push
+    expected_build: "false"
+
+# Each case runs the real merge-gate shell step. An omitted event is
+# merge_group; omitted release_candidate, release_only and inherit are
+# "false". A reject names the ::error:: text it must fail with, so a jq or
+# shell fault cannot pass as a rejection. An accepting case names the one
+# marker step whose condition holds for it.
+merge_gate_cases:
+  - name: full-gate-passes
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"success"},"test":{"result":"success"},"lint":{"result":"success"}}'
+    expected_exit: 0
+    expected_marker: "verdict-source: full"
+  - name: push-full-gate-passes
+    event: push
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"success"},"test":{"result":"success"},"lint":{"result":"success"}}'
+    expected_exit: 0
+    expected_marker: "verdict-source: full"
+  - name: test-failure-is-refused
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"success"},"test":{"result":"failure"},"lint":{"result":"success"}}'
+    expected_exit: 1
+    expected_error: "a needed job failed or was cancelled"
+  - name: lint-failure-is-refused
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"success"},"test":{"result":"success"},"lint":{"result":"failure"}}'
+    expected_exit: 1
+    expected_error: "a needed job failed or was cancelled"
+  - name: cancelled-test-is-refused
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"success"},"test":{"result":"cancelled"},"lint":{"result":"success"}}'
+    expected_exit: 1
+    expected_error: "a needed job failed or was cancelled"
+  - name: runner-failure-is-refused
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"failure"},"test":{"result":"skipped"},"lint":{"result":"skipped"}}'
+    expected_exit: 1
+    expected_error: "a needed job failed or was cancelled"
+  - name: failed-classifier-is-refused
+    results_json: '{"changes":{"result":"failure"},"determine-runner":{"result":"skipped"},"test":{"result":"skipped"},"lint":{"result":"skipped"}}'
+    expected_exit: 1
+    expected_error: "a needed job failed or was cancelled"
+  - name: skipped-classifier-is-refused
+    results_json: '{"changes":{"result":"skipped"},"determine-runner":{"result":"skipped"},"test":{"result":"skipped"},"lint":{"result":"skipped"}}'
+    expected_exit: 1
+    expected_error: "the changes job did not succeed"
+  - name: skipped-test-without-inheritance-is-refused
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"success"},"test":{"result":"skipped"},"lint":{"result":"success"}}'
+    expected_exit: 1
+    expected_error: "the test job is required"
+  - name: skipped-lint-without-inheritance-is-refused
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"success"},"test":{"result":"success"},"lint":{"result":"skipped"}}'
+    expected_exit: 1
+    expected_error: "the lint job is required"
+  - name: missing-candidate-is-refused
+    release_candidate: ""
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"success"},"test":{"result":"success"},"lint":{"result":"success"}}'
+    expected_exit: 1
+    expected_error: "release candidate classification is missing or invalid"
+  - name: unknown-release-only-is-refused
+    release_only: "maybe"
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"success"},"test":{"result":"success"},"lint":{"result":"success"}}'
+    expected_exit: 1
+    expected_error: "release-only classification is missing or invalid"
+  - name: unknown-inherit-is-refused
+    inherit: "maybe"
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"success"},"test":{"result":"success"},"lint":{"result":"success"}}'
+    expected_exit: 1
+    expected_error: "verdict inheritance is missing or invalid"
+  - name: release-candidate-not-release-only-runs-full-gate
+    release_candidate: "true"
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"success"},"test":{"result":"success"},"lint":{"result":"success"}}'
+    expected_exit: 0
+    expected_marker: "verdict-source: full"
+  - name: release-candidate-without-inheritance-needs-test
+    release_candidate: "true"
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"success"},"test":{"result":"skipped"},"lint":{"result":"success"}}'
+    expected_exit: 1
+    expected_error: "the test job is required"
+  - name: inherited-merge-group-release-passes
+    release_candidate: "true"
+    release_only: "true"
+    inherit: "true"
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"skipped"},"test":{"result":"skipped"},"lint":{"result":"skipped"}}'
+    expected_exit: 0
+    expected_marker: "verdict-source: inherited"
+  - name: inherited-pull-request-release-passes
+    event: pull_request
+    release_candidate: "true"
+    release_only: "true"
+    inherit: "true"
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"skipped"},"test":{"result":"skipped"},"lint":{"result":"skipped"}}'
+    expected_exit: 0
+    expected_marker: "verdict-source: inherited"
+  - name: inherited-test-ran-is-refused
+    release_candidate: "true"
+    release_only: "true"
+    inherit: "true"
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"success"},"test":{"result":"success"},"lint":{"result":"skipped"}}'
+    expected_exit: 1
+    expected_error: "the test job ran although the verdict was inherited"
+  - name: inherited-lint-ran-is-refused
+    release_candidate: "true"
+    release_only: "true"
+    inherit: "true"
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"success"},"test":{"result":"skipped"},"lint":{"result":"success"}}'
+    expected_exit: 1
+    expected_error: "the lint job ran although the verdict was inherited"
+  - name: inherited-without-release-only-is-refused
+    release_candidate: "true"
+    inherit: "true"
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"skipped"},"test":{"result":"skipped"},"lint":{"result":"skipped"}}'
+    expected_exit: 1
+    expected_error: "an inherited verdict needs a release-only change"
+  - name: inherited-without-candidate-is-refused
+    release_only: "true"
+    inherit: "true"
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"skipped"},"test":{"result":"skipped"},"lint":{"result":"skipped"}}'
+    expected_exit: 1
+    expected_error: "only a release candidate inherits a verdict"
+  - name: inherited-on-push-is-refused
+    event: push
+    release_candidate: "true"
+    release_only: "true"
+    inherit: "true"
+    results_json: '{"changes":{"result":"success"},"determine-runner":{"result":"skipped"},"test":{"result":"skipped"},"lint":{"result":"skipped"}}'
+    expected_exit: 1
+    expected_error: "only pull_request and merge_group runs inherit a verdict"
