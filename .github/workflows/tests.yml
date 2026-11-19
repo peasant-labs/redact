@@ -22,7 +22,8 @@ permissions:
 jobs:
   # Classifies the run. Only the bot release PR, or a merge group whose entry
   # is that PR, builds release-intent and may inherit a verdict; every other
-  # run records no inheritance and runs the full gate as before.
+  # run skips the build, records no inheritance and runs the full gate as
+  # before.
   changes:
     runs-on: ubuntu-latest
     # A merge group may wait up to 20 minutes for its base's queue verdict.
@@ -46,8 +47,43 @@ jobs:
           filter: blob:none
           persist-credentials: false
 
+      # A cheap pre-filter so an ordinary run never builds release-intent:
+      # only a bot PR, or a merge group whose entry PR, has the release bot
+      # branch as its head builds the tool. classify stays the authority (it
+      # also checks the author), so this check can only skip the build; a
+      # queue ref it cannot read builds the tool and lets classify decide.
+      # RELEASE_BRANCH is bot_branches.release in .github/release-intent.yaml;
+      # a test keeps the two equal.
+      - name: Pre-check the release entry
+        id: precheck
+        env:
+          EVENT: ${{ github.event_name }}
+          GROUP_REF: ${{ github.ref }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          RELEASE_BRANCH: automation/release
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          head=
+          case "$EVENT" in
+            pull_request)
+              if [ "$PR_AUTHOR_TYPE" = Bot ]; then head="$PR_HEAD_REF"; fi
+              ;;
+            merge_group)
+              if [[ "$GROUP_REF" =~ ^refs/heads/gh-readonly-queue/.+/pr-([0-9]+)-[0-9a-f]{40}$ ]]; then
+                head="$(gh api "repos/$GITHUB_REPOSITORY/pulls/${BASH_REMATCH[1]}" --jq .head.ref)"
+              else
+                head="$RELEASE_BRANCH"
+              fi
+              ;;
+          esac
+          build=false
+          if [ -n "$head" ] && [ "$head" = "$RELEASE_BRANCH" ]; then build=true; fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+
       - name: Check out the release-intent tool
-        if: github.event_name == 'merge_group' || (github.event_name == 'pull_request' && github.event.pull_request.user.type == 'Bot')
+        if: steps.precheck.outputs.build == 'true'
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: peasant-labs/infra
@@ -58,48 +94,44 @@ jobs:
           persist-credentials: false
 
       - name: Set up Go
-        if: github.event_name == 'merge_group' || (github.event_name == 'pull_request' && github.event.pull_request.user.type == 'Bot')
+        if: steps.precheck.outputs.build == 'true'
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: infra-tool/tools/release/go.mod
           cache-dependency-path: infra-tool/tools/release/go.sum
 
       - name: Build release-intent
-        if: github.event_name == 'merge_group' || (github.event_name == 'pull_request' && github.event.pull_request.user.type == 'Bot')
+        if: steps.precheck.outputs.build == 'true'
         working-directory: infra-tool/tools/release
         env:
           GOWORK: "off"
         run: go build -o "${RUNNER_TEMP}/release-intent" ./cmd/release-intent
 
       # candidate: this run is the bot release PR, or a merge group whose
-      # entry is. Those are the only runs that may inherit a verdict. A pull
-      # request from a human never builds the tool here.
+      # entry is. Those are the only runs that may inherit a verdict. A run
+      # the pre-check filtered out never built the tool and is no candidate.
       - name: Classify the release entry
         id: entry
         env:
+          BUILD: ${{ steps.precheck.outputs.build }}
           EVENT: ${{ github.event_name }}
           GROUP_REF: ${{ github.ref }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
           BASE: ${{ github.event.merge_group.base_sha || github.event.pull_request.base.sha }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if [ "$BUILD" != true ]; then
+            echo "candidate=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           case "$EVENT" in
             merge_group)
               result="$("$RUNNER_TEMP/release-intent" group-pr --ref "$GROUP_REF")"
               number="${result#pr=}"
               ;;
-            pull_request)
-              if [ "$PR_AUTHOR_TYPE" != Bot ]; then
-                echo "candidate=false" >> "$GITHUB_OUTPUT"
-                exit 0
-              fi
-              number="$PR_NUMBER"
-              ;;
             *)
-              echo "candidate=false" >> "$GITHUB_OUTPUT"
-              exit 0
+              number="$PR_NUMBER"
               ;;
           esac
           test -n "$number" || { echo "::error::cannot identify the entry PR"; exit 1; }

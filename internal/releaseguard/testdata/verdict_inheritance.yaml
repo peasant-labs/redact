@@ -38,11 +38,77 @@ heavy_jobs:
 # fails softly. The token scopes are the ones inherit-verdict reads with.
 classifier_job: changes
 inherit_step: inherit
+classify_step: entry
+
+# The pre-check that keeps an ordinary run from building release-intent.
+# Every step that checks out, sets up or builds the tool carries tool_if, and
+# the pre-check's RELEASE_BRANCH equals bot_branches.release in the release
+# config.
+precheck_step: precheck
+release_config: .github/release-intent.yaml
+tool_if: "steps.precheck.outputs.build == 'true'"
+tool_steps:
+  - Check out the release-intent tool
+  - Set up Go
+  - Build release-intent
 classifier_permissions:
   contents: read
   pull-requests: read
   checks: read
   actions: read
+
+# Each case runs the real pre-check step with a stub gh that answers the
+# entry PR's head ref. When the pre-check skips the build, the real classify
+# and inherit steps run next and must record no candidate and no inheritance
+# without ever calling release-intent or git. An omitted event is
+# merge_group; expected_gh is the one gh call the pre-check makes, if any.
+precheck_cases:
+  - name: human-pr-skips-build
+    event: pull_request
+    pr_author_type: User
+    pr_head_ref: fix/tokenizer
+    expected_build: "false"
+  - name: human-pr-on-release-branch-skips-build
+    event: pull_request
+    pr_author_type: User
+    pr_head_ref: automation/release
+    expected_build: "false"
+  - name: dependabot-pr-skips-build
+    event: pull_request
+    pr_author_type: Bot
+    pr_head_ref: dependabot/go_modules/golang.org/x/text-0.31.0
+    expected_build: "false"
+  - name: cut-release-bot-pr-skips-build
+    event: pull_request
+    pr_author_type: Bot
+    pr_head_ref: automation/cut-release
+    expected_build: "false"
+  - name: release-bot-pr-builds
+    event: pull_request
+    pr_author_type: Bot
+    pr_head_ref: automation/release
+    expected_build: "true"
+  - name: normal-merge-group-skips-build
+    group_ref: refs/heads/gh-readonly-queue/main/pr-105-0123456789abcdef0123456789abcdef01234567
+    gh_head: fix/tokenizer
+    expected_gh: "api repos/peasant-labs/redact/pulls/105 --jq .head.ref"
+    expected_build: "false"
+  - name: release-merge-group-builds
+    group_ref: refs/heads/gh-readonly-queue/main/pr-107-0123456789abcdef0123456789abcdef01234567
+    gh_head: automation/release
+    expected_gh: "api repos/peasant-labs/redact/pulls/107 --jq .head.ref"
+    expected_build: "true"
+  - name: unreadable-queue-ref-builds-for-classify
+    group_ref: refs/heads/main
+    expected_build: "true"
+  - name: failed-head-lookup-fails-the-step
+    group_ref: refs/heads/gh-readonly-queue/main/pr-105-0123456789abcdef0123456789abcdef01234567
+    gh_exit: 1
+    expected_gh: "api repos/peasant-labs/redact/pulls/105 --jq .head.ref"
+    expected_exit: 1
+  - name: push-skips-build
+    event: push
+    expected_build: "false"
 
 # Each case runs the real merge-gate shell step. An omitted event is
 # merge_group; omitted release_candidate, release_only and inherit are

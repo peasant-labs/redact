@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -39,8 +40,41 @@ type verdictInheritanceFixture struct {
 	} `yaml:"heavy_jobs"`
 	ClassifierJob         string            `yaml:"classifier_job"`
 	InheritStep           string            `yaml:"inherit_step"`
+	ClassifyStep          string            `yaml:"classify_step"`
+	PrecheckStep          string            `yaml:"precheck_step"`
+	ReleaseConfig         string            `yaml:"release_config"`
+	ToolIf                string            `yaml:"tool_if"`
+	ToolSteps             []string          `yaml:"tool_steps"`
 	ClassifierPermissions map[string]string `yaml:"classifier_permissions"`
+	PrecheckCases         []precheckCase    `yaml:"precheck_cases"`
 	MergeGateCases        []mergeGateCase   `yaml:"merge_gate_cases"`
+}
+
+type precheckCase struct {
+	Name          string `yaml:"name"`
+	Event         string `yaml:"event"`
+	GroupRef      string `yaml:"group_ref"`
+	PRAuthorType  string `yaml:"pr_author_type"`
+	PRHeadRef     string `yaml:"pr_head_ref"`
+	GHHead        string `yaml:"gh_head"`
+	GHExit        int    `yaml:"gh_exit"`
+	ExpectedGH    string `yaml:"expected_gh"`
+	ExpectedBuild string `yaml:"expected_build"`
+	ExpectedExit  int    `yaml:"expected_exit"`
+}
+
+// requiredPrecheckCases is the deletion guard for precheck_cases.
+var requiredPrecheckCases = map[string]struct{}{
+	"human-pr-skips-build":                     {},
+	"human-pr-on-release-branch-skips-build":   {},
+	"dependabot-pr-skips-build":                {},
+	"cut-release-bot-pr-skips-build":           {},
+	"release-bot-pr-builds":                    {},
+	"normal-merge-group-skips-build":           {},
+	"release-merge-group-builds":               {},
+	"unreadable-queue-ref-builds-for-classify": {},
+	"failed-head-lookup-fails-the-step":        {},
+	"push-skips-build":                         {},
 }
 
 type mergeGateCase struct {
@@ -239,6 +273,171 @@ func TestMergeGateVerdict(t *testing.T) {
 	}
 }
 
+// classifierStep returns the classifier job's step with the given id.
+func classifierStep(t *testing.T, jobs *yaml.Node, job, id string) *yaml.Node {
+	t.Helper()
+	steps := provenanceMappingChild(provenanceMappingChild(jobs, job), "steps")
+	if steps == nil {
+		t.Fatalf("jobs.%s has no steps", job)
+	}
+	for _, step := range steps.Content {
+		if nodeScalar(step, "id") == id {
+			return step
+		}
+	}
+	t.Fatalf("jobs.%s has no step with id %s", job, id)
+	return nil
+}
+
+// readStepOutputs parses a GITHUB_OUTPUT file of key=value lines.
+func readStepOutputs(t *testing.T, path string) map[string]string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("read step outputs: %v", err)
+	}
+	outputs := make(map[string]string)
+	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		if key, value, ok := strings.Cut(line, "="); ok {
+			outputs[key] = value
+		}
+	}
+	return outputs
+}
+
+// TestChangesPreCheck runs the real pre-check step with a stub gh, and for
+// every run it filters out, the real classify and inherit steps after it:
+// those must record no candidate and no inheritance without calling
+// release-intent or git, so an ordinary run never builds the tool.
+func TestChangesPreCheck(t *testing.T) {
+	fixture := loadVerdictInheritanceFixture(t)
+	jobs := readWorkflowJobs(t, fixture.WorkflowFile)
+	precheck := classifierStep(t, jobs, fixture.ClassifierJob, fixture.PrecheckStep)
+	classify := classifierStep(t, jobs, fixture.ClassifierJob, fixture.ClassifyStep)
+	inherit := classifierStep(t, jobs, fixture.ClassifierJob, fixture.InheritStep)
+	releaseBranch := nodeScalar(provenanceMappingChild(precheck, "env"), "RELEASE_BRANCH")
+	if releaseBranch == "" {
+		t.Fatalf("step %s sets no RELEASE_BRANCH", fixture.PrecheckStep)
+	}
+
+	seen := make(map[string]struct{}, len(fixture.PrecheckCases))
+	for _, c := range fixture.PrecheckCases {
+		if c.Name == "" {
+			t.Fatal("a pre-check case has no name; give every row a stable name")
+		}
+		if _, dup := seen[c.Name]; dup {
+			t.Fatalf("pre-check case %q is duplicated; rename one row", c.Name)
+		}
+		seen[c.Name] = struct{}{}
+		if _, required := requiredPrecheckCases[c.Name]; !required {
+			t.Fatalf("pre-check case %q is not in requiredPrecheckCases; add it to the guard deliberately", c.Name)
+		}
+		t.Run(c.Name, func(t *testing.T) {
+			dir := t.TempDir()
+			bin := filepath.Join(dir, "bin")
+			logs := filepath.Join(dir, "logs")
+			runnerTemp := filepath.Join(dir, "runner")
+			for _, d := range []string{bin, logs, runnerTemp} {
+				if err := os.Mkdir(d, 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			stubs := map[string]string{
+				filepath.Join(bin, "gh"):                    "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$STUB_LOGS/gh\"\n[ \"$STUB_GH_EXIT\" = 0 ] || exit \"$STUB_GH_EXIT\"\nprintf '%s\\n' \"$STUB_GH_HEAD\"\n",
+				filepath.Join(bin, "git"):                   "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$STUB_LOGS/git\"\nexit 97\n",
+				filepath.Join(runnerTemp, "release-intent"): "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$STUB_LOGS/release-intent\"\nexit 97\n",
+			}
+			for path, body := range stubs {
+				if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			event := c.Event
+			if event == "" {
+				event = "merge_group"
+			}
+			env := append(os.Environ(),
+				"PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"),
+				"STUB_LOGS="+logs,
+				"STUB_GH_HEAD="+c.GHHead,
+				"STUB_GH_EXIT="+strconv.Itoa(c.GHExit),
+				"RUNNER_TEMP="+runnerTemp,
+				"GITHUB_REPOSITORY=peasant-labs/redact",
+				"EVENT="+event,
+				"GROUP_REF="+c.GroupRef,
+				"PR_AUTHOR_TYPE="+c.PRAuthorType,
+				"PR_HEAD_REF="+c.PRHeadRef,
+				"PR_NUMBER=7",
+				"RELEASE_BRANCH="+releaseBranch,
+				"BASE=1111111111111111111111111111111111111111",
+				"HEAD=2222222222222222222222222222222222222222",
+			)
+			runStep := func(name, script, output string, extra ...string) (int, string) {
+				cmd := exec.Command("bash", "-c", script)
+				cmd.Env = append(append(slices.Clone(env), "GITHUB_OUTPUT="+output), extra...)
+				out, err := cmd.CombinedOutput()
+				if err != nil {
+					var failure *exec.ExitError
+					if !errors.As(err, &failure) {
+						t.Fatalf("execute %s: %v\n%s", name, err, out)
+					}
+					return failure.ExitCode(), string(out)
+				}
+				return 0, string(out)
+			}
+
+			precheckOut := filepath.Join(dir, "precheck.out")
+			exit, out := runStep(fixture.PrecheckStep, nodeScalar(precheck, "run"), precheckOut)
+			if exit != c.ExpectedExit {
+				t.Fatalf("pre-check exit = %d, want %d:\n%s", exit, c.ExpectedExit, out)
+			}
+			ghLog, _ := os.ReadFile(filepath.Join(logs, "gh"))
+			if got := strings.TrimSpace(string(ghLog)); got != c.ExpectedGH {
+				t.Errorf("pre-check gh calls = %q, want %q", got, c.ExpectedGH)
+			}
+			if c.ExpectedExit != 0 {
+				return
+			}
+			if got := readStepOutputs(t, precheckOut)["build"]; got != c.ExpectedBuild {
+				t.Fatalf("pre-check build = %q, want %q:\n%s", got, c.ExpectedBuild, out)
+			}
+			if c.ExpectedBuild == "true" {
+				return
+			}
+
+			classifyOut := filepath.Join(dir, "classify.out")
+			if exit, out := runStep(fixture.ClassifyStep, nodeScalar(classify, "run"), classifyOut, "BUILD=false"); exit != 0 {
+				t.Fatalf("classify step exit = %d:\n%s", exit, out)
+			}
+			candidate := readStepOutputs(t, classifyOut)["candidate"]
+			inheritOut := filepath.Join(dir, "inherit.out")
+			if exit, out := runStep(fixture.InheritStep, nodeScalar(inherit, "run"), inheritOut, "CANDIDATE="+candidate); exit != 0 {
+				t.Fatalf("inherit step exit = %d:\n%s", exit, out)
+			}
+			outputs := readStepOutputs(t, inheritOut)
+			outputs["candidate"] = candidate
+			for _, key := range []string{"candidate", "release_only", "inherit"} {
+				if outputs[key] != "false" {
+					t.Errorf("a filtered-out run records %s=%q, want \"false\"", key, outputs[key])
+				}
+			}
+			for _, tool := range []string{"release-intent", "git", "gh"} {
+				if tool == "gh" && c.ExpectedGH != "" {
+					continue
+				}
+				if _, err := os.Stat(filepath.Join(logs, tool)); err == nil {
+					t.Errorf("a filtered-out run called %s", tool)
+				}
+			}
+		})
+	}
+	for name := range requiredPrecheckCases {
+		if _, ok := seen[name]; !ok {
+			t.Errorf("required pre-check case %q is missing; restore the fixture row", name)
+		}
+	}
+}
+
 func caseValue(value *string) string {
 	if value == nil {
 		return "false"
@@ -360,6 +559,54 @@ func TestVerdictInheritanceWiring(t *testing.T) {
 			t.Errorf("jobs.%s permission %s = %q, want %q", fixture.ClassifierJob, scope, got, level)
 		}
 	}
+	toolSteps := make(map[string]bool, len(fixture.ToolSteps))
+	for _, name := range fixture.ToolSteps {
+		toolSteps[name] = false
+	}
+	for _, step := range provenanceMappingChild(classifier, "steps").Content {
+		name := nodeScalar(step, "name")
+		buildsTool := strings.Contains(nodeScalar(step, "run"), "go build") ||
+			nodeScalar(provenanceMappingChild(step, "with"), "repository") == "peasant-labs/infra" ||
+			strings.Contains(nodeScalar(step, "uses"), "setup-go")
+		if _, listed := toolSteps[name]; listed {
+			toolSteps[name] = true
+		} else if buildsTool {
+			t.Errorf("jobs.%s step %q fetches or builds the tool but is not a tool_steps row gated on the pre-check", fixture.ClassifierJob, name)
+			continue
+		}
+		if !buildsTool {
+			if _, listed := toolSteps[name]; listed {
+				t.Errorf("jobs.%s step %q is a tool_steps row but neither fetches nor builds the tool", fixture.ClassifierJob, name)
+			}
+			continue
+		}
+		if got := nodeScalar(step, "if"); got != fixture.ToolIf {
+			t.Errorf("jobs.%s step %q if = %q, want the pre-check %q", fixture.ClassifierJob, name, got, fixture.ToolIf)
+		}
+	}
+	for name, present := range toolSteps {
+		if !present {
+			t.Errorf("jobs.%s has no tool step %q", fixture.ClassifierJob, name)
+		}
+	}
+
+	configData, err := os.ReadFile(filepath.Join("..", "..", fixture.ReleaseConfig))
+	if err != nil {
+		t.Fatalf("read %s: %v", fixture.ReleaseConfig, err)
+	}
+	var config struct {
+		BotBranches struct {
+			Release string `yaml:"release"`
+		} `yaml:"bot_branches"`
+	}
+	if err := yaml.Unmarshal(configData, &config); err != nil {
+		t.Fatalf("parse %s: %v", fixture.ReleaseConfig, err)
+	}
+	precheck := classifierStep(t, jobs, fixture.ClassifierJob, fixture.PrecheckStep)
+	if got := nodeScalar(provenanceMappingChild(precheck, "env"), "RELEASE_BRANCH"); config.BotBranches.Release == "" || got != config.BotBranches.Release {
+		t.Errorf("pre-check RELEASE_BRANCH = %q, want %s bot_branches.release %q", got, fixture.ReleaseConfig, config.BotBranches.Release)
+	}
+
 	found := false
 	for _, step := range provenanceMappingChild(classifier, "steps").Content {
 		if nodeScalar(step, "id") != fixture.InheritStep {
