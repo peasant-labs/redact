@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -30,8 +31,8 @@ type workflowPolicyFixture struct {
 }
 
 const (
-	workflowPolicyFixtureCount        = 8
-	workflowPolicyLiteralFixtureCount = 3
+	workflowPolicyFixtureCount        = 11
+	workflowPolicyLiteralFixtureCount = 5
 	workflowPolicyGateFixtureCount    = 5
 	workflowPolicyFileGateCount       = 2
 	workflowPolicyValueFixtureCount   = 0
@@ -42,6 +43,9 @@ const (
 )
 
 var expectedWorkflowPolicyFixtureNames = map[string]struct{}{
+	"private_ast_grep_release":   {},
+	"private_ast_grep_tests":     {},
+	"no_global_npm_installs":     {},
 	"release_tag_exact_checkout": {},
 	"release_tag_gate":           {},
 	"normal_pr_quality_gate":     {},
@@ -92,6 +96,27 @@ func TestWorkflowPolicyFixtures(t *testing.T) {
 			case workflowPolicyLiteralKind:
 				if !strings.Contains(string(contents), fixture.Contains) {
 					t.Errorf("%s lacks required release policy %q", fixture.File, fixture.Contains)
+				}
+			case "no_global_npm":
+				paths, err := filepath.Glob(filepath.Join("..", "..", ".github", "workflows", "*.yml"))
+				if err != nil || len(paths) == 0 {
+					t.Fatalf("find workflows: %v", err)
+				}
+				pattern := regexp.MustCompile(fixture.Contains)
+				for _, path := range paths {
+					data, err := os.ReadFile(path)
+					if err != nil {
+						t.Fatal(err)
+					}
+					runs, err := parseWorkflowRuns(data)
+					if err != nil {
+						t.Fatal(err)
+					}
+					for _, run := range runs {
+						if pattern.MatchString(run.Body) {
+							t.Errorf("%s job %s step %s uses global npm install", path, run.Job, run.Step)
+						}
+					}
 				}
 			case workflowPolicyGateKind:
 				runs, err := parseWorkflowRuns(contents)
@@ -203,6 +228,13 @@ func validateWorkflowPolicyFixtures(fixtures []workflowPolicyFixture) error {
 			literalCount++
 			if fixture.File == "" || fixture.Contains == "" || fixture.Workflow != "" || fixture.Job != "" || fixture.Step != "" {
 				return fmt.Errorf("literal workflow policy fixture %q must specify only file and contains", fixture.Name)
+			}
+		case "no_global_npm":
+			if fixture.Contains == "" || fixture.File != "" {
+				return fmt.Errorf("no_global_npm fixture %q must specify a pattern", fixture.Name)
+			}
+			if _, err := regexp.Compile(fixture.Contains); err != nil {
+				return err
 			}
 		case workflowPolicyGateKind:
 			gateCount++

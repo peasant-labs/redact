@@ -62,3 +62,22 @@
           - name: Checkout only
             uses: actions/checkout@v5
   want: false
+- name: private_ast_grep_release
+  kind: literal
+  file: .github/workflows/release.yml
+  contains: |
+    prefix="$RUNNER_TEMP/ast-grep"
+              npm install --prefix "$prefix" --no-save --no-package-lock @ast-grep/cli@0.51.2
+              echo "$prefix/node_modules/.bin" >> "$GITHUB_PATH"
+              "$prefix/node_modules/.bin/ast-grep" --version
+- name: private_ast_grep_tests
+  kind: literal
+  file: .github/workflows/tests.yml
+  contains: |
+    prefix="$RUNNER_TEMP/ast-grep"
+              npm install --prefix "$prefix" --no-save --no-package-lock @ast-grep/cli@0.51.2
+              echo "$prefix/node_modules/.bin" >> "$GITHUB_PATH"
+              "$prefix/node_modules/.bin/ast-grep" --version
+- name: no_global_npm_installs
+  kind: no_global_npm
+  contains: '(?m)\bnpm\s+(install|i)\s+[^\n]*(--global\b|(?:^|\s)-g(?:\s|$))'
