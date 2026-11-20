@@ -80,4 +80,4 @@
               "$prefix/node_modules/.bin/ast-grep" --version
 - name: no_global_npm_installs
   kind: no_global_npm
-  contains: '(?m)\bnpm\s+(install|i)\s+[^\n]*(--global\b|(?:^|\s)-g(?:\s|$))'
+  contains: '(?m)\bnpm\s+(install|i)\b[^\n]*(--global\b|(?:^|\s)-g(?:\s|$))'

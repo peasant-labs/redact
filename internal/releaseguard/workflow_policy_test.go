@@ -98,12 +98,19 @@ func TestWorkflowPolicyFixtures(t *testing.T) {
 					t.Errorf("%s lacks required release policy %q", fixture.File, fixture.Contains)
 				}
 			case "no_global_npm":
-				paths, err := filepath.Glob(filepath.Join("..", "..", ".github", "workflows", "*.yml"))
-				if err != nil || len(paths) == 0 {
+				dir := filepath.Join("..", "..", ".github", "workflows")
+				entries, err := os.ReadDir(dir)
+				if err != nil {
 					t.Fatalf("find workflows: %v", err)
 				}
 				pattern := regexp.MustCompile(fixture.Contains)
-				for _, path := range paths {
+				found := false
+				for _, entry := range entries {
+					if entry.IsDir() || !(strings.HasSuffix(entry.Name(), ".yml") || strings.HasSuffix(entry.Name(), ".yaml")) {
+						continue
+					}
+					found = true
+					path := filepath.Join(dir, entry.Name())
 					data, err := os.ReadFile(path)
 					if err != nil {
 						t.Fatal(err)
@@ -117,6 +124,9 @@ func TestWorkflowPolicyFixtures(t *testing.T) {
 							t.Errorf("%s job %s step %s uses global npm install", path, run.Job, run.Step)
 						}
 					}
+				}
+				if !found {
+					t.Fatal("no workflow files found")
 				}
 			case workflowPolicyGateKind:
 				runs, err := parseWorkflowRuns(contents)
