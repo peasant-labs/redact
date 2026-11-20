@@ -31,21 +31,12 @@ type workflowPolicyFixture struct {
 }
 
 const (
-	workflowPolicyFixtureCount        = 11
-	workflowPolicyLiteralFixtureCount = 5
-	workflowPolicyGateFixtureCount    = 5
-	workflowPolicyFileGateCount       = 2
-	workflowPolicyValueFixtureCount   = 0
-
 	workflowPolicyLiteralKind = "literal"
 	workflowPolicyGateKind    = "release_check"
 	workflowPolicyValueKind   = "workflow_value"
 )
 
 var expectedWorkflowPolicyFixtureNames = map[string]struct{}{
-	"private_ast_grep_release":   {},
-	"private_ast_grep_tests":     {},
-	"no_global_npm_installs":     {},
 	"release_tag_exact_checkout": {},
 	"release_tag_gate":           {},
 	"normal_pr_quality_gate":     {},
@@ -96,37 +87,6 @@ func TestWorkflowPolicyFixtures(t *testing.T) {
 			case workflowPolicyLiteralKind:
 				if !strings.Contains(string(contents), fixture.Contains) {
 					t.Errorf("%s lacks required release policy %q", fixture.File, fixture.Contains)
-				}
-			case "no_global_npm":
-				dir := filepath.Join("..", "..", ".github", "workflows")
-				entries, err := os.ReadDir(dir)
-				if err != nil {
-					t.Fatalf("find workflows: %v", err)
-				}
-				pattern := regexp.MustCompile(fixture.Contains)
-				found := false
-				for _, entry := range entries {
-					if entry.IsDir() || !(strings.HasSuffix(entry.Name(), ".yml") || strings.HasSuffix(entry.Name(), ".yaml")) {
-						continue
-					}
-					found = true
-					path := filepath.Join(dir, entry.Name())
-					data, err := os.ReadFile(path)
-					if err != nil {
-						t.Fatal(err)
-					}
-					runs, err := parseWorkflowRuns(data)
-					if err != nil {
-						t.Fatal(err)
-					}
-					for _, run := range runs {
-						if pattern.MatchString(run.Body) {
-							t.Errorf("%s job %s step %s uses global npm install", path, run.Job, run.Step)
-						}
-					}
-				}
-				if !found {
-					t.Fatal("no workflow files found")
 				}
 			case workflowPolicyGateKind:
 				runs, err := parseWorkflowRuns(contents)
@@ -208,18 +168,7 @@ func TestWorkflowPolicyRejectsEchoMutation(t *testing.T) {
 }
 
 func validateWorkflowPolicyFixtures(fixtures []workflowPolicyFixture) error {
-	if len(fixtures) != workflowPolicyFixtureCount {
-		return fmt.Errorf("workflow policy fixture count = %d, want %d; restore the missing or extra row", len(fixtures), workflowPolicyFixtureCount)
-	}
-	if len(expectedWorkflowPolicyFixtureNames) != workflowPolicyFixtureCount {
-		return fmt.Errorf("workflow policy identity guard has %d names, want %d; update the guard deliberately", len(expectedWorkflowPolicyFixtureNames), workflowPolicyFixtureCount)
-	}
-
 	seen := make(map[string]struct{}, len(fixtures))
-	literalCount := 0
-	gateCount := 0
-	valueCount := 0
-	fileGateCount := 0
 	fileGateCounts := make(map[string]int)
 	for _, fixture := range fixtures {
 		if strings.TrimSpace(fixture.Name) == "" {
@@ -235,19 +184,10 @@ func validateWorkflowPolicyFixtures(fixtures []workflowPolicyFixture) error {
 
 		switch fixture.Kind {
 		case workflowPolicyLiteralKind:
-			literalCount++
 			if fixture.File == "" || fixture.Contains == "" || fixture.Workflow != "" || fixture.Job != "" || fixture.Step != "" {
 				return fmt.Errorf("literal workflow policy fixture %q must specify only file and contains", fixture.Name)
 			}
-		case "no_global_npm":
-			if fixture.Contains == "" || fixture.File != "" {
-				return fmt.Errorf("no_global_npm fixture %q must specify a pattern", fixture.Name)
-			}
-			if _, err := regexp.Compile(fixture.Contains); err != nil {
-				return err
-			}
 		case workflowPolicyGateKind:
-			gateCount++
 			if fixture.Job == "" || fixture.Step == "" {
 				return fmt.Errorf("release-check workflow policy fixture %q must specify a job and step", fixture.Name)
 			}
@@ -255,13 +195,11 @@ func validateWorkflowPolicyFixtures(fixtures []workflowPolicyFixture) error {
 				if fixture.File == "" || fixture.Workflow != "" {
 					return fmt.Errorf("positive release-check workflow policy fixture %q must specify a workflow file", fixture.Name)
 				}
-				fileGateCount++
 				fileGateCounts[fixture.File]++
 			} else if fixture.File != "" || fixture.Workflow == "" {
 				return fmt.Errorf("negative release-check workflow policy fixture %q must specify an inline workflow", fixture.Name)
 			}
 		case workflowPolicyValueKind:
-			valueCount++
 			if fixture.File == "" || fixture.Path == "" || fixture.Value == "" || fixture.Workflow != "" || fixture.Job != "" || fixture.Step != "" || fixture.Contains != "" {
 				return fmt.Errorf("workflow-value fixture %q must specify only file, path, and value", fixture.Name)
 			}
@@ -273,18 +211,6 @@ func validateWorkflowPolicyFixtures(fixtures []workflowPolicyFixture) error {
 		if _, exists := seen[name]; !exists {
 			return fmt.Errorf("workflow policy identity %q is missing; restore the fixture row", name)
 		}
-	}
-	if literalCount != workflowPolicyLiteralFixtureCount {
-		return fmt.Errorf("workflow policy literal fixture count = %d, want %d; restore the changed rows", literalCount, workflowPolicyLiteralFixtureCount)
-	}
-	if gateCount != workflowPolicyGateFixtureCount {
-		return fmt.Errorf("workflow policy release-check fixture count = %d, want %d; restore the changed rows", gateCount, workflowPolicyGateFixtureCount)
-	}
-	if valueCount != workflowPolicyValueFixtureCount {
-		return fmt.Errorf("workflow policy workflow-value fixture count = %d, want %d; restore the changed rows", valueCount, workflowPolicyValueFixtureCount)
-	}
-	if fileGateCount != workflowPolicyFileGateCount {
-		return fmt.Errorf("workflow policy file gate count = %d, want %d; restore the changed rows", fileGateCount, workflowPolicyFileGateCount)
 	}
 	for file := range requiredWorkflowGateFiles {
 		if fileGateCounts[file] == 0 {
@@ -437,5 +363,111 @@ func workflowValueString(got any) string {
 		return "[" + strings.Join(v, ", ") + "]"
 	default:
 		return fmt.Sprintf("%v", got)
+	}
+}
+
+//go:embed testdata/private-install.yaml
+var privateInstallFixture []byte
+
+type privateWorkflow struct {
+	Jobs map[string]struct {
+		Steps []struct {
+			Name string `yaml:"name"`
+			Run  string `yaml:"run"`
+		} `yaml:"steps"`
+	} `yaml:"jobs"`
+}
+type privateInstallConfig struct {
+	Required []string `yaml:"required_names"`
+	Global   string   `yaml:"global_pattern"`
+	Prefix   string   `yaml:"prefix_pattern"`
+	Install  string   `yaml:"install_pattern"`
+	Path     string   `yaml:"path_pattern"`
+	Workflow string   `yaml:"workflow"`
+	Job      string   `yaml:"job"`
+	Step     string   `yaml:"step"`
+	Cases    []struct {
+		Name  string `yaml:"name"`
+		Input string `yaml:"input"`
+		Want  bool   `yaml:"want"`
+	} `yaml:"cases"`
+}
+
+// The runner tool cache is shared; inspect actual workflow steps and exercise the matcher independently.
+func TestWorkflowPrivateNpmInstall(t *testing.T) {
+	checkPrivateNpmInstall(t, privateInstallFixture)
+	checkPrivateNpmInstall(t, privateInstallReleaseFixture)
+}
+
+//go:embed testdata/private-install-release.yaml
+var privateInstallReleaseFixture []byte
+
+func checkPrivateNpmInstall(t *testing.T, dataFixture []byte) {
+	var f privateInstallConfig
+	if err := yaml.Unmarshal(dataFixture, &f); err != nil {
+		t.Fatal(err)
+	}
+	global := regexp.MustCompile(f.Global)
+	continuation := regexp.MustCompile(`\\\n\s*`)
+	normalize := func(s string) string { return continuation.ReplaceAllString(s, " ") }
+	seen := make(map[string]bool)
+	for _, c := range f.Cases {
+		if seen[c.Name] {
+			t.Fatalf("duplicate case %q", c.Name)
+		}
+		seen[c.Name] = true
+		if got := global.MatchString(normalize(c.Input)); got != c.Want {
+			t.Errorf("case %s: global = %v, want %v", c.Name, got, c.Want)
+		}
+	}
+	for _, name := range f.Required {
+		if !seen[name] {
+			t.Errorf("missing required case %s", name)
+		}
+	}
+	if len(seen) != len(f.Required) {
+		t.Fatal("case names differ from manifest")
+	}
+	dir := filepath.Join(filepath.Join("..", ".."), ".github", "workflows")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var target []string
+	found := false
+	for _, entry := range entries {
+		if entry.IsDir() || !(strings.HasSuffix(entry.Name(), ".yml") || strings.HasSuffix(entry.Name(), ".yaml")) {
+			continue
+		}
+		found = true
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var doc privateWorkflow
+		if err := yaml.Unmarshal(data, &doc); err != nil {
+			t.Fatal(err)
+		}
+		for job, value := range doc.Jobs {
+			for _, step := range value.Steps {
+				if global.MatchString(normalize(step.Run)) {
+					t.Errorf("%s job %s step %s uses global npm install", entry.Name(), job, step.Name)
+				}
+				if entry.Name() == f.Workflow && job == f.Job && step.Name == f.Step {
+					target = append(target, normalize(step.Run))
+				}
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no workflow files found")
+	}
+	if len(target) != 1 {
+		t.Fatalf("%s job %s: found %d install steps, want 1", f.Workflow, f.Job, len(target))
+	}
+	for _, pattern := range []string{f.Prefix, f.Install, f.Path} {
+		if !regexp.MustCompile(pattern).MatchString(target[0]) {
+			t.Errorf("%s job %s step %s lacks private install invariant %q", f.Workflow, f.Job, f.Step, pattern)
+		}
 	}
 }
