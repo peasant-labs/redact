@@ -177,3 +177,39 @@
             with:
               fetch-depth: 0
   want: false
+- name: wrong_repository_history_checkout
+  kind: history_checkout
+  job: verify
+  step: Check out the repository (full history and tags)
+  fetch_tags: true
+  workflow: |
+    name: wrong repository checkout
+    jobs:
+      verify:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Check out the repository (full history and tags)
+            uses: actions/checkout@v5
+            with:
+              repository: peasant-labs/infra
+              fetch-depth: 0
+              fetch-tags: true
+  want: false
+- name: wrong_path_history_checkout
+  kind: history_checkout
+  job: verify
+  step: Check out the repository (full history and tags)
+  fetch_tags: true
+  workflow: |
+    name: wrong path checkout
+    jobs:
+      verify:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Check out the repository (full history and tags)
+            uses: actions/checkout@v5
+            with:
+              path: infra-tool
+              fetch-depth: 0
+              fetch-tags: true
+  want: false

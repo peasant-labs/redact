@@ -59,6 +59,8 @@ var expectedWorkflowPolicyFixtureNames = map[string]struct{}{
 	"shallow_history_checkout":               {},
 	"misplaced_history_checkout":             {},
 	"missing_tags_history_checkout":          {},
+	"wrong_repository_history_checkout":      {},
+	"wrong_path_history_checkout":            {},
 }
 
 var requiredWorkflowGateFiles = map[string]struct{}{
@@ -430,6 +432,12 @@ func hasStepScopedHistoryCheckout(contents []byte, jobName, stepName string, req
 		return false, nil
 	}
 	if requireTags && step.With["fetch-tags"] != "true" {
+		return false, nil
+	}
+	if strings.TrimSpace(step.With["repository"]) != "" {
+		return false, nil
+	}
+	if strings.TrimSpace(step.With["path"]) != "" {
 		return false, nil
 	}
 	return true, nil
