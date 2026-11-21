@@ -1,5 +1,3 @@
-//go:build !no_re2
-
 package redact
 
 import (
