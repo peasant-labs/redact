@@ -221,7 +221,13 @@ func (e *observationElapsed) duration() time.Duration {
 	if e.started.IsZero() {
 		return e.accumulated
 	}
-	return e.accumulated + time.Since(e.started)
+	d := e.accumulated + time.Since(e.started)
+	if d < time.Nanosecond {
+		// A started clock is always a measurement, even when the platform clock
+		// cannot resolve the work. Zero stays reserved for an unmeasured call.
+		return time.Nanosecond
+	}
+	return d
 }
 
 func unavailableCount(reason DiagnosticCode) ObservedCount {
