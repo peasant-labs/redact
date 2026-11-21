@@ -1,4 +1,4 @@
-.PHONY: check test lint fmt vet release-check verify-tidy check-unstring unstring-update
+.PHONY: check test test-race bench lint fmt vet release-check verify-tidy check-unstring unstring-update
 
 # Static guard against stringly-typed values. Pin the published tool here.
 # The binary it scans with is ast-grep 0.51.2 on PATH.
@@ -15,9 +15,17 @@ release-check: check
 	@! go list -deps ./... | grep -E '^github.com/peasant-labs/peasant($$|/)' >/dev/null
 	$(MAKE) verify-tidy
 
-# Run all tests with race detector
+# Run all tests
 test:
+	go test ./...
+
+# Run all tests with the race detector (manual or CI only)
+test-race:
 	go test -race ./...
+
+# Reproducible synthetic constructor and first-detection measurements
+bench:
+	go test -run '^$$' -bench 'Benchmark(RedactorConstruction|FirstDetection)$$' -benchmem -count=6
 
 # Run go vet
 vet:

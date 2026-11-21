@@ -50,19 +50,62 @@ func (r *DefaultRedactor) detect(input string, call *observationCall) []Match {
 	if input == "" {
 		return nil
 	}
-	matches := r.scan(input, call)
+	matches, err := r.detectChecked(input, call)
+	if err != nil {
+		r.recordInputRefusal(err)
+		if call != nil {
+			call.failed(DiagnosticInputRefused)
+		}
+		// The legacy API cannot return an error. A full-input match makes
+		// Detect -> Redact fail closed instead of returning no matches.
+		return []Match{{Rule: inputRefusalRule, Offset: 0, Length: len(input), Category: CategorySecrets, MatchedText: input}}
+	}
+	return matches
+}
+
+// DetectChecked returns an actionable error rather than a synthetic masking
+// match when the input cannot be scanned safely.
+func (r *DefaultRedactor) DetectChecked(input string) ([]Match, error) {
+	return r.detectChecked(input, nil)
+}
+
+func (r *DefaultRedactor) detectChecked(input string, call *observationCall) ([]Match, error) {
+	if err := r.inputPolicy().check(len(input)); err != nil {
+		return nil, err
+	}
+	if input == "" {
+		return nil, nil
+	}
+	matches, err := r.scanChecked(input, call)
+	if err != nil {
+		return nil, err
+	}
 	// Store as the last-detect result (last-call-only, not accumulated).
 	r.mu.Lock()
 	r.lastMatches = matches
 	r.mu.Unlock()
-	return matches
+	return matches, nil
 }
 
 // scan returns the matches of every rule active at the configured level. It
-// does not record them as the last Detect result.
+// does not record them as the last Detect result. A refused input fails closed
+// with one match covering the whole input.
 func (r *DefaultRedactor) scan(input string, call *observationCall) []Match {
+	matches, err := r.scanChecked(input, call)
+	if err != nil {
+		r.recordInputRefusal(err)
+		if call != nil {
+			call.failed(DiagnosticInputRefused)
+		}
+		return []Match{{Rule: inputRefusalRule, Offset: 0, Length: len(input), Category: CategorySecrets, MatchedText: input}}
+	}
+	return matches
+}
+
+// scanChecked is scan with the input policy's error returned to the caller.
+func (r *DefaultRedactor) scanChecked(input string, call *observationCall) ([]Match, error) {
 	if input == "" {
-		return nil
+		return nil, nil
 	}
 
 	activeRules := make([]Rule, 0, len(Rules)+len(r.userRules))
@@ -92,7 +135,7 @@ func (r *DefaultRedactor) scan(input string, call *observationCall) []Match {
 	if call != nil {
 		accepted = func(index int) { call.record.Rules[index].Count++; call.record.RegexDetected.Value++ }
 	}
-	return detectWithRulesInto(input, activeRules, builtins, r.patterns, accepted)
+	return detectWithRulesChecked(input, activeRules, builtins, r.patterns, r.scans, accepted)
 }
 
 // valueSpan is a part of the input that a rule replaces: input[start:end].
@@ -188,8 +231,20 @@ func detectWithRules(input string, rules []Rule, patterns compiledPatterns) []Ma
 
 // detectWithRulesInto detects with rules, of which the first builtins are
 // rules of this package and the rest are configured. Settling a value match
-// may drop a match of a built-in rule, never one of a configured rule.
+// may drop a match of a built-in rule, never one of a configured rule. A
+// refused input fails closed with one match covering the whole input.
 func detectWithRulesInto(input string, rules []Rule, builtins int, patterns compiledPatterns, accepted func(ruleIndex int)) []Match {
+	matches, err := detectWithRulesChecked(input, rules, builtins, patterns, nil, accepted)
+	if err != nil {
+		return []Match{{Rule: inputRefusalRule, Offset: 0, Length: len(input), Category: CategorySecrets, MatchedText: input}}
+	}
+	return matches
+}
+
+// detectWithRulesChecked detects with rules and returns the input policy's
+// refusal error to the caller. scans carries the chunking policy; a nil
+// scanner uses the zero-value stdlib scan plan.
+func detectWithRulesChecked(input string, rules []Rule, builtins int, patterns compiledPatterns, scans *patternScanner, accepted func(ruleIndex int)) ([]Match, error) {
 	var found detectedMatches
 	valueMatches := false
 	for index, rule := range rules {
@@ -197,8 +252,12 @@ func detectWithRulesInto(input string, rules []Rule, builtins int, patterns comp
 		if pattern == nil {
 			continue
 		}
+		locations, err := scans.scan(input, rule.Pattern, pattern)
+		if err != nil {
+			return nil, err
+		}
 		values := valueRules[rule.Pattern]
-		for _, loc := range pattern.FindAllStringIndex(input, -1) {
+		for _, loc := range locations {
 			matched := input[loc[0]:loc[1]]
 			if values.find != nil {
 				for _, span := range values.find(matched, input, loc[0]) {
@@ -213,7 +272,7 @@ func detectWithRulesInto(input string, rules []Rule, builtins int, patterns comp
 		}
 	}
 	if len(found.matches) == 0 {
-		return nil
+		return nil, nil
 	}
 	// Order by offset. Two matches that start at the same offset are ordered
 	// longest first, so Redact, which keeps the first of two overlapping
@@ -229,9 +288,9 @@ func detectWithRulesInto(input string, rules []Rule, builtins int, patterns comp
 		}
 	}
 	if len(found.matches) == 0 {
-		return nil
+		return nil, nil
 	}
-	return found.matches
+	return found.matches, nil
 }
 
 // detectedMatches holds the accepted matches of one scan and where each came
@@ -379,6 +438,10 @@ func (d *detectedMatches) resolveValueOverlaps(input string) {
 //
 // input must be valid UTF-8; see the package input contract.
 func (r *DefaultRedactor) Redact(input string, matches []Match) string {
+	if err := r.inputPolicy().check(len(input)); err != nil {
+		r.recordInputRefusal(err)
+		return "<REDACTED>"
+	}
 	rules := make([]Rule, 0, len(Rules)+len(r.userRules))
 	rules = append(rules, Rules...)
 	rules = append(rules, r.userRules...)
@@ -389,6 +452,12 @@ func (r *DefaultRedactor) Redact(input string, matches []Match) string {
 // redactWithRules is the pure canonical overlap and replacement engine. The
 // returned matches are exactly those whose non-overlapping spans were applied.
 func redactWithRules(input string, matches []Match, rules []Rule, patterns compiledPatterns) (string, []Match) {
+	for _, match := range matches {
+		// A configured ID or replacement must not override refusal masking.
+		if match.Rule == inputRefusalRule {
+			return "<REDACTED>", nil
+		}
+	}
 	if len(matches) == 0 {
 		return input, nil
 	}
