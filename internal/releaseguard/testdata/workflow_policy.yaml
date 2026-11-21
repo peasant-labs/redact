@@ -62,3 +62,154 @@
           - name: Checkout only
             uses: actions/checkout@v5
   want: false
+- name: release_guard_history_checkout
+  kind: history_checkout
+  file: .github/workflows/release.yml
+  job: guard
+  step: Check out the repository
+  fetch_tags: true
+  want: true
+- name: release_verify_history_checkout
+  kind: history_checkout
+  file: .github/workflows/release.yml
+  job: verify
+  step: Check out the repository (full history and tags)
+  fetch_tags: true
+  want: true
+- name: tests_changes_history_checkout
+  kind: history_checkout
+  file: .github/workflows/tests.yml
+  job: changes
+  step: Checkout repository
+  fetch_tags: true
+  want: true
+- name: title_guard_history_checkout
+  kind: history_checkout
+  file: .github/workflows/title-guard.yml
+  job: title-guard
+  step: Check out the repository (full history and tags, no blobs)
+  fetch_tags: true
+  want: true
+- name: release_batch_plan_history_checkout
+  kind: history_checkout
+  file: .github/workflows/release-batch.yml
+  job: plan
+  step: Check out the repository (full history and tags)
+  fetch_tags: true
+  want: true
+- name: release_batch_verify_history_checkout
+  kind: history_checkout
+  file: .github/workflows/release-batch.yml
+  job: verify
+  step: Check out the repository (full history and tags)
+  fetch_tags: true
+  want: true
+- name: release_batch_release_history_checkout
+  kind: history_checkout
+  file: .github/workflows/release-batch.yml
+  job: release
+  step: Check out the repository
+  want: true
+- name: cut_release_prepare_history_checkout
+  kind: history_checkout
+  file: .github/workflows/cut-release.yml
+  job: prepare
+  step: Check out the repository
+  want: true
+- name: cut_release_cut_history_checkout
+  kind: history_checkout
+  file: .github/workflows/cut-release.yml
+  job: cut
+  step: Check out the repository
+  want: true
+- name: shallow_history_checkout
+  kind: history_checkout
+  job: verify
+  step: Check out the repository (full history and tags)
+  fetch_tags: true
+  workflow: |
+    name: shallow checkout
+    jobs:
+      verify:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Check out the repository (full history and tags)
+            uses: actions/checkout@v5
+            with:
+              fetch-depth: 1
+              fetch-tags: true
+  want: false
+- name: misplaced_history_checkout
+  kind: history_checkout
+  job: verify
+  step: Check out the repository (full history and tags)
+  fetch_tags: true
+  workflow: |
+    name: misplaced checkout controls
+    jobs:
+      verify:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Check out the repository (full history and tags)
+            uses: actions/checkout@v5
+            with:
+              persist-credentials: false
+          - name: Check out the release-intent tool
+            uses: actions/checkout@v5
+            with:
+              repository: peasant-labs/infra
+              fetch-depth: 0
+              fetch-tags: true
+  want: false
+- name: missing_tags_history_checkout
+  kind: history_checkout
+  job: verify
+  step: Check out the repository (full history and tags)
+  fetch_tags: true
+  workflow: |
+    name: missing tags checkout
+    jobs:
+      verify:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Check out the repository (full history and tags)
+            uses: actions/checkout@v5
+            with:
+              fetch-depth: 0
+  want: false
+- name: wrong_repository_history_checkout
+  kind: history_checkout
+  job: verify
+  step: Check out the repository (full history and tags)
+  fetch_tags: true
+  workflow: |
+    name: wrong repository checkout
+    jobs:
+      verify:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Check out the repository (full history and tags)
+            uses: actions/checkout@v5
+            with:
+              repository: peasant-labs/infra
+              fetch-depth: 0
+              fetch-tags: true
+  want: false
+- name: wrong_path_history_checkout
+  kind: history_checkout
+  job: verify
+  step: Check out the repository (full history and tags)
+  fetch_tags: true
+  workflow: |
+    name: wrong path checkout
+    jobs:
+      verify:
+        runs-on: ubuntu-latest
+        steps:
+          - name: Check out the repository (full history and tags)
+            uses: actions/checkout@v5
+            with:
+              path: infra-tool
+              fetch-depth: 0
+              fetch-tags: true
+  want: false
