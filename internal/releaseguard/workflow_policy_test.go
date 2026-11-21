@@ -18,33 +18,47 @@ import (
 var workflowPolicyYAML []byte
 
 type workflowPolicyFixture struct {
-	Name     string `yaml:"name"`
-	Kind     string `yaml:"kind"`
-	File     string `yaml:"file"`
-	Job      string `yaml:"job"`
-	Step     string `yaml:"step"`
-	Contains string `yaml:"contains"`
-	Path     string `yaml:"path"`
-	Value    string `yaml:"value"`
-	Workflow string `yaml:"workflow"`
-	Want     bool   `yaml:"want"`
+	Name      string `yaml:"name"`
+	Kind      string `yaml:"kind"`
+	File      string `yaml:"file"`
+	Job       string `yaml:"job"`
+	Step      string `yaml:"step"`
+	Contains  string `yaml:"contains"`
+	Path      string `yaml:"path"`
+	Value     string `yaml:"value"`
+	Workflow  string `yaml:"workflow"`
+	FetchTags bool   `yaml:"fetch_tags"`
+	Want      bool   `yaml:"want"`
 }
 
 const (
-	workflowPolicyLiteralKind = "literal"
-	workflowPolicyGateKind    = "release_check"
-	workflowPolicyValueKind   = "workflow_value"
+	workflowPolicyLiteralKind         = "literal"
+	workflowPolicyGateKind            = "release_check"
+	workflowPolicyValueKind           = "workflow_value"
+	workflowPolicyHistoryCheckoutKind = "history_checkout"
 )
 
 var expectedWorkflowPolicyFixtureNames = map[string]struct{}{
-	"release_tag_exact_checkout": {},
-	"release_tag_gate":           {},
-	"normal_pr_quality_gate":     {},
-	"tag_commit_identity":        {},
-	"tag_ref_identity":           {},
-	"echo_only_release_check":    {},
-	"comment_only_release_check": {},
-	"missing_release_check":      {},
+	"release_tag_exact_checkout":             {},
+	"release_tag_gate":                       {},
+	"normal_pr_quality_gate":                 {},
+	"tag_commit_identity":                    {},
+	"tag_ref_identity":                       {},
+	"echo_only_release_check":                {},
+	"comment_only_release_check":             {},
+	"missing_release_check":                  {},
+	"release_guard_history_checkout":         {},
+	"release_verify_history_checkout":        {},
+	"tests_changes_history_checkout":         {},
+	"title_guard_history_checkout":           {},
+	"release_batch_plan_history_checkout":    {},
+	"release_batch_verify_history_checkout":  {},
+	"release_batch_release_history_checkout": {},
+	"cut_release_prepare_history_checkout":   {},
+	"cut_release_cut_history_checkout":       {},
+	"shallow_history_checkout":               {},
+	"misplaced_history_checkout":             {},
+	"missing_tags_history_checkout":          {},
 }
 
 var requiredWorkflowGateFiles = map[string]struct{}{
@@ -61,8 +75,10 @@ type workflowJob struct {
 }
 
 type workflowStep struct {
-	Name string `yaml:"name"`
-	Run  string `yaml:"run"`
+	Name string            `yaml:"name"`
+	Uses string            `yaml:"uses"`
+	With map[string]string `yaml:"with"`
+	Run  string            `yaml:"run"`
 }
 
 type workflowRun struct {
@@ -105,6 +121,14 @@ func TestWorkflowPolicyFixtures(t *testing.T) {
 				}
 				if !workflowValueMatches(got, fixture.Value) {
 					t.Errorf("%s path %q = %q, want %q (whitespace-normalized)", fixture.File, fixture.Path, workflowValueString(got), fixture.Value)
+				}
+			case workflowPolicyHistoryCheckoutKind:
+				got, err := hasStepScopedHistoryCheckout(contents, fixture.Job, fixture.Step, fixture.FetchTags)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got != fixture.Want {
+					t.Errorf("job %q step %q history checkout = %v, want %v", fixture.Job, fixture.Step, got, fixture.Want)
 				}
 			default:
 				t.Fatalf("unsupported workflow policy fixture kind %q", fixture.Kind)
@@ -202,6 +226,17 @@ func validateWorkflowPolicyFixtures(fixtures []workflowPolicyFixture) error {
 		case workflowPolicyValueKind:
 			if fixture.File == "" || fixture.Path == "" || fixture.Value == "" || fixture.Workflow != "" || fixture.Job != "" || fixture.Step != "" || fixture.Contains != "" {
 				return fmt.Errorf("workflow-value fixture %q must specify only file, path, and value", fixture.Name)
+			}
+		case workflowPolicyHistoryCheckoutKind:
+			if fixture.Job == "" || fixture.Step == "" {
+				return fmt.Errorf("history-checkout workflow policy fixture %q must specify a job and step", fixture.Name)
+			}
+			if fixture.Want {
+				if fixture.File == "" || fixture.Workflow != "" {
+					return fmt.Errorf("positive history-checkout workflow policy fixture %q must specify a workflow file", fixture.Name)
+				}
+			} else if fixture.File != "" || fixture.Workflow == "" {
+				return fmt.Errorf("negative history-checkout workflow policy fixture %q must specify an inline workflow", fixture.Name)
 			}
 		default:
 			return fmt.Errorf("workflow policy fixture %q has unsupported kind %q", fixture.Name, fixture.Kind)
@@ -366,6 +401,40 @@ func workflowValueString(got any) string {
 	}
 }
 
+func hasStepScopedHistoryCheckout(contents []byte, jobName, stepName string, requireTags bool) (bool, error) {
+	var document workflowDocument
+	if err := yaml.Unmarshal(contents, &document); err != nil {
+		return false, fmt.Errorf("parse GitHub Actions workflow YAML: %w", err)
+	}
+	if len(document.Jobs) == 0 {
+		return false, fmt.Errorf("parse GitHub Actions workflow YAML: no jobs found")
+	}
+	job, ok := document.Jobs[jobName]
+	if !ok {
+		return false, nil
+	}
+	var matches []workflowStep
+	for _, step := range job.Steps {
+		if step.Name == stepName {
+			matches = append(matches, step)
+		}
+	}
+	if len(matches) != 1 {
+		return false, nil
+	}
+	step := matches[0]
+	if !strings.HasPrefix(step.Uses, "actions/checkout@") {
+		return false, nil
+	}
+	if step.With["fetch-depth"] != "0" {
+		return false, nil
+	}
+	if requireTags && step.With["fetch-tags"] != "true" {
+		return false, nil
+	}
+	return true, nil
+}
+
 //go:embed testdata/private-install.yaml
 var privateInstallFixture []byte
 
@@ -378,22 +447,15 @@ type privateWorkflow struct {
 	} `yaml:"jobs"`
 }
 type privateInstallConfig struct {
-	Required []string `yaml:"required_names"`
-	Global   string   `yaml:"global_pattern"`
-	Prefix   string   `yaml:"prefix_pattern"`
-	Install  string   `yaml:"install_pattern"`
-	Path     string   `yaml:"path_pattern"`
-	Workflow string   `yaml:"workflow"`
-	Job      string   `yaml:"job"`
-	Step     string   `yaml:"step"`
-	Cases    []struct {
-		Name  string `yaml:"name"`
-		Input string `yaml:"input"`
-		Want  bool   `yaml:"want"`
-	} `yaml:"cases"`
+	Prefix   string `yaml:"prefix_pattern"`
+	Install  string `yaml:"install_pattern"`
+	Path     string `yaml:"path_pattern"`
+	Workflow string `yaml:"workflow"`
+	Job      string `yaml:"job"`
+	Step     string `yaml:"step"`
 }
 
-// The runner tool cache is shared; inspect actual workflow steps and exercise the matcher independently.
+// The runner tool cache is shared; verify the pinned job-private ast-grep install step.
 func TestWorkflowPrivateNpmInstall(t *testing.T) {
 	checkPrivateNpmInstall(t, privateInstallFixture)
 	checkPrivateNpmInstall(t, privateInstallReleaseFixture)
@@ -407,60 +469,23 @@ func checkPrivateNpmInstall(t *testing.T, dataFixture []byte) {
 	if err := yaml.Unmarshal(dataFixture, &f); err != nil {
 		t.Fatal(err)
 	}
-	global := regexp.MustCompile(f.Global)
 	continuation := regexp.MustCompile(`\\\n\s*`)
 	normalize := func(s string) string { return continuation.ReplaceAllString(s, " ") }
-	seen := make(map[string]bool)
-	for _, c := range f.Cases {
-		if seen[c.Name] {
-			t.Fatalf("duplicate case %q", c.Name)
-		}
-		seen[c.Name] = true
-		if got := global.MatchString(normalize(c.Input)); got != c.Want {
-			t.Errorf("case %s: global = %v, want %v", c.Name, got, c.Want)
-		}
-	}
-	for _, name := range f.Required {
-		if !seen[name] {
-			t.Errorf("missing required case %s", name)
-		}
-	}
-	if len(seen) != len(f.Required) {
-		t.Fatal("case names differ from manifest")
-	}
-	dir := filepath.Join(filepath.Join("..", ".."), ".github", "workflows")
-	entries, err := os.ReadDir(dir)
+	data, err := os.ReadFile(filepath.Join("..", "..", ".github", "workflows", f.Workflow))
 	if err != nil {
 		t.Fatal(err)
 	}
+	var doc privateWorkflow
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		t.Fatal(err)
+	}
 	var target []string
-	found := false
-	for _, entry := range entries {
-		if entry.IsDir() || !(strings.HasSuffix(entry.Name(), ".yml") || strings.HasSuffix(entry.Name(), ".yaml")) {
-			continue
-		}
-		found = true
-		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
-		if err != nil {
-			t.Fatal(err)
-		}
-		var doc privateWorkflow
-		if err := yaml.Unmarshal(data, &doc); err != nil {
-			t.Fatal(err)
-		}
-		for job, value := range doc.Jobs {
-			for _, step := range value.Steps {
-				if global.MatchString(normalize(step.Run)) {
-					t.Errorf("%s job %s step %s uses global npm install", entry.Name(), job, step.Name)
-				}
-				if entry.Name() == f.Workflow && job == f.Job && step.Name == f.Step {
-					target = append(target, normalize(step.Run))
-				}
+	if value, ok := doc.Jobs[f.Job]; ok {
+		for _, step := range value.Steps {
+			if step.Name == f.Step {
+				target = append(target, normalize(step.Run))
 			}
 		}
-	}
-	if !found {
-		t.Fatal("no workflow files found")
 	}
 	if len(target) != 1 {
 		t.Fatalf("%s job %s: found %d install steps, want 1", f.Workflow, f.Job, len(target))
