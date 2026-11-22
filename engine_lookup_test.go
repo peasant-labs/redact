@@ -2,9 +2,12 @@ package redact
 
 import (
 	_ "embed"
+	"errors"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -153,5 +156,78 @@ func TestEngineLookupMissPanics(t *testing.T) {
 		assertLookupPanics(t, "residue scanning", func() {
 			_ = (&DefaultResidueDetector{patterns: set}).Scan(fixtures.ProbeInput)
 		})
+	})
+}
+
+// lateTableEngine compiles with the inner engine and, on the first Compile,
+// runs append so a live rule table can gain a pointer after the snapshot.
+type lateTableEngine struct {
+	inner  engine
+	once   sync.Once
+	append func()
+}
+
+func (e *lateTableEngine) Identity() engineName { return e.inner.Identity() }
+
+func (e *lateTableEngine) Compile(pattern string) (compiled, error) {
+	e.once.Do(e.append)
+	return e.inner.Compile(pattern)
+}
+
+func TestEngineLookupMissingPatternRefuses(t *testing.T) {
+	fixtures := loadEngineLookupFixtures(t)
+	requireEngineLookupCase(t, fixtures, "lookup_missing_pattern_refuses")
+	late := fixtures.probeRule(t)
+	late.ID = "lookup_late_rule"
+
+	assertRefused := func(t *testing.T, got any, err error) {
+		t.Helper()
+		if got != nil && !reflect.ValueOf(got).IsNil() {
+			t.Fatal("constructor returned an object after a rule was added past the compile snapshot")
+		}
+		if !errors.Is(err, ErrPatternNotCompiled) {
+			t.Fatalf("err=%v, want ErrPatternNotCompiled", err)
+		}
+		if !strings.Contains(err.Error(), late.ID) {
+			t.Fatalf("error %q does not name rule %s", err.Error(), late.ID)
+		}
+	}
+
+	t.Run("redactor", func(t *testing.T) {
+		original := Rules
+		t.Cleanup(func() { Rules = original })
+		Rules = slices.Clone(Rules)
+		e := &lateTableEngine{inner: routingSpyEngine{}, append: func() {
+			Rules = append(Rules, late)
+		}}
+		r, err := newRedactorWithEngine(e, Standard, nil, XDGPaths{})
+		assertRefused(t, r, err)
+	})
+	t.Run("title", func(t *testing.T) {
+		original := Rules
+		t.Cleanup(func() { Rules = original })
+		Rules = slices.Clone(Rules)
+		e := &lateTableEngine{inner: routingSpyEngine{}, append: func() {
+			Rules = append(Rules, late)
+		}}
+		pipeline, err := newTitlePipelineWithEngine(e)
+		assertRefused(t, pipeline, err)
+	})
+	t.Run("residue", func(t *testing.T) {
+		original := ResidueRules
+		t.Cleanup(func() { ResidueRules = original })
+		ResidueRules = slices.Clone(ResidueRules)
+		e := &lateTableEngine{inner: routingSpyEngine{}, append: func() {
+			ResidueRules = append(ResidueRules, ResidueRule{ID: late.ID, Pattern: late.Pattern})
+		}}
+		d, err := newResidueDetector(e)
+		assertRefused(t, d, err)
+	})
+	t.Run("nil_pattern", func(t *testing.T) {
+		original := Rules
+		t.Cleanup(func() { Rules = original })
+		Rules = append(slices.Clone(Rules), Rule{ID: late.ID, Category: CategorySecrets})
+		r, err := newRedactorWithEngine(routingSpyEngine{}, Standard, nil, XDGPaths{})
+		assertRefused(t, r, err)
 	})
 }

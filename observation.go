@@ -39,6 +39,9 @@ const (
 	DiagnosticNotMeasured
 	DiagnosticEngineRecovered
 	DiagnosticEnginePanicked
+	// DiagnosticInputRefused means a size or ambiguous-split policy prevented a
+	// successful scan. Detected/applied counts are unavailable, not zero.
+	DiagnosticInputRefused
 )
 
 // DeliveryStatus combines callback outcomes for a root and its automatic children.
@@ -218,7 +221,13 @@ func (e *observationElapsed) duration() time.Duration {
 	if e.started.IsZero() {
 		return e.accumulated
 	}
-	return e.accumulated + time.Since(e.started)
+	d := e.accumulated + time.Since(e.started)
+	if d < time.Nanosecond {
+		// A started clock is always a measurement, even when the platform clock
+		// cannot resolve the work. Zero stays reserved for an unmeasured call.
+		return time.Nanosecond
+	}
+	return d
 }
 
 func unavailableCount(reason DiagnosticCode) ObservedCount {
@@ -324,6 +333,20 @@ func (r *DefaultRedactor) redactTextChild(input string, parent *observationCall)
 		return r.redactText(input, nil)
 	}
 	return r.redactTextChildObserved(input, parent)
+}
+
+// redactTextChildChecked is redactTextChild with the input policy's refusal
+// error returned to the caller.
+func (r *DefaultRedactor) redactTextChildChecked(input string, parent *observationCall) (string, error) {
+	if parent == nil {
+		return r.redactTextChecked(input, nil)
+	}
+	child := parent.run.newCall(parent.record.CorrelationID, OperationRedactText, parent.record.CallID)
+	child.parent = parent
+	var status DeliveryStatus
+	defer child.finish(&status)
+	child.elapsed.start()
+	return r.redactTextChecked(input, child)
 }
 
 func (r *DefaultRedactor) redactTextChildObserved(input string, parent *observationCall) string {

@@ -1,8 +1,7 @@
-//go:build !no_re2
-
 package redact
 
 import (
+	"regexp"
 	"slices"
 	"testing"
 
@@ -53,4 +52,62 @@ func TestEngineParityRunsSelectedEngine(t *testing.T) {
 	assertLookupPanics(t, "parity detection with a rule outside the set", func() {
 		_ = detectWithRules(fixtures.ProbeInput, append(slices.Clone(Rules), probe), set)
 	})
+}
+
+func TestEngineLookupNeverReturnsStdlib(t *testing.T) {
+	fixtures := loadEngineLookupFixtures(t)
+	requireEngineLookupCase(t, fixtures, "lookup_never_returns_stdlib")
+	if EngineIdentity() != EngineGoRE2 {
+		t.Fatalf("EngineIdentity()=%q, want %q on the go-re2 default build", EngineIdentity(), EngineGoRE2)
+	}
+	redactor, err := NewRedactor(Standard, []UserPattern{{
+		ID:          "lookup_user",
+		Category:    CategorySecrets,
+		Pattern:     fixtures.ProbePattern,
+		Replacement: fixtures.ProbeReplacement,
+	}}, XDGPaths{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	built := redactor.(*DefaultRedactor)
+	assertGoRE2 := func(t *testing.T, id string, pattern *regexp.Regexp, set compiledPatterns) {
+		t.Helper()
+		got := set.lookup(pattern)
+		if _, isStdlib := got.(*regexp.Regexp); isStdlib {
+			t.Fatalf("rule %s lookup returned a stdlib *regexp.Regexp", id)
+		}
+		if _, ok := got.(*re2.Regexp); !ok {
+			t.Fatalf("rule %s resolved to %T, want *re2.Regexp", id, got)
+		}
+	}
+	for _, rule := range Rules {
+		if rule.Pattern == nil {
+			t.Fatalf("built-in rule %s has a nil pattern after a successful NewRedactor", rule.ID)
+		}
+		assertGoRE2(t, rule.ID, rule.Pattern, built.patterns)
+	}
+	for _, rule := range ResidueRules {
+		if rule.Pattern == nil {
+			t.Fatalf("residue rule %s has a nil pattern after a successful NewRedactor", rule.ID)
+		}
+		assertGoRE2(t, rule.ID, rule.Pattern, built.patterns)
+	}
+	for _, rule := range built.userRules {
+		assertGoRE2(t, rule.ID, rule.Pattern, built.patterns)
+	}
+	pipeline, err := NewTitlePipeline()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, rule := range pipeline.rules {
+		assertGoRE2(t, rule.ID, rule.Pattern, pipeline.patterns)
+	}
+	detector, err := newResidueDetector(goRE2Engine{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	residue := detector.(*DefaultResidueDetector)
+	for _, rule := range ResidueRules {
+		assertGoRE2(t, rule.ID, rule.Pattern, residue.patterns)
+	}
 }
