@@ -17,6 +17,13 @@ The explicit stdlib baseline reuses the original patterns without recompiling th
 Each constructor supplies its pattern sets explicitly: the redactor includes
 advisory residue rules, the title pipeline compiles only its own rules, and
 `NewResidueDetector` compiles the residue rules through the selected engine.
+`NewRedactor` and `NewTitlePipeline` (and `NewResidueDetector`) refuse with an
+actionable error wrapping `ErrPatternNotCompiled` and naming the rule ID when
+any live rule has no compiled form for the selected engine, including a rule
+appended after the compile snapshot. There is no separate `NewJSONRedactor`;
+JSON redaction uses `NewRedactor`. On a constructed go-re2 set, `lookup` never
+returns a standard `regexp` pattern; a miss on a non-nil set still panics as a
+programming error.
 
 Panic recovery and residue preview scrubbing deliberately retain the original
 stdlib patterns, independently of the normal-path engine. Title markup cleanup

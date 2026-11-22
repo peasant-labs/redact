@@ -50,6 +50,18 @@ func newTitlePipelineWithEngine(e engine) (*TitlePipeline, error) {
 	if err := validateRuleActivationMetadata(Rules); err != nil {
 		return nil, &actionableError{what: "the transcript title pipeline could not be constructed", why: "the compiled baseline Standard rule metadata is invalid", where: "redact.NewTitlePipeline", when: "constructing the title pipeline before any title was processed", means: "no title can be generated or validated safely", fix: "restore valid built-in rule categories and activation levels, then construct the pipeline again", cause: err}
 	}
+	rules := baselineTitleRules()
+	patterns, err := compileRulePatterns(e, rules, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := verifyCompiledPatterns(patterns, baselineTitleRules(), nil, nil); err != nil {
+		return nil, err
+	}
+	return &TitlePipeline{rules: rules, patterns: patterns, scans: newPatternScanner(DefaultMaxInputBytesPolicy, e, rules, nil, nil)}, nil
+}
+
+func baselineTitleRules() []Rule {
 	rules := make([]Rule, 0, len(Rules))
 	for _, rule := range Rules {
 		minimum, ok := effectiveMinimumLevel(rule)
@@ -57,11 +69,7 @@ func newTitlePipelineWithEngine(e engine) (*TitlePipeline, error) {
 			rules = append(rules, rule)
 		}
 	}
-	patterns, err := compileRulePatterns(e, rules, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-	return &TitlePipeline{rules: rules, patterns: patterns, scans: newPatternScanner(DefaultMaxInputBytesPolicy, e, rules, nil, nil)}, nil
+	return rules
 }
 
 // Generate cleans markup owned by the supplied harness, sanitizes the result,

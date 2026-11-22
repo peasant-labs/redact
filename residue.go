@@ -201,6 +201,9 @@ func newResidueDetector(e engine) (ResidueDetector, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := verifyCompiledPatterns(patterns, nil, nil, ResidueRules); err != nil {
+		return nil, err
+	}
 	return &DefaultResidueDetector{patterns: patterns}, nil
 }
 

@@ -156,6 +156,11 @@ func newRedactorWithEngine(e engine, level RedactionLevel, userPatterns []UserPa
 	if err != nil {
 		return nil, err
 	}
+	// Re-check the live tables so a rule appended after the compile snapshot
+	// cannot start up with a hole that would panic at lookup.
+	if err := verifyCompiledPatterns(patterns, Rules, userRules, ResidueRules); err != nil {
+		return nil, err
+	}
 
 	var anon ASTAnonymizer
 	if level == Maximum {
